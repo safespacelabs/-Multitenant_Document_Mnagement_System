@@ -4,8 +4,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database Configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@db:5432/multitenant_db")
+# Management Database Configuration (Neon)
+MANAGEMENT_DATABASE_URL = os.getenv(
+    "MANAGEMENT_DATABASE_URL", 
+    "postgresql://multitenant-db_owner:npg_X7gKCTze2PAS@ep-lively-pond-a6gik9pf-pooler.us-west-2.aws.neon.tech/multitenant-db?sslmode=require&channel_binding=require"
+)
+
+# Legacy Database URL (for backward compatibility)
+DATABASE_URL = os.getenv("DATABASE_URL", MANAGEMENT_DATABASE_URL)
+
+# Neon API Configuration
+NEON_API_KEY = os.getenv("NEON_API_KEY", "napi_4i48sb5ucqaiqkg60dct8bstompozmxnmfplr5cefr3x1qb6990p57kg17vuzt42")
+NEON_PROJECT_ID = os.getenv("NEON_PROJECT_ID")  # Will be extracted from database URL if needed
+
+# Database Pool Configuration
 DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
 DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))
 
@@ -17,7 +29,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
 # AWS S3 Configuration
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+AWS_REGION = os.getenv("AWS_REGION", "us-west-1")
 AWS_S3_BUCKET_PREFIX = os.getenv("AWS_S3_BUCKET_PREFIX", "company-docs")
 
 # Anthropic AI Configuration
@@ -42,4 +54,24 @@ def is_file_size_allowed(file_size: int) -> bool:
 
 # Helper function to get CORS origins as list
 def get_cors_origins() -> List[str]:
-    return [origin.strip() for origin in CORS_ORIGINS] 
+    return [origin.strip() for origin in CORS_ORIGINS]
+
+# Helper function to extract project ID from Neon database URL
+def extract_neon_project_id(database_url: str) -> str:
+    """Extract Neon project ID from database URL"""
+    try:
+        # Neon URLs typically contain the project ID in the host
+        # Format: ep-{endpoint-id}-{project-id}.{region}.aws.neon.tech
+        if "neon.tech" in database_url:
+            host_part = database_url.split("@")[1].split("/")[0].split(":")[0]
+            # Extract project ID from endpoint (usually last part before region)
+            parts = host_part.split("-")
+            if len(parts) >= 3:
+                return "-".join(parts[2:]).split(".")[0]
+    except Exception:
+        pass
+    return NEON_PROJECT_ID or ""
+
+# Auto-extract project ID if not explicitly set
+if not NEON_PROJECT_ID:
+    NEON_PROJECT_ID = extract_neon_project_id(MANAGEMENT_DATABASE_URL) 

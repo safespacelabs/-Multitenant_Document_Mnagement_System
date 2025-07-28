@@ -7,6 +7,32 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+// Utility function to extract error messages from FastAPI validation errors
+export function extractErrorMessage(error, defaultMessage = 'An error occurred') {
+  if (!error.response?.data) {
+    return defaultMessage;
+  }
+
+  const data = error.response.data;
+  
+  // Check if detail is a string
+  if (typeof data.detail === 'string') {
+    return data.detail;
+  }
+  
+  // Check if detail is an array of validation errors
+  if (Array.isArray(data.detail)) {
+    return data.detail.map(err => err.msg || err.message || 'Validation error').join(', ');
+  }
+  
+  // Check if the response is directly an array of validation errors
+  if (Array.isArray(data)) {
+    return data.map(err => err.msg || err.message || 'Validation error').join(', ');
+  }
+  
+  return defaultMessage;
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [company, setCompany] = useState(null);
@@ -17,25 +43,71 @@ export function AuthProvider({ children }) {
     const savedUser = localStorage.getItem('user');
     const savedCompany = localStorage.getItem('company');
 
-    if (token && savedUser && savedCompany) {
+    if (token && savedUser) {
       setUser(JSON.parse(savedUser));
-      setCompany(JSON.parse(savedCompany));
+      // Company might be null for system users
+      if (savedCompany && savedCompany !== 'null') {
+        setCompany(JSON.parse(savedCompany));
+      }
     }
     setLoading(false);
   }, []);
 
-  const login = async (credentials) => {
-    const response = await authAPI.login(credentials);
-    const { access_token, user: userData, company: companyData } = response.data;
-    
-    localStorage.setItem('access_token', access_token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('company', JSON.stringify(companyData));
-    
-    setUser(userData);
-    setCompany(companyData);
-    
-    return response.data;
+  const login = async (credentials, companyId = null) => {
+    try {
+      const payload = { ...credentials };
+      if (companyId) {
+        payload.company_id = companyId;
+      }
+      
+      const response = await authAPI.login(payload);
+      const { access_token, user: userData, company: companyData } = response.data;
+      
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      
+      // For system users, company might be null
+      if (companyData) {
+        localStorage.setItem('company', JSON.stringify(companyData));
+        setCompany(companyData);
+      } else {
+        localStorage.removeItem('company');
+        setCompany(null);
+      }
+      
+      setUser(userData);
+      
+      return { user: userData, company: companyData };
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  };
+
+  const systemAdminLogin = async (credentials) => {
+    try {
+      const response = await authAPI.systemAdminLogin(credentials);
+      const { access_token, user: userData, company: companyData, permissions } = response.data;
+      
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      
+      // For system users, company is typically null
+      if (companyData) {
+        localStorage.setItem('company', JSON.stringify(companyData));
+        setCompany(companyData);
+      } else {
+        localStorage.removeItem('company');
+        setCompany(null);
+      }
+      
+      setUser(userData);
+      
+      return { user: userData, company: companyData, permissions };
+    } catch (error) {
+      console.error('System admin login error:', error);
+      throw error;
+    }
   };
 
   const register = async (userData) => {
@@ -64,6 +136,7 @@ export function AuthProvider({ children }) {
     user,
     company,
     login,
+    systemAdminLogin,
     register,
     logout,
     loading

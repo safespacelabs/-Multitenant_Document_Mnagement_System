@@ -1,19 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { documentsAPI } from '../../services/api';
-import { FileText, Download, Trash2, Calendar, User, Tag } from 'lucide-react';
+import { FileText, Download, Trash2, Calendar, User, Tag, Folder, Filter } from 'lucide-react';
+import DocumentESignatureIntegration from '../ESignature/DocumentESignatureIntegration';
+import { useAuth } from '../../utils/auth';
 
 function DocumentList() {
   const [documents, setDocuments] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [selectedFolder, setSelectedFolder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Get user context for e-signature permissions
+  const { user } = useAuth();
 
   useEffect(() => {
+    loadFolders();
     loadDocuments();
   }, []);
 
+  useEffect(() => {
+    loadDocuments();
+  }, [selectedFolder]);
+
+  const loadFolders = async () => {
+    try {
+      const response = await documentsAPI.folders();
+      setFolders(response.data);
+    } catch (error) {
+      console.error('Failed to load folders:', error);
+    }
+  };
+
   const loadDocuments = async () => {
     try {
-      const response = await documentsAPI.list();
+      const response = await documentsAPI.list(selectedFolder);
       setDocuments(response.data);
     } catch (error) {
       setError('Failed to load documents');
@@ -30,6 +51,8 @@ function DocumentList() {
     try {
       await documentsAPI.delete(documentId);
       setDocuments(documents.filter(doc => doc.id !== documentId));
+      // Reload folders in case this was the last document in a folder
+      loadFolders();
     } catch (error) {
       alert('Failed to delete document');
     }
@@ -80,10 +103,40 @@ function DocumentList() {
   return (
     <div className="bg-white rounded-lg shadow">
       <div className="p-6 border-b border-gray-200">
-        <h2 className="text-2xl font-bold flex items-center">
-          <FileText className="h-6 w-6 mr-2 text-blue-500" />
-          Documents ({documents.length})
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold flex items-center">
+            <FileText className="h-6 w-6 mr-2 text-blue-500" />
+            Documents ({documents.length})
+          </h2>
+          
+          {/* Folder Filter */}
+          <div className="flex items-center space-x-3">
+            <Filter className="h-4 w-4 text-gray-500" />
+            <select
+              value={selectedFolder || ''}
+              onChange={(e) => setSelectedFolder(e.target.value || null)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Folders</option>
+              <option value="">Root Folder</option>
+              {folders.map((folder) => (
+                <option key={folder} value={folder}>
+                  {folder}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Current Folder Display */}
+        {selectedFolder !== null && (
+          <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+            <Folder className="h-4 w-4" />
+            <span>
+              Current folder: {selectedFolder === '' ? 'Root Folder' : selectedFolder}
+            </span>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -129,6 +182,13 @@ function DocumentList() {
                           <Tag className="h-4 w-4 mr-1" />
                           {document.file_type}
                         </span>
+                        
+                        {document.folder_name && (
+                          <span className="flex items-center">
+                            <Folder className="h-4 w-4 mr-1" />
+                            {document.folder_name}
+                          </span>
+                        )}
                         
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           document.processed 
@@ -187,6 +247,19 @@ function DocumentList() {
                   </div>
 
                   <div className="flex items-center space-x-2 ml-4">
+                    {/* E-Signature Integration */}
+                    {user && (
+                      <DocumentESignatureIntegration
+                        document={document}
+                        userRole={user.role}
+                        userId={user.id}
+                        onSignatureRequestCreated={(signatureRequest) => {
+                          // Optional: Show success notification or update UI
+                          console.log('Signature request created:', signatureRequest);
+                        }}
+                      />
+                    )}
+                    
                     <button
                       onClick={() => handleDelete(document.id)}
                       className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"

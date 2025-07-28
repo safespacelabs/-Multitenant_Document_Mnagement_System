@@ -52,16 +52,17 @@ class AnthropicService:
             Only return the JSON, no other text.
             """
             
-            # Use the correct API method
-            response = self.client.completions.create(
+            # Use the correct messages API for Claude 3
+            response = self.client.messages.create(
                 model="claude-3-sonnet-20240229",
-                max_tokens_to_sample=1000,
+                max_tokens=1000,
                 temperature=0.1,
-                prompt=prompt
+                messages=[{"role": "user", "content": prompt}]
             )
             
             # Parse the JSON response
-            metadata = json.loads(response.completion)
+            response_text = response.content[0].text if response.content else ""
+            metadata = json.loads(response_text)
             metadata["processed_at"] = str(datetime.now())
             metadata["filename"] = filename
             

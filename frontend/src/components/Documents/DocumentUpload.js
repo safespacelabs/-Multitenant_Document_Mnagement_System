@@ -1,11 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { documentsAPI } from '../../services/api';
-import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, FolderPlus, Folder } from 'lucide-react';
 
 function DocumentUpload({ onUploadComplete }) {
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
+  const [selectedFolder, setSelectedFolder] = useState('');
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [folders, setFolders] = useState([]);
+
+  useEffect(() => {
+    loadFolders();
+  }, []);
+
+  const loadFolders = async () => {
+    try {
+      const response = await documentsAPI.folders();
+      setFolders(response.data);
+    } catch (error) {
+      console.error('Failed to load folders:', error);
+    }
+  };
 
   const onDrop = async (acceptedFiles) => {
     if (acceptedFiles.length === 0) return;
@@ -15,8 +32,20 @@ function DocumentUpload({ onUploadComplete }) {
     setUploadStatus(null);
 
     try {
-      await documentsAPI.upload(file);
+      const folderToUse = showCreateFolder ? newFolderName.trim() : selectedFolder || null;
+      await documentsAPI.upload(file, folderToUse);
       setUploadStatus({ type: 'success', message: 'Document uploaded successfully!' });
+      
+      // Reset form
+      setSelectedFolder('');
+      setShowCreateFolder(false);
+      setNewFolderName('');
+      
+      // Reload folders in case a new one was created
+      if (folderToUse && !folders.includes(folderToUse)) {
+        loadFolders();
+      }
+      
       if (onUploadComplete) onUploadComplete();
     } catch (error) {
       setUploadStatus({ 
@@ -40,6 +69,60 @@ function DocumentUpload({ onUploadComplete }) {
         <Upload className="h-6 w-6 mr-2 text-blue-500" />
         Upload Document
       </h2>
+
+      {/* Folder Selection */}
+      <div className="mb-6 space-y-4">
+        <div className="flex items-center space-x-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Folder (optional)
+            </label>
+            <select
+              value={selectedFolder}
+              onChange={(e) => setSelectedFolder(e.target.value)}
+              disabled={showCreateFolder}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+            >
+              <option value="">Root Folder</option>
+              {folders.map((folder) => (
+                <option key={folder} value={folder}>
+                  {folder}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={() => setShowCreateFolder(!showCreateFolder)}
+              className={`px-4 py-2 rounded-md flex items-center space-x-2 transition-colors ${
+                showCreateFolder
+                  ? 'bg-gray-200 text-gray-700'
+                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              }`}
+            >
+              <FolderPlus className="h-4 w-4" />
+              <span>{showCreateFolder ? 'Cancel' : 'New Folder'}</span>
+            </button>
+          </div>
+        </div>
+
+        {showCreateFolder && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              New Folder Name
+            </label>
+            <input
+              type="text"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              placeholder="Enter folder name"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        )}
+      </div>
 
       <div
         {...getRootProps()}
@@ -65,6 +148,16 @@ function DocumentUpload({ onUploadComplete }) {
             </p>
             <p className="text-gray-500">or click to select a file</p>
             <p className="text-sm text-gray-400 mt-2">Max file size: 10MB</p>
+            
+            {/* Show selected folder info */}
+            {(selectedFolder || (showCreateFolder && newFolderName)) && (
+              <div className="mt-3 flex items-center justify-center text-sm text-gray-600">
+                <Folder className="h-4 w-4 mr-1" />
+                <span>
+                  Uploading to: {showCreateFolder ? newFolderName || 'New Folder' : selectedFolder || 'Root Folder'}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>

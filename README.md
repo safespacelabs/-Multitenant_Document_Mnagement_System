@@ -118,7 +118,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 # AWS S3
 AWS_ACCESS_KEY_ID=your-aws-access-key-id
 AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
-AWS_REGION=us-east-1
+AWS_REGION=us-west-1
 
 # Anthropic AI
 ANTHROPIC_API_KEY=your-anthropic-api-key-here
@@ -514,3 +514,13 @@ For support and questions:
 ---
 
 **Made with ❤️ by [Your Team Name]** 
+
+
+
+Here are all the user-related URLs in your system:
+Login: http://localhost:3000/login
+Register: http://localhost:3000/register
+Password Setup: http://localhost:3000/setup-password/[unique-id]
+Dashboard: http://localhost:3000/dashboard
+Companies: http://localhost:3000/companies
+Company Registration: http://localhost:3000/companies/new

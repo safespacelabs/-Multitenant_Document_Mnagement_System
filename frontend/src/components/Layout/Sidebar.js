@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, MessageCircle, BarChart3, Users, Settings } from 'lucide-react';
+import { FileText, MessageCircle, BarChart3, Users, Settings, Building2, Crown, FileSignature } from 'lucide-react';
 import { useAuth } from '../../utils/auth';
 
 function Sidebar({ activeTab, setActiveTab }) {
@@ -11,6 +11,12 @@ function Sidebar({ activeTab, setActiveTab }) {
       label: 'Documents',
       icon: FileText,
       description: 'Upload and manage files'
+    },
+    {
+      id: 'esignature',
+      label: 'E-Signature',
+      icon: FileSignature,
+      description: 'Manage digital signatures'
     },
     {
       id: 'chat',
@@ -27,13 +33,34 @@ function Sidebar({ activeTab, setActiveTab }) {
     }
   ];
 
-  // Add admin-only items
-  if (user?.role === 'admin') {
+  // Add role-based items
+  if (user?.role === 'system_admin') {
     menuItems.push({
-      id: 'users',
+      id: 'system-admins',
+      label: 'System Admins',
+      icon: Crown,
+      description: 'Manage system administrators',
+      adminOnly: true,
+      isSystemAdmin: true
+    });
+  }
+  
+  if (['hr_admin', 'hr_manager'].includes(user?.role)) {
+    menuItems.push({
+      id: 'users',  
       label: 'Users',
       icon: Users,
       description: 'Manage team members',
+      adminOnly: true
+    });
+  }
+  
+  if (['system_admin', 'hr_admin'].includes(user?.role)) {
+    menuItems.push({
+      id: 'companies',
+      label: 'Companies',
+      icon: Building2,
+      description: 'Manage all companies',
       adminOnly: true
     });
   }
@@ -60,7 +87,12 @@ function Sidebar({ activeTab, setActiveTab }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2">
                     <span className="font-medium">{item.label}</span>
-                    {item.adminOnly && (
+                    {item.isSystemAdmin && (
+                      <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded">
+                        System
+                      </span>
+                    )}
+                    {item.adminOnly && !item.isSystemAdmin && (
                       <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
                         Admin
                       </span>
@@ -91,7 +123,7 @@ function Sidebar({ activeTab, setActiveTab }) {
               <span className="font-medium text-gray-800">0 MB</span>
             </div>
             
-            {user?.role === 'admin' && (
+            {['system_admin', 'hr_admin', 'hr_manager'].includes(user?.role) && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Team Members</span>
                 <span className="font-medium text-gray-800">1</span>

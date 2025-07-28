@@ -2,16 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import { chatAPI } from '../../services/api';
 import { Send, Bot, User, Loader } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { useAuth } from '../../utils/auth';
+import SystemChatbot from './SystemChatbot';
 
 function Chatbot() {
+  const { user, company } = useAuth();
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    loadChatHistory();
-  }, []);
+    // Only load chat history for company users, not system admins
+    if (user.role !== 'system_admin' && company) {
+      loadChatHistory();
+    }
+  }, [user.role, company]);
 
   useEffect(() => {
     scrollToBottom();
@@ -22,6 +28,10 @@ function Chatbot() {
   };
 
   const loadChatHistory = async () => {
+    if (user.role === 'system_admin' || !company) {
+      return;
+    }
+    
     try {
       const response = await chatAPI.getHistory();
       const history = response.data.slice(0, 10).reverse();
@@ -38,6 +48,18 @@ function Chatbot() {
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!inputMessage.trim() || loading) return;
+
+    // Prevent system admins from sending messages
+    if (user.role === 'system_admin' || !company) {
+      const errorMessage = {
+        type: 'bot',
+        content: 'System administrators cannot access company chat. Please use system-level features.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      setInputMessage('');
+      return;
+    }
 
     const userMessage = { type: 'user', content: inputMessage, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
@@ -63,6 +85,35 @@ function Chatbot() {
       setLoading(false);
     }
   };
+
+  // Show system chatbot for system admins
+  if (user.role === 'system_admin') {
+    return <SystemChatbot />;
+  }
+
+  // Require company context
+  if (!company) {
+    return (
+      <div className="bg-white rounded-lg shadow h-[calc(100vh-12rem)] flex flex-col">
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-2xl font-bold flex items-center">
+            <Bot className="h-6 w-6 mr-2 text-blue-500" />
+            Document Assistant
+          </h2>
+          <p className="text-gray-600 text-sm">
+            Company context required for chat
+          </p>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-gray-500">
+            <Bot className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p>Chat requires a company context.</p>
+            <p className="text-sm mt-2">Please ensure you're properly logged in to a company.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow h-[calc(100vh-12rem)] flex flex-col">

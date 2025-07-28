@@ -32,8 +32,17 @@ function Login() {
     setError('');
 
     try {
-      await login(formData);
-      navigate('/dashboard');
+      const response = await login(formData);
+      const { user, company } = response;
+      
+      // Redirect based on user type
+      if (user.role === 'system_admin' || !company) {
+        // System users go to companies management
+        navigate('/companies');
+      } else {
+        // Company users go to dashboard
+        navigate('/dashboard');
+      }
     } catch (error) {
       setError(error.response?.data?.detail || 'Login failed');
     } finally {

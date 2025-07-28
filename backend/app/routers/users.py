@@ -1,199 +1,341 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from app.database import get_db
-from app import models, schemas, auth
+
+from app.database import get_management_db, get_company_db
+from app import models, schemas
+from app import auth as auth_utils
+from app.models_company import User as CompanyUser
+from app.utils.permissions import has_permission, Permission
 from app.utils.helpers import validate_email, validate_password
 
 router = APIRouter()
 
-@router.get("/", response_model=List[schemas.UserResponse])
+@router.get("/", response_model=List[schemas.CompanyUserResponse])
 async def list_users(
-    current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
+    current_user: CompanyUser = Depends(auth_utils.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
 ):
-    # Only admins can list all users in their company
-    if current_user.role != "admin":
+    # Only users with management permissions can list users
+    user_role = str(current_user.role)
+    can_list = (
+        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
+        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
+        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
+    )
+    if not can_list:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can list users"
+            detail="You don't have permission to view users"
         )
     
-    users = db.query(models.User).filter(
-        models.User.company_id == current_user.company_id,
-        models.User.is_active == True
-    ).all()
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
     
-    return users
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        users = company_db.query(CompanyUser).filter(
+            CompanyUser.is_active == True
+        ).all()
+        
+        return users
 
-@router.get("/{user_id}", response_model=schemas.UserResponse)
+    finally:
+        company_db.close()
+
+@router.get("/{user_id}", response_model=schemas.CompanyUserResponse)
 async def get_user(
     user_id: str,
-    current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
+    current_user: CompanyUser = Depends(auth_utils.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
 ):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
     
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
     
-    # Users can only view their own profile or admins can view any user in their company
-    if current_user.role != "admin" and current_user.id != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
     
-    if user.company_id != current_user.company_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    try:
+        user = company_db.query(CompanyUser).filter(CompanyUser.id == user_id).first()
     
-    return user
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Users can only view their own profile or managers can view users they can manage
+        user_role = str(current_user.role)
+        can_view_others = (
+            has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
+            has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
+            has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
+        )
+        if not can_view_others and str(current_user.id) != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        return user
 
-@router.put("/{user_id}", response_model=schemas.UserResponse)
+    finally:
+        company_db.close()
+
+@router.put("/{user_id}", response_model=schemas.CompanyUserResponse)
 async def update_user(
     user_id: str,
     user_update: schemas.UserUpdate,
-    current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
+    current_user: CompanyUser = Depends(auth_utils.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
 ):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
     
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
     
-    # Users can only update their own profile or admins can update any user in their company
-    if current_user.role != "admin" and current_user.id != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
     
-    if user.company_id != current_user.company_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    try:
+        user = company_db.query(CompanyUser).filter(CompanyUser.id == user_id).first()
     
-    # Update user fields
-    update_data = user_update.dict(exclude_unset=True)
-    
-    # Validate email if being updated
-    if "email" in update_data:
-        if not validate_email(update_data["email"]):
-            raise HTTPException(status_code=400, detail="Invalid email format")
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
         
-        # Check if email already exists
-        existing_user = db.query(models.User).filter(
-            models.User.email == update_data["email"],
-            models.User.id != user_id
-        ).first()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Hash password if being updated
-    if "password" in update_data:
-        is_valid, message = validate_password(update_data["password"])
-        if not is_valid:
-            raise HTTPException(status_code=400, detail=message)
-        update_data["hashed_password"] = auth.get_password_hash(update_data["password"])
-        del update_data["password"]
-    
-    # Only admins can update role
-    if "role" in update_data and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only administrators can update user roles")
-    
-    for field, value in update_data.items():
-        setattr(user, field, value)
-    
-    db.commit()
-    db.refresh(user)
-    
-    return user
+        # Users can only update their own profile or managers can update users they can manage
+        user_role = str(current_user.role)
+        can_update_others = (
+            has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
+            has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
+            has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
+        )
+        if not can_update_others and str(current_user.id) != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Update user fields
+        update_data = user_update.dict(exclude_unset=True)
+        
+        # Validate email if being updated
+        if "email" in update_data:
+            if not validate_email(update_data["email"]):
+                raise HTTPException(status_code=400, detail="Invalid email format")
+            
+            # Check if email already exists in company
+            existing_user = company_db.query(CompanyUser).filter(
+                CompanyUser.email == update_data["email"],
+                CompanyUser.id != user_id
+            ).first()
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Hash password if being updated
+        if "password" in update_data:
+            is_valid, message = validate_password(update_data["password"])
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=message)
+            update_data["hashed_password"] = auth_utils.get_password_hash(update_data["password"])
+            del update_data["password"]
+        
+        # Only users with appropriate management permissions can update role
+        if "role" in update_data:
+            user_role = str(current_user.role)
+            can_update_roles = (
+                has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
+                has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
+                has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
+            )
+            if not can_update_roles:
+                raise HTTPException(status_code=403, detail="You don't have permission to update user roles")
+        
+        for field, value in update_data.items():
+            setattr(user, field, value)
+        
+        company_db.commit()
+        company_db.refresh(user)
+        
+        return user
+        
+    finally:
+        company_db.close()
 
 @router.delete("/{user_id}")
 async def delete_user(
     user_id: str,
-    current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
+    current_user: CompanyUser = Depends(auth_utils.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
 ):
-    # Only admins can delete users
-    if current_user.role != "admin":
+    # Only users with management permissions can delete users
+    user_role = str(current_user.role)
+    can_delete = (
+        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
+        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
+        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
+    )
+    if not can_delete:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can delete users"
+            detail="You don't have permission to delete users"
         )
     
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
     
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
     
-    if user.company_id != current_user.company_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
     
-    # Prevent admin from deleting themselves
-    if user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    try:
+        user = company_db.query(CompanyUser).filter(CompanyUser.id == user_id).first()
     
-    # Soft delete - set is_active to False
-    user.is_active = False
-    db.commit()
-    
-    return {"message": "User deleted successfully"}
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Prevent admin from deleting themselves
+        if user.id == current_user.id:
+            raise HTTPException(status_code=400, detail="Cannot delete your own account")
+        
+        # Soft delete - set is_active to False
+        user.is_active = False
+        company_db.commit()
+        
+        return {"message": "User deleted successfully"}
+        
+    finally:
+        company_db.close()
 
 @router.post("/{user_id}/activate")
 async def activate_user(
     user_id: str,
-    current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
+    current_user: CompanyUser = Depends(auth_utils.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
 ):
-    # Only admins can activate users
-    if current_user.role != "admin":
+    # Only users with management permissions can activate users
+    user_role = str(current_user.role)
+    can_activate = (
+        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
+        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
+        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
+    )
+    if not can_activate:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can activate users"
+            detail="You don't have permission to activate users"
         )
     
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
     
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
     
-    if user.company_id != current_user.company_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
     
-    user.is_active = True
-    db.commit()
+    try:
+        user = company_db.query(CompanyUser).filter(CompanyUser.id == user_id).first()
     
-    return {"message": "User activated successfully"}
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user.is_active = True
+        company_db.commit()
+        
+        return {"message": "User activated successfully"}
+        
+    finally:
+        company_db.close()
 
-@router.get("/stats/company")
-async def get_company_user_stats(
-    current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
+@router.get("/stats/overview")
+async def get_user_stats(
+    current_user: CompanyUser = Depends(auth_utils.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
 ):
-    # Only admins can view stats
-    if current_user.role != "admin":
+    # Only users with management permissions can view stats
+    user_role = str(current_user.role)
+    can_view_stats = (
+        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
+        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
+        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
+    )
+    if not can_view_stats:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can view user statistics"
+            detail="You don't have permission to view user statistics"
         )
     
-    total_users = db.query(models.User).filter(
-        models.User.company_id == current_user.company_id
-    ).count()
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
     
-    active_users = db.query(models.User).filter(
-        models.User.company_id == current_user.company_id,
-        models.User.is_active == True
-    ).count()
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
     
-    admin_users = db.query(models.User).filter(
-        models.User.company_id == current_user.company_id,
-        models.User.role == "admin",
-        models.User.is_active == True
-    ).count()
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
     
-    employee_users = db.query(models.User).filter(
-        models.User.company_id == current_user.company_id,
-        models.User.role == "employee",
-        models.User.is_active == True
-    ).count()
-    
-    return {
-        "total_users": total_users,
-        "active_users": active_users,
-        "admin_users": admin_users,
-        "employee_users": employee_users
-    } 
+    try:
+        total_users = company_db.query(CompanyUser).count()
+        active_users = company_db.query(CompanyUser).filter(CompanyUser.is_active == True).count()
+        inactive_users = total_users - active_users
+        
+        # Count by roles
+        hr_admins = company_db.query(CompanyUser).filter(CompanyUser.role == 'hr_admin').count()
+        hr_managers = company_db.query(CompanyUser).filter(CompanyUser.role == 'hr_manager').count()
+        employees = company_db.query(CompanyUser).filter(CompanyUser.role == 'employee').count()
+        customers = company_db.query(CompanyUser).filter(CompanyUser.role == 'customer').count()
+        
+        return {
+            "total_users": total_users,
+            "active_users": active_users,
+            "inactive_users": inactive_users,
+            "roles": {
+                "hr_admin": hr_admins,
+                "hr_manager": hr_managers,
+                "employee": employees,
+                "customer": customers
+            }
+        }
+        
+    finally:
+        company_db.close() 
