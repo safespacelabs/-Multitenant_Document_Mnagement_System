@@ -1,14 +1,10 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import sys
-import os
+import json
 
-# Add the backend app directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend', 'app'))
-
-# Create a new FastAPI instance for Vercel
-app = FastAPI(title="Document Management System API")
+# Create FastAPI app
+app = FastAPI()
 
 # Add CORS middleware
 app.add_middleware(
@@ -19,7 +15,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check endpoints
 @app.get("/")
 async def root():
     return {"message": "Document Management System API", "status": "healthy"}
@@ -28,23 +23,41 @@ async def root():
 async def health():
     return {"status": "healthy", "service": "document-management-api"}
 
-# Import and include your app's routes
-try:
-    from main import app as backend_app
-    # Include all routes from backend
-    app.include_router(backend_app.router, prefix="/api")
-    print("✅ Successfully imported backend app")
-except ImportError as e:
-    print(f"❌ Could not import backend app: {e}")
-    # Add basic API endpoints for testing
-    @app.get("/api/test")
-    async def test():
-        return {"message": "API is working", "error": "Backend not imported"}
-    
-    @app.get("/api/companies")
-    async def companies():
-        return {"message": "Companies endpoint", "error": "Backend not imported"}
-    
-    @app.get("/api/auth/login")
-    async def login():
-        return {"message": "Login endpoint", "error": "Backend not imported"} 
+@app.get("/api/test")
+async def test():
+    return {"message": "API is working", "status": "success"}
+
+@app.get("/api/companies")
+async def companies():
+    # Mock response for testing
+    return {
+        "companies": [
+            {"id": 1, "name": "SafespaceLabs", "is_active": True},
+            {"id": 2, "name": "Microsoft", "is_active": True},
+            {"id": 3, "name": "Amazon", "is_active": True}
+        ]
+    }
+
+@app.get("/api/companies/public")
+async def companies_public():
+    # Mock response for testing
+    return {
+        "companies": [
+            {"id": 1, "name": "SafespaceLabs", "is_active": True},
+            {"id": 2, "name": "Microsoft", "is_active": True},
+            {"id": 3, "name": "Amazon", "is_active": True}
+        ]
+    }
+
+@app.post("/api/auth/login")
+async def login():
+    return {"message": "Login endpoint", "status": "mock"}
+
+@app.post("/api/auth/system-admin/login")
+async def system_admin_login():
+    return {"message": "System admin login endpoint", "status": "mock"}
+
+# Vercel serverless function handler
+def handler(request, context):
+    """Vercel serverless function entry point"""
+    return app(request, context) 
