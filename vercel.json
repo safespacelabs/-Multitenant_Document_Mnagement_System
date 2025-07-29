@@ -5,27 +5,27 @@
       "src": "frontend/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "build",
-        "installCommand": "cd frontend && npm install",
-        "buildCommand": "cd frontend && CI=false npm run build"
+        "distDir": "build"
       }
     },
     {
-      "src": "api/index.py",
+      "src": "api/test.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/index.py"
+      "dest": "/api/test.py"
     },
     {
       "src": "/(.*)",
       "dest": "/frontend/$1"
     }
   ],
-  "env": {
-    "PYTHONPATH": "backend/app"
+  "functions": {
+    "api/test.py": {
+      "runtime": "python3.9"
+    }
   }
 } 
