@@ -9,23 +9,18 @@
       }
     },
     {
-      "src": "api/index.py",
+      "src": "api/test.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/index.py"
+      "dest": "/api/test.py"
     },
     {
       "src": "/(.*)",
       "dest": "/frontend/$1"
     }
-  ],
-  "functions": {
-    "api/index.py": {
-      "runtime": "python3.9"
-    }
-  }
+  ]
 } 
