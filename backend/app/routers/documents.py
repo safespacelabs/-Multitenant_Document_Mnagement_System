@@ -13,7 +13,7 @@ from app import models, schemas
 from app import auth
 from app.models_company import Document as CompanyDocument, User as CompanyUser
 from app.services.aws_service import aws_service
-from app.services.anthropic_service import anthropic_service
+from app.services.groq_service import groq_service
 from ..schemas import DocumentResponse, DocumentCreate, SystemDocumentResponse, SystemDocumentCreate
 from ..models import SystemDocument, SystemUser
 from ..database import get_management_db
@@ -151,9 +151,9 @@ async def upload_document(
         company_db.commit()
         company_db.refresh(document)
         
-        # Process document with Anthropic API in background
+        # Process document with Groq API in background
         try:
-            metadata = await anthropic_service.extract_document_metadata(file_content, file.filename)
+            metadata = await groq_service.extract_document_metadata(file_content, file.filename)
             # Update the document attributes directly using text() for raw SQL
             company_db.execute(
                 text("UPDATE documents SET metadata_json = :metadata, processed = :processed WHERE id = :doc_id"),
@@ -466,9 +466,9 @@ async def upload_system_document(
         management_db.commit()
         management_db.refresh(document)
         
-        # Process document with Anthropic API in background
+        # Process document with Groq API in background
         try:
-            metadata = await anthropic_service.extract_document_metadata(file_content, file.filename)
+            metadata = await groq_service.extract_document_metadata(file_content, file.filename)
             # Update document with metadata using SQLAlchemy update
             management_db.query(SystemDocument).filter(SystemDocument.id == document.id).update({
                 'metadata_json': metadata,

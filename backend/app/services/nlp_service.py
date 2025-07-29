@@ -2,7 +2,7 @@ import spacy
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from app.models_company import User as CompanyUser, Document as CompanyDocument
-from app.services.anthropic_service import anthropic_service
+from app.services.groq_service import groq_service
 from app.services.intelligent_ai_service import intelligent_ai_service
 import json
 
@@ -135,16 +135,16 @@ User Query: {query}
 Please provide a helpful response as a System Administrator Assistant.
 """
 
-            # Use the anthropic service to generate a response
-            response = anthropic_service.client.messages.create(
-                model="claude-3-sonnet-20240229",
+            # Use the groq service to generate a response
+            response = groq_service.client.chat.completions.create(
+                model=groq_service.model,
                 max_tokens=1000,
                 temperature=0.1,
                 messages=[{"role": "user", "content": prompt}]
             )
             
-            # Extract text from the response content (same pattern as anthropic_service.py)
-            response_text = response.content[0].text if response.content else ""  # type: ignore
+            # Extract text from the response content
+            response_text = response.choices[0].message.content if response.choices else ""
             return response_text or "I apologize, but I couldn't generate a response at this time."
             
         except Exception as e:

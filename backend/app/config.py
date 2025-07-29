@@ -15,7 +15,10 @@ DATABASE_URL = os.getenv("DATABASE_URL", MANAGEMENT_DATABASE_URL)
 
 # Neon API Configuration
 NEON_API_KEY = os.getenv("NEON_API_KEY", "napi_4i48sb5ucqaiqkg60dct8bstompozmxnmfplr5cefr3x1qb6990p57kg17vuzt42")
-NEON_PROJECT_ID = os.getenv("NEON_PROJECT_ID")  # Will be extracted from database URL if needed
+NEON_PROJECT_ID = os.getenv("NEON_PROJECT_ID", "black-truth-25223398")  # Correct project ID from Neon Console
+
+# If you're having issues with project ID extraction, you can temporarily hardcode it here:
+# NEON_PROJECT_ID = "your-exact-project-id-from-neon-console"
 
 # Database Pool Configuration
 DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
@@ -32,8 +35,9 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION", "us-west-1")
 AWS_S3_BUCKET_PREFIX = os.getenv("AWS_S3_BUCKET_PREFIX", "company-docs")
 
-# Anthropic AI Configuration
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+# Groq AI Configuration
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3-32b")
 
 # Application Configuration
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
@@ -61,17 +65,23 @@ def extract_neon_project_id(database_url: str) -> str:
     """Extract Neon project ID from database URL"""
     try:
         # Neon URLs typically contain the project ID in the host
-        # Format: ep-{endpoint-id}-{project-id}.{region}.aws.neon.tech
+        # Format: ep-{endpoint-name}-{project-id}-pooler.{region}.aws.neon.tech
         if "neon.tech" in database_url:
             host_part = database_url.split("@")[1].split("/")[0].split(":")[0]
-            # Extract project ID from endpoint (usually last part before region)
-            parts = host_part.split("-")
-            if len(parts) >= 3:
-                return "-".join(parts[2:]).split(".")[0]
+            # Find the part that ends with '-pooler' and extract the 8-char ID before it
+            if '-pooler.' in host_part:
+                # Split by '-pooler.' and take the part before it
+                before_pooler = host_part.split('-pooler.')[0]
+                # The project ID is the last 8-character part
+                parts = before_pooler.split('-')
+                # Look for the last 8-character alphanumeric part
+                for part in reversed(parts):
+                    if len(part) == 8 and part.isalnum():
+                        return part
     except Exception:
         pass
     return NEON_PROJECT_ID or ""
 
 # Auto-extract project ID if not explicitly set
-if not NEON_PROJECT_ID:
+if not NEON_PROJECT_ID and not os.getenv("NEON_PROJECT_ID"):
     NEON_PROJECT_ID = extract_neon_project_id(MANAGEMENT_DATABASE_URL) 

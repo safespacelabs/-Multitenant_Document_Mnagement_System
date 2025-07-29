@@ -5,15 +5,15 @@ import json
 import re
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
-from app.config import ANTHROPIC_API_KEY
-from app.services.anthropic_service import anthropic_service
+from app.config import GROQ_API_KEY
+from app.services.groq_service import groq_service
 from app import models
 from app.auth import get_password_hash
 
 
 class IntelligentAIService:
     def __init__(self):
-        self.has_anthropic_key = bool(ANTHROPIC_API_KEY)
+        self.has_groq_key = bool(GROQ_API_KEY)
         
     def process_system_query(self, query: str, user_id: str, management_db: Session) -> Dict[str, Any]:
         """
@@ -1604,14 +1604,14 @@ User Query: {query}
 Provide a comprehensive response as a System Administrator Assistant.
 """
 
-        response = anthropic_service.client.messages.create(
-            model="claude-3-sonnet-20240229",
+        response = groq_service.client.chat.completions.create(
+            model=groq_service.model,
             max_tokens=1000,
             temperature=0.1,
             messages=[{"role": "user", "content": prompt}]
         )
         
-        return response.content[0].text if response.content else "I apologize, but I couldn't generate a response."  # type: ignore
+        return response.choices[0].message.content if response.choices else "I apologize, but I couldn't generate a response."
     
     def _generate_enhanced_response(self, query: str, context: dict) -> str:
         """Generate enhanced response with task execution hints."""
@@ -2042,27 +2042,24 @@ Ready for more detailed testing!""",
             except Exception as e:
                 results["aws_s3"] = {"status": f"❌ Failed: {str(e)}"}
             
-            # Test Anthropic API
+            # Test Groq API
             try:
-                from app.config import ANTHROPIC_API_KEY
-                if ANTHROPIC_API_KEY:
-                    import anthropic
-                    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-                    message = client.messages.create(
-                        model="claude-3-haiku-20240307",
-                        max_tokens=10,
-                        messages=[{"role": "user", "content": "test"}]
-                    )
-                    results["anthropic"] = {"status": "✅ Connected"}
+                from app.config import GROQ_API_KEY
+                if GROQ_API_KEY:
+                    test_result = groq_service.test_connection()
+                    if test_result["success"]:
+                        results["groq"] = {"status": "✅ Connected"}
+                    else:
+                        results["groq"] = {"status": f"❌ Failed: {test_result.get('error', 'Unknown error')}"}
                 else:
-                    results["anthropic"] = {"status": "⚠️ No API key configured"}
+                    results["groq"] = {"status": "⚠️ No API key configured"}
             except Exception as e:
-                results["anthropic"] = {"status": f"❌ Failed: {str(e)}"}
+                results["groq"] = {"status": f"❌ Failed: {str(e)}"}
             
             response_text = f"🔐 **External API Credentials Test**\n\n"
             response_text += f"**Neon Database API:**\n   {results['neon_api']['status']}\n\n"
             response_text += f"**AWS S3:**\n   {results['aws_s3']['status']}\n\n"
-            response_text += f"**Anthropic AI:**\n   {results['anthropic']['status']}\n\n"
+            response_text += f"**Groq AI:**\n   {results['groq']['status']}\n\n"
             
             passed = len([r for r in results.values() if "✅" in r["status"]])
             total = len(results)
