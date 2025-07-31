@@ -15,7 +15,7 @@ class IntelligentAIService:
     def __init__(self):
         self.has_groq_key = bool(GROQ_API_KEY)
         
-    def process_system_query(self, query: str, user_id: str, management_db: Session) -> Dict[str, Any]:
+    async def process_system_query(self, query: str, user_id: str, management_db: Session) -> Dict[str, Any]:
         """
         Process system query with both intelligent responses and task execution.
         Returns: {
@@ -41,9 +41,9 @@ class IntelligentAIService:
                 }
             
             # If no task, provide intelligent response
-            if self.has_anthropic_key:
+            if self.has_groq_key:
                 try:
-                    response = self._generate_intelligent_response(query, context)
+                    response = await self._generate_intelligent_response(query, context)
                     return {
                         "response": response,
                         "task_executed": False,
@@ -51,7 +51,7 @@ class IntelligentAIService:
                         "actions_available": self._get_available_actions()
                     }
                 except Exception as e:
-                    print(f"Anthropic API error: {e}")
+                    print(f"Groq API error: {e}")
                     # Fall back to enhanced basic response
                     
             # Enhanced basic response with task suggestions
@@ -1574,8 +1574,8 @@ Would you like to create a folder, upload a file, or get specific guidance?""",
         
         return None
     
-    def _generate_intelligent_response(self, query: str, context: dict) -> str:
-        """Generate intelligent response using Anthropic AI."""
+    async def _generate_intelligent_response(self, query: str, context: dict) -> str:
+        """Generate intelligent response using Groq AI."""
         system_prompt = f"""You are an Intelligent System Administrator Assistant with task execution capabilities.
 
 Current System Status:

@@ -18,7 +18,7 @@ class NLPService:
         """Process a query for company users with document context."""
         try:
             # For now, return a simple response
-            # In the future, this could use the anthropic service to provide more intelligent responses
+            # In the future, this could use the groq service to provide more intelligent responses
             
             context = self._get_document_context(user_id, company_id, db)
             
@@ -50,7 +50,7 @@ class NLPService:
             return f"I apologize, but I encountered an error processing your system query: {str(e)}"
 
     def _process_system_query_with_ai(self, query: str, context: dict) -> str:
-        """Process system query using Anthropic AI with system context."""
+        """Process system query using Groq AI with system context."""
         try:
             system_prompt = f"""You are a System Administrator Assistant for a multi-tenant document management system with comprehensive knowledge of all system sections.
 
@@ -91,7 +91,7 @@ SYSTEM SECTIONS AND CAPABILITIES:
 - Intelligent system administration guidance
 - Context-aware responses using real system data
 - Multi-topic assistance covering all system areas
-- Integration with Anthropic AI for advanced responses
+- Integration with Groq AI for advanced responses
 
 🔹 **Analytics Section**
 - System-wide analytics and reporting

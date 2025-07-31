@@ -11,6 +11,7 @@ class MockAWSService:
     def __init__(self):
         self.created_buckets = set()
         self.uploaded_files = {}
+        self.file_contents = {}  # bucket -> {file_key -> file_content}
         logger.info("Using Mock AWS Service - no real S3 operations will be performed")
     
     def _validate_bucket_name(self, bucket_name: str) -> bool:
@@ -137,11 +138,16 @@ class MockAWSService:
         if bucket_name not in self.uploaded_files:
             self.uploaded_files[bucket_name] = set()
         
+        if bucket_name not in self.file_contents:
+            self.file_contents[bucket_name] = {}
+        
         self.uploaded_files[bucket_name].add(file_key)
         
-        # Read the file data to simulate processing (but don't store it)
+        # Store the actual file content
         file_data.seek(0)
-        file_size = len(file_data.read())
+        file_content = file_data.read()
+        file_size = len(file_content)
+        self.file_contents[bucket_name][file_key] = file_content
         file_data.seek(0)
         
         logger.info(f"Mock: Uploaded file '{file_key}' ({file_size} bytes) to bucket '{bucket_name}'")
@@ -156,9 +162,15 @@ class MockAWSService:
         if bucket_name not in self.uploaded_files or file_key not in self.uploaded_files[bucket_name]:
             raise Exception(f"File {file_key} does not exist in bucket {bucket_name}")
         
-        # Return mock file content
-        logger.info(f"Mock: Downloaded file '{file_key}' from bucket '{bucket_name}'")
-        return b"Mock file content"
+        # Return the actual stored file content
+        if bucket_name in self.file_contents and file_key in self.file_contents[bucket_name]:
+            file_content = self.file_contents[bucket_name][file_key]
+            logger.info(f"Mock: Downloaded file '{file_key}' ({len(file_content)} bytes) from bucket '{bucket_name}'")
+            return file_content
+        else:
+            # Fallback to mock content if somehow content wasn't stored
+            logger.warning(f"Mock: File content not found for '{file_key}', returning mock content")
+            return b"Mock file content"
     
     async def delete_file(self, bucket_name: str, file_key: str):
         """Mock file deletion from S3"""
@@ -167,6 +179,9 @@ class MockAWSService:
         
         if bucket_name in self.uploaded_files and file_key in self.uploaded_files[bucket_name]:
             self.uploaded_files[bucket_name].remove(file_key)
+            # Also remove the stored content
+            if bucket_name in self.file_contents and file_key in self.file_contents[bucket_name]:
+                del self.file_contents[bucket_name][file_key]
             logger.info(f"Mock: Deleted file '{file_key}' from bucket '{bucket_name}'")
         else:
             logger.warning(f"Mock: File '{file_key}' not found in bucket '{bucket_name}'")
@@ -181,6 +196,8 @@ class MockAWSService:
         self.created_buckets.remove(bucket_name)
         if bucket_name in self.uploaded_files:
             del self.uploaded_files[bucket_name]
+        if bucket_name in self.file_contents:
+            del self.file_contents[bucket_name]
         
         logger.info(f"Mock: Deleted bucket '{bucket_name}' and all its contents")
         return True

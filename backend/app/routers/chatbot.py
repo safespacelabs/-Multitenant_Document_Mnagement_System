@@ -109,7 +109,7 @@ async def system_chat_with_bot(
     """System administrator chat endpoint."""
     try:
         # Process the question using intelligent AI service
-        ai_result = intelligent_ai_service.process_system_query(
+        ai_result = await intelligent_ai_service.process_system_query(
             query=chat_request.question,
             user_id=str(current_user.id),
             management_db=management_db

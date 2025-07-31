@@ -77,15 +77,15 @@ const ESignatureManager = ({ userRole, userId }) => {
   };
 
   const canCreateSignatureRequest = () => {
-    return ['system_admin', 'hr_admin', 'hr_manager', 'employee'].includes(userRole);
+    return ['system_admin', 'hr_admin', 'hr_manager', 'employee'].includes(userRole || '');
   };
 
   const canSendSignatureRequest = () => {
-    return ['system_admin', 'hr_admin', 'hr_manager', 'employee'].includes(userRole);
+    return ['system_admin', 'hr_admin', 'hr_manager', 'employee'].includes(userRole || '');
   };
 
   const canCancelSignatureRequest = (request) => {
-    if (['hr_admin', 'hr_manager'].includes(userRole)) return true;
+    if (['hr_admin', 'hr_manager'].includes(userRole || '')) return true;
     return request.created_by_user_id === userId;
   };
 
@@ -95,12 +95,12 @@ const ESignatureManager = ({ userRole, userId }) => {
     const currentUserEmail = currentUser.email || '';
     
     // System admins can sign any document that's in a signable state
-    if (userRole === 'system_admin') {
+    if ((userRole || '') === 'system_admin') {
       return ['sent', 'signed'].includes(request.status);
     }
     
-    // Find if current user is a recipient
-    const userRecipient = request.recipients?.find(recipient => 
+    // Find if current user is a recipient (with safety check)
+    const userRecipient = (request.recipients || []).find(recipient => 
       recipient.email === currentUserEmail
     );
     
@@ -160,6 +160,74 @@ const ESignatureManager = ({ userRole, userId }) => {
     alert('Document signed successfully!');
   };
 
+  const viewSignatureStatus = async (requestId) => {
+    try {
+      const response = await api.get(`/api/esignature/${requestId}/status`);
+      const statusData = response.data;
+      
+      // Create a modal to display the status information
+      const statusModal = document.createElement('div');
+      statusModal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50';
+      statusModal.innerHTML = `
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+          <div class="mt-3 text-center">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Signature Request Status</h3>
+            <div class="mt-4 text-left">
+              <div class="mb-4">
+                <h4 class="font-semibold text-gray-700">Document Information:</h4>
+                <p><strong>Title:</strong> ${statusData.title}</p>
+                <p><strong>Status:</strong> <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">${statusData.status}</span></p>
+                <p><strong>Message:</strong> ${statusData.message || 'N/A'}</p>
+                <p><strong>Created:</strong> ${new Date(statusData.created_at).toLocaleString()}</p>
+                <p><strong>Expires:</strong> ${new Date(statusData.expires_at).toLocaleString()}</p>
+              </div>
+              
+              <div class="mb-4">
+                <h4 class="font-semibold text-gray-700 mb-2">Recipients:</h4>
+                ${statusData.recipients.map(recipient => `
+                  <div class="flex items-center justify-between p-2 border rounded mb-2">
+                    <div>
+                      <p class="font-medium">${recipient.full_name}</p>
+                      <p class="text-sm text-gray-600">${recipient.email}</p>
+                      <p class="text-xs text-gray-500">Role: ${recipient.role || 'N/A'}</p>
+                    </div>
+                    <div class="text-right">
+                      ${recipient.is_signed ? 
+                        `<span class="text-green-600 font-medium">✓ Signed</span><br>
+                         <span class="text-xs text-gray-500">${new Date(recipient.signed_at).toLocaleString()}</span>` :
+                        '<span class="text-gray-500">○ Pending</span>'
+                      }
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+            
+            <div class="flex space-x-3 pt-4 border-t">
+              <button onclick="this.closest('.fixed').remove()" 
+                      class="flex-1 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(statusModal);
+      
+      // Close modal when clicking outside
+      statusModal.addEventListener('click', (e) => {
+        if (e.target === statusModal) {
+          statusModal.remove();
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error fetching signature status:', error);
+      alert('Failed to load signature status');
+    }
+  };
+
   // Role-specific use case buttons
   const getRoleSpecificActions = () => {
     const actions = [];
@@ -177,7 +245,7 @@ const ESignatureManager = ({ userRole, userId }) => {
       );
     }
 
-    if (['hr_admin', 'hr_manager'].includes(userRole)) {
+    if (['hr_admin', 'hr_manager'].includes(userRole || '')) {
       actions.push(
         <button
           key="contract"
@@ -190,7 +258,7 @@ const ESignatureManager = ({ userRole, userId }) => {
       );
     }
 
-    if (['hr_manager', 'employee'].includes(userRole)) {
+    if (['hr_manager', 'employee'].includes(userRole || '')) {
       actions.push(
         <button
           key="budget"
@@ -203,7 +271,7 @@ const ESignatureManager = ({ userRole, userId }) => {
       );
     }
 
-    if (['employee', 'customer', 'hr_manager', 'hr_admin'].includes(userRole)) {
+    if (['employee', 'customer', 'hr_manager', 'hr_admin'].includes(userRole || '')) {
       actions.push(
         <button
           key="customer"
@@ -240,7 +308,7 @@ const ESignatureManager = ({ userRole, userId }) => {
       {/* Role-specific information banner */}
       <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <h3 className="text-sm font-medium text-blue-800 mb-2">
-          E-Signature Use Cases for {userRole.charAt(0).toUpperCase() + userRole.slice(1).replace('_', ' ')}
+          E-Signature Use Cases for {(userRole || 'user').charAt(0).toUpperCase() + (userRole || 'user').slice(1).replace('_', ' ')}
         </h3>
         <div className="text-sm text-blue-700">
           {userRole === 'hr_admin' && (
@@ -327,7 +395,7 @@ const ESignatureManager = ({ userRole, userId }) => {
                       </div>
                       <div className="mt-1 flex items-center text-sm text-gray-500">
                         <Users className="w-4 h-4 mr-1" />
-                        <span>{request.recipients.length} recipient(s)</span>
+                        <span>{request.recipients?.length || 0} recipient(s)</span>
                         <span className="mx-2">•</span>
                         <span>Expires: {new Date(request.expires_at).toLocaleDateString()}</span>
                       </div>
@@ -338,7 +406,7 @@ const ESignatureManager = ({ userRole, userId }) => {
                   </div>
                   <div className="flex items-center space-x-2">
                     <button
-                      onClick={() => window.open(`/api/esignature/${request.id}/status`, '_blank')}
+                      onClick={() => viewSignatureStatus(request.id)}
                       className="text-blue-600 hover:text-blue-800"
                       title="View Status"
                     >
@@ -389,24 +457,24 @@ const ESignatureManager = ({ userRole, userId }) => {
                 
                 {/* Recipients preview */}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {request.recipients.slice(0, 3).map((recipient, index) => (
+                  {(request.recipients || []).slice(0, 3).map((recipient, index) => (
                     <span
                       key={index}
                       className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        request.signed_by.includes(recipient.email)
+                        recipient.is_signed
                           ? 'bg-green-100 text-green-800'
                           : 'bg-gray-100 text-gray-800'
                       }`}
                     >
                       {recipient.full_name}
-                      {request.signed_by.includes(recipient.email) && (
+                      {recipient.is_signed && (
                         <CheckCircle className="w-3 h-3 ml-1" />
                       )}
                     </span>
                   ))}
-                  {request.recipients.length > 3 && (
+                  {(request.recipients?.length || 0) > 3 && (
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      +{request.recipients.length - 3} more
+                      +{(request.recipients?.length || 0) - 3} more
                     </span>
                   )}
                 </div>

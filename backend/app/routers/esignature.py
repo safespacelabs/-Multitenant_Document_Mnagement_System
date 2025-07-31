@@ -611,11 +611,59 @@ async def sign_document_directly(
                 detail="Direct document signing is only available for system administrators"
             )
         
-        # Check if document exists
-        from app.models_company import Document
-        document = db.query(Document).filter(Document.id == document_id).first()
+        # Check if document exists - handle both system documents and company documents
+        document = None
+        if document_id.startswith("sysdoc_"):
+            # This is a system document, query from management database
+            from .. import models
+            from ..database import get_management_db
+            management_db_gen = get_management_db()
+            management_db = next(management_db_gen)
+            try:
+                document = management_db.query(models.SystemDocument).filter(
+                    models.SystemDocument.id == document_id
+                ).first()
+            finally:
+                management_db.close()
+        else:
+            # This is a company document, query from company database
+            from app.models_company import Document
+            document = db.query(Document).filter(Document.id == document_id).first()
+        
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
+        
+        # For system admins, we need to ensure they exist in the company database
+        # or use a different approach for their signatures
+        system_admin_user_id = None
+        
+        if user_role == 'system_admin':
+            # Check if system admin already exists in company database
+            from app.models_company import User as CompanyUser
+            existing_user = db.query(CompanyUser).filter(
+                CompanyUser.email == current_user.email
+            ).first()
+            
+            if not existing_user:
+                # Create a temporary system admin user record in company database
+                temp_system_user = CompanyUser(
+                    id=f"temp_sysadmin_{current_user.id}",
+                    username=f"sysadmin_{current_user.username}",
+                    email=current_user.email,
+                    full_name=current_user.full_name,
+                    role="system_admin",
+                    s3_folder="system_admin",
+                    password_set=True,
+                    is_active=True,
+                    created_at=datetime.utcnow()
+                )
+                db.add(temp_system_user)
+                db.flush()  # Ensure the user is created before using the ID
+                system_admin_user_id = temp_system_user.id
+            else:
+                system_admin_user_id = existing_user.id
+        else:
+            system_admin_user_id = current_user.id
         
         # Create a simple e-signature document entry
         esign_doc = ESignatureDocument(
@@ -623,7 +671,7 @@ async def sign_document_directly(
             title=f"Direct Signature: {document.original_filename}",
             message="Document signed directly by system administrator",
             status="completed",
-            created_by_user_id=current_user.id,
+            created_by_user_id=system_admin_user_id,
             require_all_signatures=False,
             expires_at=datetime.utcnow() + timedelta(days=365),  # Far future expiry
             completed_at=datetime.utcnow(),
@@ -864,6 +912,213 @@ async def sign_document(
         logger.error(f"❌ Error signing document: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to sign document: {str(e)}")
 
+# Helper functions for PDF processing
+def add_signature_to_pdf(original_pdf_path: str, esign_doc_id: str, db: Session):
+    """Add signature overlay to existing PDF from file path"""
+    try:
+        with open(original_pdf_path, 'rb') as f:
+            pdf_content = f.read()
+        return add_signature_to_pdf_from_bytes(pdf_content, esign_doc_id, db)
+    except Exception as e:
+        logger.error(f"Error reading PDF file: {str(e)}")
+        with open(original_pdf_path, 'rb') as f:
+            return f.read()
+
+def add_signature_to_pdf_from_bytes(pdf_content: bytes, esign_doc_id: str, db: Session):
+    """Add signature overlay to existing PDF from bytes"""
+    try:
+        from PyPDF2 import PdfReader, PdfWriter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from io import BytesIO
+        
+        # Get signature information
+        recipients = db.query(ESignatureRecipient).filter(
+            ESignatureRecipient.esignature_document_id == esign_doc_id
+        ).all()
+        
+        # Read original PDF from bytes
+        pdf_stream = BytesIO(pdf_content)
+        reader = PdfReader(pdf_stream)
+        writer = PdfWriter()
+        
+        # Create signature overlay
+        packet = BytesIO()
+        can = canvas.Canvas(packet, pagesize=letter)
+        width, height = letter
+        
+        # Add signature box in bottom right corner
+        box_x, box_y = width - 250, 50
+        box_width, box_height = 240, 100
+        
+        # Draw signature box background
+        can.setFillColorRGB(0.95, 0.95, 0.95)
+        can.rect(box_x, box_y, box_width, box_height, fill=1)
+        
+        # Add signature content
+        can.setFillColorRGB(0, 0, 0)
+        can.setFont("Helvetica-Bold", 10)
+        can.drawString(box_x + 5, box_y + box_height - 15, "ELECTRONICALLY SIGNED")
+        
+        y_offset = 25
+        for recipient in recipients:
+            if recipient.is_signed:
+                can.setFont("Helvetica", 8)
+                can.drawString(box_x + 5, box_y + box_height - y_offset, f"✓ {recipient.signature_text}")
+                can.drawString(box_x + 5, box_y + box_height - y_offset - 10, f"By: {recipient.full_name}")
+                can.drawString(box_x + 5, box_y + box_height - y_offset - 20, f"Date: {recipient.signed_at.strftime('%Y-%m-%d %H:%M')}")
+                y_offset += 35
+        
+        can.save()
+        packet.seek(0)
+        
+        # Create overlay PDF
+        overlay_pdf = PdfReader(packet)
+        
+        # Add overlay to last page of original PDF
+        for i, page in enumerate(reader.pages):
+            if i == len(reader.pages) - 1:  # Last page
+                page.merge_page(overlay_pdf.pages[0])
+            writer.add_page(page)
+        
+        # Output to bytes
+        output_stream = BytesIO()
+        writer.write(output_stream)
+        output_stream.seek(0)
+        
+        return output_stream.getvalue()
+        
+    except Exception as e:
+        logger.error(f"Error adding signature to PDF: {str(e)}")
+        # Fallback to original content
+        return pdf_content
+
+def convert_and_sign_document(file_path: str, original_filename: str, esign_doc_id: str, db: Session):
+    """Convert non-PDF document to PDF and add signature from file path"""
+    try:
+        with open(file_path, 'rb') as f:
+            file_content = f.read()
+        return convert_and_sign_document_from_bytes(file_content, original_filename, esign_doc_id, db)
+    except Exception as e:
+        logger.error(f"Error reading file: {str(e)}")
+        return create_signature_certificate_pdf(esign_doc_id, None, db)
+
+def convert_and_sign_document_from_bytes(file_content: bytes, original_filename: str, esign_doc_id: str, db: Session):
+    """Convert non-PDF document to PDF and add signature from bytes"""
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from io import BytesIO
+        
+        # Get signature information
+        recipients = db.query(ESignatureRecipient).filter(
+            ESignatureRecipient.esignature_document_id == esign_doc_id
+        ).all()
+        
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        # Add document header
+        p.setFont("Helvetica-Bold", 16)
+        p.drawString(100, height - 50, f"SIGNED DOCUMENT: {original_filename}")
+        
+        # Try to read text content for text files
+        try:
+            # Decode bytes content as text
+            text_content = file_content.decode('utf-8')
+            content_lines = text_content.splitlines()[:50]  # First 50 lines
+                
+            y_pos = height - 100
+            p.setFont("Helvetica", 10)
+            for line in content_lines:
+                if y_pos < 200:  # Leave space for signature
+                    break
+                p.drawString(100, y_pos, line.strip()[:80])  # Limit line length
+                y_pos -= 15
+                
+        except Exception:
+            # If can't decode as text, just show file info
+            p.setFont("Helvetica", 12)
+            p.drawString(100, height - 100, f"Original file: {original_filename}")
+            p.drawString(100, height - 120, f"File size: {len(file_content)} bytes")
+            p.drawString(100, height - 140, "File content could not be displayed in PDF format.")
+        
+        # Add signature section
+        sig_y = 150
+        p.setFont("Helvetica-Bold", 14)
+        p.drawString(100, sig_y, "ELECTRONIC SIGNATURES:")
+        
+        sig_y -= 30
+        for recipient in recipients:
+            if recipient.is_signed:
+                p.setFont("Helvetica-Bold", 12)
+                p.drawString(120, sig_y, f"✓ {recipient.signature_text}")
+                p.setFont("Helvetica", 10)
+                p.drawString(120, sig_y - 15, f"Signed by: {recipient.full_name} ({recipient.email})")
+                p.drawString(120, sig_y - 30, f"Date: {recipient.signed_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                sig_y -= 60
+        
+        p.save()
+        return buffer.getvalue()
+        
+    except Exception as e:
+        logger.error(f"Error converting and signing document: {str(e)}")
+        return create_signature_certificate_pdf(esign_doc_id, None, db)
+
+def create_signature_certificate_pdf(esign_doc_id: str, original_doc, db: Session):
+    """Create a signature certificate PDF as fallback"""
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from io import BytesIO
+    
+    # Get signature document info
+    esign_doc = db.query(ESignatureDocument).filter(
+        ESignatureDocument.id == esign_doc_id
+    ).first()
+    
+    recipients = db.query(ESignatureRecipient).filter(
+        ESignatureRecipient.esignature_document_id == esign_doc_id
+    ).all()
+    
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    
+    # Add signature information to PDF
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(100, height - 80, "ELECTRONIC SIGNATURE CERTIFICATE")
+    
+    p.setFont("Helvetica", 12)
+    if original_doc:
+        p.drawString(100, height - 120, f"Original Document: {original_doc.original_filename}")
+    p.drawString(100, height - 140, f"Signature Request ID: {esign_doc_id}")
+    p.drawString(100, height - 160, f"Status: {esign_doc.status}")
+    p.drawString(100, height - 180, f"Title: {esign_doc.title}")
+    p.drawString(100, height - 200, f"Signed Date: {esign_doc.completed_at or 'N/A'}")
+    
+    # Add recipient information
+    y_pos = height - 250
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(100, y_pos, "SIGNATURES:")
+    y_pos -= 30
+    
+    for recipient in recipients:
+        if recipient.is_signed:
+            p.setFont("Helvetica-Bold", 12)
+            p.drawString(120, y_pos, f"✓ {recipient.full_name} ({recipient.email})")
+            p.setFont("Helvetica", 10)
+            p.drawString(120, y_pos - 15, f"  Signed: {recipient.signed_at}")
+            p.drawString(120, y_pos - 30, f"  Signature: {recipient.signature_text}")
+            y_pos -= 60
+        else:
+            p.setFont("Helvetica", 10)
+            p.drawString(120, y_pos, f"○ {recipient.full_name} ({recipient.email}) - Not signed")
+            y_pos -= 30
+    
+    p.save()
+    return buffer.getvalue()
+
 @router.get("/{esign_doc_id}/download-signed")
 async def download_signed_document(
     esign_doc_id: str,
@@ -906,13 +1161,95 @@ async def download_signed_document(
                     detail="You can only download your own signature requests or requests you're a recipient of"
                 )
         
+        # Get the original document content
+        document_id = esign_doc.document_id
+        document_content = None
+        document_filename = "signed_document.pdf"
+        original_doc = None
+        
+        try:
+            if document_id.startswith("sysdoc_"):
+                # This is a system document, query from management database
+                from .. import models
+                from ..database import get_management_db
+                management_db_gen = get_management_db()
+                management_db = next(management_db_gen)
+                try:
+                    original_doc = management_db.query(models.SystemDocument).filter(
+                        models.SystemDocument.id == document_id
+                    ).first()
+                finally:
+                    management_db.close()
+            else:
+                # This is a company document, query from company database
+                from app.models_company import Document
+                original_doc = db.query(Document).filter(Document.id == document_id).first()
+            
+            if original_doc:
+                document_filename = f"signed_{original_doc.original_filename}"
+                
+                # Try to read the actual file content
+                import os
+                file_path = original_doc.file_path
+                
+                # Handle S3 URLs vs local file paths
+                if file_path.startswith('s3://'):
+                    # File is stored in S3, download it first
+                    try:
+                        from ..services.aws_service import aws_service
+                        from io import BytesIO
+                        
+                        # Parse S3 URL to get bucket and key
+                        s3_path = file_path.replace('s3://', '')
+                        bucket_name = s3_path.split('/')[0]
+                        s3_key = '/'.join(s3_path.split('/')[1:])
+                        
+                        # Download file from S3
+                        file_content = await aws_service.download_file(bucket_name, s3_key)
+                        
+                        # Get the original file extension
+                        file_extension = os.path.splitext(original_doc.original_filename)[1].lower()
+                        
+                        if file_extension == '.pdf':
+                            # Original is PDF - overlay signature on it
+                            document_content = add_signature_to_pdf_from_bytes(file_content, esign_doc_id, db)
+                        else:
+                            # Original is not PDF - convert to PDF and add signature
+                            document_content = convert_and_sign_document_from_bytes(file_content, original_doc.original_filename, esign_doc_id, db)
+                            
+                    except Exception as s3_error:
+                        logger.warning(f"Could not download file from S3: {str(s3_error)}")
+                        # Fall back to certificate
+                        document_content = create_signature_certificate_pdf(esign_doc_id, original_doc, db)
+                        
+                elif os.path.exists(file_path):
+                    # File is stored locally
+                    file_extension = os.path.splitext(original_doc.original_filename)[1].lower()
+                    
+                    if file_extension == '.pdf':
+                        # Original is PDF - overlay signature on it
+                        document_content = add_signature_to_pdf(file_path, esign_doc_id, db)
+                    else:
+                        # Original is not PDF - convert to PDF and add signature
+                        document_content = convert_and_sign_document(file_path, original_doc.original_filename, esign_doc_id, db)
+                else:
+                    # If file doesn't exist locally, create a PDF with signature info
+                    document_content = create_signature_certificate_pdf(esign_doc_id, original_doc, db)
+            
+        except Exception as e:
+            logger.warning(f"Could not retrieve original document content: {str(e)}")
+            # Create a fallback PDF with signature information
+            document_content = create_signature_certificate_pdf(esign_doc_id, original_doc, db)
+            document_filename = f"signed_document_{esign_doc_id}.pdf"
+        
         # Add audit log
         audit_log = ESignatureAuditLog(
             esignature_document_id=esign_doc_id,
             action="downloaded",
             user_email=current_user.email,
             details=json.dumps({
-                "downloaded_by_role": user_role
+                "downloaded_by_role": user_role,
+                "filename": document_filename
             }),
             created_at=datetime.utcnow()
         )
@@ -921,9 +1258,9 @@ async def download_signed_document(
         
         from fastapi.responses import Response
         return Response(
-            content=b"Mock signed document content",
+            content=document_content or b"No document content available",
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=signed_document_{esign_doc_id}.pdf"}
+            headers={"Content-Disposition": f"attachment; filename={document_filename}"}
         )
         
     except HTTPException:
