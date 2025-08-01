@@ -2,7 +2,9 @@ import axios from 'axios';
 
 // Use relative paths in development (proxy will forward to backend)
 // Use absolute URL in production
-const API_BASE_URL = process.env.NODE_ENV === 'development' ? '' : (process.env.REACT_APP_API_URL || 'http://localhost:8000');
+//const API_BASE_URL = process.env.NODE_ENV === 'development' ? '' : (process.env.REACT_APP_API_URL || 'http://localhost:8000');
+// Temporarily using absolute URL to bypass proxy issues
+const API_BASE_URL = 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
