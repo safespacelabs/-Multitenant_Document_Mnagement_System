@@ -1,0 +1,43 @@
+# Railway Environment Variables Template
+# Set up these variables in your Railway dashboard for each service
+
+# Database Configuration
+DATABASE_URL=your_neon_database_url_here
+MANAGEMENT_DATABASE_URL=your_neon_database_url_here
+
+# Security
+SECRET_KEY=your_super_secret_key_for_production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# AWS Configuration
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key  
+AWS_REGION=us-east-1
+
+# AI Services
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=qwen/qwen3-32b
+
+# Neon Database (if using)
+NEON_API_KEY=your_neon_api_key
+NEON_PROJECT_ID=your_neon_project_id
+
+# Email Service Configuration
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SENDER_EMAIL=your_sender_email@domain.com
+SENDER_PASSWORD=your_email_app_password
+SENDER_NAME=Document Management System
+
+# Application Settings (UPDATE AFTER DEPLOYMENT)
+APP_URL=https://your-frontend-app.railway.app
+CORS_ORIGINS=https://your-frontend-app.railway.app,https://your-domain.com
+
+# Feature Flags
+ENABLE_EMAIL_NOTIFICATIONS=true
+ENABLE_DOCUMENT_NOTIFICATIONS=true
+ENABLE_ESIGNATURE_NOTIFICATIONS=true
+
+# Railway Specific
+PORT=8000

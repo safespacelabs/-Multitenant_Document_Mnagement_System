@@ -264,6 +264,7 @@ class ESignatureSignRequest(BaseModel):
     signature_text: Optional[str] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
+    recipient_email: Optional[str] = None  # For direct signing from email
 
 class ESignatureResponse(BaseModel):
     id: str

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { documentsAPI } from '../../services/api';
+import { documentsAPI, systemDocumentsAPI } from '../../services/api';
 import { Upload, FileText, CheckCircle, AlertCircle, FolderPlus, Folder } from 'lucide-react';
+import { useAuth } from '../../utils/auth';
 
 function DocumentUpload({ onUploadComplete }) {
   const [uploading, setUploading] = useState(false);
@@ -10,6 +11,9 @@ function DocumentUpload({ onUploadComplete }) {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [folders, setFolders] = useState([]);
+  
+  // Get user context for API routing
+  const { user } = useAuth();
 
   useEffect(() => {
     loadFolders();
@@ -17,7 +21,13 @@ function DocumentUpload({ onUploadComplete }) {
 
   const loadFolders = async () => {
     try {
-      const response = await documentsAPI.folders();
+      let response;
+      // Check if user is a system user
+      if (user?.role === 'system_admin') {
+        response = { data: await systemDocumentsAPI.getFolders() };
+      } else {
+        response = await documentsAPI.folders();
+      }
       setFolders(response.data);
     } catch (error) {
       console.error('Failed to load folders:', error);
@@ -33,7 +43,13 @@ function DocumentUpload({ onUploadComplete }) {
 
     try {
       const folderToUse = showCreateFolder ? newFolderName.trim() : selectedFolder || null;
-      await documentsAPI.upload(file, folderToUse);
+      
+      // Check if user is a system user
+      if (user?.role === 'system_admin') {
+        await systemDocumentsAPI.upload(file, folderToUse);
+      } else {
+        await documentsAPI.upload(file, folderToUse);
+      }
       setUploadStatus({ type: 'success', message: 'Document uploaded successfully!' });
       
       // Reset form
@@ -84,7 +100,7 @@ function DocumentUpload({ onUploadComplete }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
             >
               <option value="">Root Folder</option>
-              {folders.map((folder) => (
+              {Array.isArray(folders) && folders.map((folder) => (
                 <option key={folder} value={folder}>
                   {folder}
                 </option>

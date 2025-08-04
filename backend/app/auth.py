@@ -219,9 +219,8 @@ async def get_current_company_user(
 
             company_db.close()
             
-        except Exception:
+        except Exception as e:
             continue
-    
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Company user not found",

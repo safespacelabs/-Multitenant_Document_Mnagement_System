@@ -6,7 +6,7 @@ from app.database import get_management_db, get_company_db
 from app import models, schemas
 from app import auth as auth_utils
 from app.models_company import User as CompanyUser
-from app.utils.permissions import has_permission, Permission
+from app.utils.permissions import has_permission, Permission, get_manageable_roles
 from app.utils.helpers import validate_email, validate_password
 
 router = APIRouter()
@@ -18,11 +18,9 @@ async def list_users(
 ):
     # Only users with management permissions can list users
     user_role = str(current_user.role)
-    can_list = (
-        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-    )
+    manageable_roles = get_manageable_roles(user_role)
+    can_list = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
+    
     if not can_list:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -83,11 +81,9 @@ async def get_user(
         
         # Users can only view their own profile or managers can view users they can manage
         user_role = str(current_user.role)
-        can_view_others = (
-            has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-            has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-            has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-        )
+        manageable_roles = get_manageable_roles(user_role)
+        can_view_others = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
+        
         if not can_view_others and str(current_user.id) != user_id:
             raise HTTPException(status_code=403, detail="Access denied")
         
@@ -126,11 +122,9 @@ async def update_user(
         
         # Users can only update their own profile or managers can update users they can manage
         user_role = str(current_user.role)
-        can_update_others = (
-            has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-            has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-            has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-        )
+        manageable_roles = get_manageable_roles(user_role)
+        can_update_others = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
+        
         if not can_update_others and str(current_user.id) != user_id:
             raise HTTPException(status_code=403, detail="Access denied")
         
@@ -161,11 +155,9 @@ async def update_user(
         # Only users with appropriate management permissions can update role
         if "role" in update_data:
             user_role = str(current_user.role)
-            can_update_roles = (
-                has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-                has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-                has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-            )
+            manageable_roles = get_manageable_roles(user_role)
+            can_update_roles = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
+            
             if not can_update_roles:
                 raise HTTPException(status_code=403, detail="You don't have permission to update user roles")
         
@@ -188,11 +180,9 @@ async def delete_user(
 ):
     # Only users with management permissions can delete users
     user_role = str(current_user.role)
-    can_delete = (
-        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-    )
+    manageable_roles = get_manageable_roles(user_role)
+    can_delete = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
+    
     if not can_delete:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -241,11 +231,9 @@ async def activate_user(
 ):
     # Only users with management permissions can activate users
     user_role = str(current_user.role)
-    can_activate = (
-        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-    )
+    manageable_roles = get_manageable_roles(user_role)
+    can_activate = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
+    
     if not can_activate:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -288,11 +276,9 @@ async def get_user_stats(
 ):
     # Only users with management permissions can view stats
     user_role = str(current_user.role)
-    can_view_stats = (
-        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-    )
+    manageable_roles = get_manageable_roles(user_role)
+    can_view_stats = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
+    
     if not can_view_stats:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

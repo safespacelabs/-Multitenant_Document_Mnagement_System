@@ -293,6 +293,19 @@ const UserManagement = () => {
                             <p>Invited: {new Date(invitation.created_at).toLocaleString()}</p>
                             <p>Expires: {new Date(invitation.expires_at).toLocaleString()}</p>
                             <p>Unique ID: {invitation.unique_id}</p>
+                            <p>
+                              <span className="text-xs text-gray-500">Setup Link: </span>
+                              <button
+                                onClick={() => {
+                                  const link = `${window.location.origin}/setup-password/${invitation.unique_id}`;
+                                  navigator.clipboard.writeText(link);
+                                  alert('Invitation link copied to clipboard!');
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-800 underline"
+                              >
+                                Copy Link
+                              </button>
+                            </p>
                           </div>
                         </div>
                         <div className="flex space-x-2">

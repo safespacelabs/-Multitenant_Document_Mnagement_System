@@ -13,8 +13,14 @@ api.interceptors.request.use((config) => {
   // Skip authorization for public endpoints
   if (!config.url.includes('/public') && !config.url.includes('/system-admin/login')) {
     const token = localStorage.getItem('access_token');
+    console.log('🔍 API Request:', config.url);
+    console.log('🔑 Token from localStorage:', token ? token.substring(0, 50) + '...' : 'None');
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('✅ Authorization header set');
+    } else {
+      console.log('❌ No token found, request will fail');
     }
   }
   return config;
@@ -22,9 +28,15 @@ api.interceptors.request.use((config) => {
 
 // Handle auth errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('✅ API Response:', response.config.url, response.status);
+    return response;
+  },
   (error) => {
+    console.log('❌ API Error:', error.config?.url, error.response?.status, error.response?.data);
+    
     if (error.response?.status === 401) {
+      console.log('🔐 401 Unauthorized - clearing auth data');
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
       localStorage.removeItem('company');
@@ -70,7 +82,7 @@ const documentsAPI = {
   },
   list: (folderName = null) => {
     const params = folderName !== null ? { folder_name: folderName } : {};
-    return api.get('/api/documents', { params });
+    return api.get('/api/documents/', { params });
   },
   folders: () => api.get('/api/documents/folders'),
   get: (id) => api.get(`/api/documents/${id}`),
@@ -78,7 +90,7 @@ const documentsAPI = {
 };
 
 const usersAPI = {
-  list: () => api.get('/api/users'),
+  list: () => api.get('/api/users/'),
   get: (id) => api.get(`/api/users/${id}`),
   update: (id, userData) => api.put(`/api/users/${id}`, userData),
   delete: (id) => api.delete(`/api/users/${id}`),

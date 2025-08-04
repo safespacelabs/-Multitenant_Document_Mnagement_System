@@ -29,19 +29,38 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadQuickStats();
-  }, [user.role, company]);
+    // Only load stats if user is authenticated
+    if (user && user.username) {
+      console.log('👤 User loaded, loading stats...');
+      loadQuickStats();
+    } else {
+      console.log('⏳ Waiting for user to load...');
+    }
+  }, [user, company]);
 
   const loadQuickStats = async () => {
     try {
+      // Check if user is authenticated
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.log('❌ No authentication token found, skipping stats load');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('🔍 Loading quick stats for user:', user.username, 'role:', user.role);
+      
       const statsData = {};
       
       // Load documents count (only for company users, not system admins)
       if (user.role !== 'system_admin' && company) {
         try {
+          console.log('📄 Loading documents...');
           const documentsResponse = await documentsAPI.list();
           statsData.documentsCount = documentsResponse.data.length;
+          console.log('✅ Documents loaded:', statsData.documentsCount);
         } catch (err) {
+          console.error('❌ Failed to load documents:', err);
           statsData.documentsCount = 0;
         }
       }
@@ -49,9 +68,12 @@ const Dashboard = () => {
       // Load users count for management roles (company-specific, not system admin)
       if (['hr_admin', 'hr_manager'].includes(user.role) && company) {
         try {
+          console.log('👥 Loading users...');
           const usersResponse = await usersAPI.list();
           statsData.usersCount = usersResponse.data.length;
+          console.log('✅ Users loaded:', statsData.usersCount);
         } catch (err) {
+          console.error('❌ Failed to load users:', err);
           statsData.usersCount = 0;
         }
       }
@@ -59,9 +81,12 @@ const Dashboard = () => {
       // Load companies count for system admin
       if (user.role === 'system_admin') {
         try {
+          console.log('🏢 Loading companies...');
           const companiesResponse = await companiesAPI.list();
           statsData.companiesCount = companiesResponse.data.length;
+          console.log('✅ Companies loaded:', statsData.companiesCount);
         } catch (err) {
+          console.error('❌ Failed to load companies:', err);
           statsData.companiesCount = 0;
         }
       }

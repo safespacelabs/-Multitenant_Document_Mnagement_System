@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { documentsAPI } from '../../services/api';
+import { documentsAPI, systemDocumentsAPI } from '../../services/api';
 import { FileText, Download, Trash2, Calendar, User, Tag, Folder, Filter } from 'lucide-react';
 import DocumentESignatureIntegration from '../ESignature/DocumentESignatureIntegration';
 import { useAuth } from '../../utils/auth';
@@ -25,7 +25,13 @@ function DocumentList() {
 
   const loadFolders = async () => {
     try {
-      const response = await documentsAPI.folders();
+      let response;
+      // Check if user is a system user
+      if (user?.role === 'system_admin') {
+        response = { data: await systemDocumentsAPI.getFolders() };
+      } else {
+        response = await documentsAPI.folders();
+      }
       setFolders(response.data);
     } catch (error) {
       console.error('Failed to load folders:', error);
@@ -34,7 +40,13 @@ function DocumentList() {
 
   const loadDocuments = async () => {
     try {
-      const response = await documentsAPI.list(selectedFolder);
+      let response;
+      // Check if user is a system user
+      if (user?.role === 'system_admin') {
+        response = { data: await systemDocumentsAPI.list(selectedFolder) };
+      } else {
+        response = await documentsAPI.list(selectedFolder);
+      }
       setDocuments(response.data);
     } catch (error) {
       setError('Failed to load documents');
@@ -49,7 +61,12 @@ function DocumentList() {
     }
 
     try {
-      await documentsAPI.delete(documentId);
+      // Check if user is a system user
+      if (user?.role === 'system_admin') {
+        await systemDocumentsAPI.delete(documentId);
+      } else {
+        await documentsAPI.delete(documentId);
+      }
       setDocuments(documents.filter(doc => doc.id !== documentId));
       // Reload folders in case this was the last document in a folder
       loadFolders();
@@ -119,7 +136,7 @@ function DocumentList() {
             >
               <option value="">All Folders</option>
               <option value="">Root Folder</option>
-              {folders.map((folder) => (
+              {Array.isArray(folders) && folders.map((folder) => (
                 <option key={folder} value={folder}>
                   {folder}
                 </option>

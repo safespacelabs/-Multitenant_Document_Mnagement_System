@@ -355,8 +355,27 @@ def can_manage_role(role: str) -> bool:
     """Check if role can manage other roles (legacy compatibility)"""
     return role in ["system_admin", "hr_admin"]
 
+def get_manageable_roles(role: str) -> List[str]:
+    """Get list of roles that the current role can manage"""
+    role_hierarchy = {
+        "hr_admin": ["hr_manager", "employee", "customer"],
+        "hr_manager": ["employee", "customer"],
+        "employee": ["customer"],
+        "customer": []
+    }
+    return role_hierarchy.get(role, [])
+
 class Permission:
     """Legacy Permission class for compatibility"""
+    
+    # Define permission constants
+    MANAGE_ALL_COMPANY_USERS = "MANAGE_ALL_COMPANY_USERS"
+    MANAGE_EMPLOYEES_CUSTOMERS = "MANAGE_EMPLOYEES_CUSTOMERS"
+    MANAGE_CUSTOMERS_ONLY = "MANAGE_CUSTOMERS_ONLY"
+    VIEW_ALL_COMPANY_USERS = "VIEW_ALL_COMPANY_USERS"
+    VIEW_EMPLOYEES_CUSTOMERS = "VIEW_EMPLOYEES_CUSTOMERS"
+    VIEW_CUSTOMERS_ONLY = "VIEW_CUSTOMERS_ONLY"
+    
     def __init__(self, name: str, description: str = ""):
         self.name = name
         self.description = description

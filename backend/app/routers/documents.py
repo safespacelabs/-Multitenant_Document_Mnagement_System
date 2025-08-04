@@ -14,6 +14,7 @@ from app import auth
 from app.models_company import Document as CompanyDocument, User as CompanyUser
 from app.services.aws_service import aws_service
 from app.services.groq_service import groq_service
+from app.services.email_extensions import get_extended_email_service
 from ..schemas import DocumentResponse, DocumentCreate, SystemDocumentResponse, SystemDocumentCreate
 from ..models import SystemDocument, SystemUser
 from ..database import get_management_db
@@ -163,9 +164,52 @@ async def upload_document(
         except Exception as e:
             print(f"Failed to process document {document.id}: {str(e)}")
         
-        return document
+        # Send document upload notification to HR admins/managers
+        try:
+            email_service = get_extended_email_service(company.name)
+            
+            # Get HR admins and managers to notify
+            hr_users = company_db.query(CompanyUser).filter(
+                CompanyUser.role.in_(["hr_admin", "hr_manager"]),
+                CompanyUser.is_active == True,
+                CompanyUser.id != current_user.id  # Don't notify the uploader
+            ).all()
+            
+            for hr_user in hr_users:
+                try:
+                    await email_service.send_document_notification_email(
+                        recipient_email=hr_user.email,
+                        recipient_name=hr_user.full_name,
+                        document_name=file.filename,
+                        action="uploaded",
+                        company_name=company.name,
+                        sender_name=current_user.full_name or current_user.username
+                    )
+                except Exception as e:
+                    print(f"⚠️ Failed to send document notification to {hr_user.email}: {str(e)}")
+                    
+        except Exception as e:
+            print(f"⚠️ Error sending document notifications: {str(e)}")
+        
+        # Create a copy of the document data to avoid DetachedInstanceError
+        document_data = {
+            "id": document.id,
+            "filename": document.filename,
+            "original_filename": document.original_filename,
+            "file_path": document.file_path,
+            "file_size": document.file_size,
+            "file_type": document.file_type,
+            "folder_name": document.folder_name,
+            "user_id": document.user_id,
+            "processed": document.processed,
+            "metadata_json": document.metadata_json,
+            "created_at": document.created_at
+        }
+        
+        return document_data
         
     except Exception as e:
+        company_db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to upload document: {str(e)}")
     finally:
         company_db.close()
@@ -212,7 +256,26 @@ async def list_documents(
                 query = query.filter(CompanyDocument.folder_name == folder_name)
         
         documents = query.order_by(CompanyDocument.created_at.desc()).all()
-        return documents
+        
+        # Convert SQLAlchemy objects to dictionaries to avoid DetachedInstanceError
+        document_list = []
+        for doc in documents:
+            document_data = {
+                "id": doc.id,
+                "filename": doc.filename,
+                "original_filename": doc.original_filename,
+                "file_path": doc.file_path,
+                "file_size": doc.file_size,
+                "file_type": doc.file_type,
+                "folder_name": doc.folder_name,
+                "user_id": doc.user_id,
+                "processed": doc.processed,
+                "metadata_json": doc.metadata_json,
+                "created_at": doc.created_at
+            }
+            document_list.append(document_data)
+        
+        return document_list
         
     finally:
         company_db.close()
@@ -250,7 +313,22 @@ async def get_document(
         if current_user.role not in ["hr_admin", "hr_manager"] and str(document.user_id) != str(current_user.id):
             raise HTTPException(status_code=403, detail="Access denied")
         
-        return document
+        # Convert SQLAlchemy object to dictionary to avoid DetachedInstanceError
+        document_data = {
+            "id": document.id,
+            "filename": document.filename,
+            "original_filename": document.original_filename,
+            "file_path": document.file_path,
+            "file_size": document.file_size,
+            "file_type": document.file_type,
+            "folder_name": document.folder_name,
+            "user_id": document.user_id,
+            "processed": document.processed,
+            "metadata_json": document.metadata_json,
+            "created_at": document.created_at
+        }
+        
+        return document_data
         
     finally:
         company_db.close()
@@ -479,7 +557,23 @@ async def upload_system_document(
         except Exception as e:
             print(f"Failed to process system document {document.id}: {str(e)}")
         
-        return document
+        # Convert SQLAlchemy object to dictionary to avoid DetachedInstanceError
+        document_data = {
+            "id": document.id,
+            "filename": document.filename,
+            "original_filename": document.original_filename,
+            "file_path": document.file_path,
+            "file_size": document.file_size,
+            "file_type": document.file_type,
+            "s3_key": document.s3_key,
+            "folder_name": document.folder_name,
+            "user_id": document.user_id,
+            "processed": document.processed,
+            "metadata_json": document.metadata_json,
+            "created_at": document.created_at
+        }
+        
+        return document_data
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload system document: {str(e)}")
@@ -505,7 +599,27 @@ async def list_system_documents(
             query = query.filter(SystemDocument.folder_name == folder_name)
     
     documents = query.order_by(SystemDocument.created_at.desc()).all()
-    return documents
+    
+    # Convert SQLAlchemy objects to dictionaries to avoid DetachedInstanceError
+    document_list = []
+    for doc in documents:
+        document_data = {
+            "id": doc.id,
+            "filename": doc.filename,
+            "original_filename": doc.original_filename,
+            "file_path": doc.file_path,
+            "file_size": doc.file_size,
+            "file_type": doc.file_type,
+            "s3_key": doc.s3_key,
+            "folder_name": doc.folder_name,
+            "user_id": doc.user_id,
+            "processed": doc.processed,
+            "metadata_json": doc.metadata_json,
+            "created_at": doc.created_at
+        }
+        document_list.append(document_data)
+    
+    return document_list
 
 @router.get("/system/{document_id}", response_model=SystemDocumentResponse)
 async def get_system_document(
@@ -522,7 +636,23 @@ async def get_system_document(
     if not document:
         raise HTTPException(status_code=404, detail="System document not found")
     
-    return document
+    # Convert SQLAlchemy object to dictionary to avoid DetachedInstanceError
+    document_data = {
+        "id": document.id,
+        "filename": document.filename,
+        "original_filename": document.original_filename,
+        "file_path": document.file_path,
+        "file_size": document.file_size,
+        "file_type": document.file_type,
+        "s3_key": document.s3_key,
+        "folder_name": document.folder_name,
+        "user_id": document.user_id,
+        "processed": document.processed,
+        "metadata_json": document.metadata_json,
+        "created_at": document.created_at
+    }
+    
+    return document_data
 
 @router.delete("/system/{document_id}")
 async def delete_system_document(

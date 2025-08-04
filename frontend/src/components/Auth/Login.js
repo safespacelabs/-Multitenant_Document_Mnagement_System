@@ -28,22 +28,24 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    setLoading(true);
 
     try {
-      const response = await login(formData);
-      const { user, company } = response;
+      console.log('🔐 Starting login process...');
+      console.log('Credentials:', { username: formData.username, password: formData.password, companyId });
       
-      // Redirect based on user type
-      if (user.role === 'system_admin' || !company) {
-        // System users go to companies management
-        navigate('/companies');
-      } else {
-        // Company users go to dashboard
-        navigate('/dashboard');
-      }
+      const result = await login(formData, companyId);
+      console.log('✅ Login successful!');
+      console.log('Login result:', result);
+      console.log('Token in localStorage:', localStorage.getItem('access_token'));
+      console.log('User in localStorage:', localStorage.getItem('user'));
+      console.log('Company in localStorage:', localStorage.getItem('company'));
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
     } catch (error) {
+      console.error('❌ Login error:', error);
       setError(error.response?.data?.detail || 'Login failed');
     } finally {
       setLoading(false);

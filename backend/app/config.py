@@ -1,87 +1,85 @@
+"""
+Enhanced configuration with email service settings and original constants
+"""
 import os
-from typing import List
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
-# Management Database Configuration (Neon)
-MANAGEMENT_DATABASE_URL = os.getenv(
-    "MANAGEMENT_DATABASE_URL", 
-    "postgresql://multitenant-db_owner:npg_X7gKCTze2PAS@ep-lively-pond-a6gik9pf-pooler.us-west-2.aws.neon.tech/multitenant-db?sslmode=require&channel_binding=require"
-)
+# Original configuration constants for backward compatibility
+MANAGEMENT_DATABASE_URL = os.getenv("MANAGEMENT_DATABASE_URL", "postgresql://postgres:password@localhost:5432/document_management")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/document_management")
 
-# Legacy Database URL (for backward compatibility)
-DATABASE_URL = os.getenv("DATABASE_URL", MANAGEMENT_DATABASE_URL)
-
-# Neon API Configuration
-NEON_API_KEY = os.getenv("NEON_API_KEY", "napi_4i48sb5ucqaiqkg60dct8bstompozmxnmfplr5cefr3x1qb6990p57kg17vuzt42")
-NEON_PROJECT_ID = os.getenv("NEON_PROJECT_ID", "black-truth-25223398")  # Correct project ID from Neon Console
-
-# If you're having issues with project ID extraction, you can temporarily hardcode it here:
-# NEON_PROJECT_ID = "your-exact-project-id-from-neon-console"
-
-# Database Pool Configuration
+# Database connection settings
 DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
 DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))
 
-# JWT Authentication
-SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-jwt-key-here-change-this-in-production")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+# Security settings
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production")
+ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
-# AWS S3 Configuration
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = os.getenv("AWS_REGION", "us-west-1")
-AWS_S3_BUCKET_PREFIX = os.getenv("AWS_S3_BUCKET_PREFIX", "company-docs")
+# AWS Configuration
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 
-# Groq AI Configuration
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# AI Service Configuration
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3-32b")
 
-# Application Configuration
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://frontend:3000").split(",")
+# Neon Database Configuration
+NEON_API_KEY = os.getenv("NEON_API_KEY", "")
+NEON_PROJECT_ID = os.getenv("NEON_PROJECT_ID", "")
 
-# File Upload Settings
-MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", "10485760"))  # 10MB default
-ALLOWED_FILE_TYPES = os.getenv("ALLOWED_FILE_TYPES", "pdf,docx,txt,md,csv,xlsx").split(",")
+# Email Service Configuration (NEW)
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "noreply@yourcompany.com")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")
+SENDER_NAME = os.getenv("SENDER_NAME", "Document Management System")
 
-# Helper function to get allowed file extensions
-def get_allowed_extensions() -> List[str]:
-    return [ext.strip().lower() for ext in ALLOWED_FILE_TYPES]
+# Application settings
+APP_URL = os.getenv("APP_URL", "http://localhost:3000")
 
-# Helper function to check if file size is allowed
-def is_file_size_allowed(file_size: int) -> bool:
-    return file_size <= MAX_FILE_SIZE
+# Feature flags for email notifications (NEW)
+ENABLE_EMAIL_NOTIFICATIONS = os.getenv("ENABLE_EMAIL_NOTIFICATIONS", "true").lower() == "true"
+ENABLE_DOCUMENT_NOTIFICATIONS = os.getenv("ENABLE_DOCUMENT_NOTIFICATIONS", "true").lower() == "true"
+ENABLE_ESIGNATURE_NOTIFICATIONS = os.getenv("ENABLE_ESIGNATURE_NOTIFICATIONS", "true").lower() == "true"
 
-# Helper function to get CORS origins as list
-def get_cors_origins() -> List[str]:
-    return [origin.strip() for origin in CORS_ORIGINS]
+# CORS origins function
+def get_cors_origins():
+    """Get CORS origins from environment variable"""
+    origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+    return [origin.strip() for origin in origins_str.split(",")]
 
-# Helper function to extract project ID from Neon database URL
-def extract_neon_project_id(database_url: str) -> str:
-    """Extract Neon project ID from database URL"""
-    try:
-        # Neon URLs typically contain the project ID in the host
-        # Format: ep-{endpoint-name}-{project-id}-pooler.{region}.aws.neon.tech
-        if "neon.tech" in database_url:
-            host_part = database_url.split("@")[1].split("/")[0].split(":")[0]
-            # Find the part that ends with '-pooler' and extract the 8-char ID before it
-            if '-pooler.' in host_part:
-                # Split by '-pooler.' and take the part before it
-                before_pooler = host_part.split('-pooler.')[0]
-                # The project ID is the last 8-character part
-                parts = before_pooler.split('-')
-                # Look for the last 8-character alphanumeric part
-                for part in reversed(parts):
-                    if len(part) == 8 and part.isalnum():
-                        return part
-    except Exception:
-        pass
-    return NEON_PROJECT_ID or ""
+# Settings class for new structured approach (optional)
+class Settings:
+    def __init__(self):
+        # Database settings
+        self.DATABASE_URL = DATABASE_URL
+        self.MANAGEMENT_DATABASE_URL = MANAGEMENT_DATABASE_URL
+        
+        # Email settings
+        self.SMTP_SERVER = SMTP_SERVER
+        self.SMTP_PORT = SMTP_PORT
+        self.SENDER_EMAIL = SENDER_EMAIL
+        self.SENDER_PASSWORD = SENDER_PASSWORD
+        self.SENDER_NAME = SENDER_NAME
+        
+        # Application settings
+        self.APP_URL = APP_URL
+        self.SECRET_KEY = SECRET_KEY
+        
+        # AWS settings
+        self.AWS_ACCESS_KEY_ID = AWS_ACCESS_KEY_ID
+        self.AWS_SECRET_ACCESS_KEY = AWS_SECRET_ACCESS_KEY
+        self.AWS_REGION = AWS_REGION
+        
+        # Feature flags
+        self.ENABLE_EMAIL_NOTIFICATIONS = ENABLE_EMAIL_NOTIFICATIONS
+        self.ENABLE_DOCUMENT_NOTIFICATIONS = ENABLE_DOCUMENT_NOTIFICATIONS
+        self.ENABLE_ESIGNATURE_NOTIFICATIONS = ENABLE_ESIGNATURE_NOTIFICATIONS
 
-# Auto-extract project ID if not explicitly set
-if not NEON_PROJECT_ID and not os.getenv("NEON_PROJECT_ID"):
-    NEON_PROJECT_ID = extract_neon_project_id(MANAGEMENT_DATABASE_URL) 
+settings = Settings()

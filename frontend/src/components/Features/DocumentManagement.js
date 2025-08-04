@@ -40,9 +40,20 @@ const DocumentManagement = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
+  
+  // Folder navigation state
+  const [currentFolderPath, setCurrentFolderPath] = useState([]);
+  const [showFolderNavigation, setShowFolderNavigation] = useState(false);
+  
+  // Admin signing state
+  const [showSigningModal, setShowSigningModal] = useState(false);
+  const [selectedDocumentForSigning, setSelectedDocumentForSigning] = useState(null);
 
   // Determine if user is system admin
   const isSystemAdmin = user?.role === 'system_admin';
+  
+  // Check if user can sign documents directly (admin roles)
+  const canSignDirectly = user?.role === 'system_admin' || user?.role === 'hr_admin' || user?.role === 'hr_manager';
   
   // Use appropriate API based on user role
   const docsAPI = isSystemAdmin ? systemDocumentsAPI : documentsAPI;
@@ -57,11 +68,28 @@ const DocumentManagement = () => {
       setLoading(true);
       const folderParam = selectedFolder === 'all' ? null : (selectedFolder === 'root' ? '' : selectedFolder);
       const response = await docsAPI.list(folderParam);
-      setDocuments(response);
+      
+      // Ensure documents is always an array
+      let documentsData;
+      if (Array.isArray(response)) {
+        documentsData = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        documentsData = response.data;
+      } else if (response && typeof response === 'object') {
+        documentsData = response.documents || response.items || [];
+      } else {
+        console.warn('Unexpected documents response format:', response);
+        documentsData = [];
+      }
+      
+      console.log('📄 Documents response:', response);
+      console.log('📄 Processed documents data:', documentsData);
+      setDocuments(documentsData);
       setError('');
     } catch (err) {
       setError('Failed to fetch documents: ' + err.message);
       console.error('Error fetching documents:', err);
+      setDocuments([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -72,9 +100,30 @@ const DocumentManagement = () => {
       const response = isSystemAdmin ? 
         await systemDocumentsAPI.getFolders() : 
         await documentsAPI.folders();
-      setFolders(response);
+      
+      console.log('📁 Folders API response:', response);
+      
+      // Handle different response formats
+      let foldersData;
+      if (Array.isArray(response)) {
+        // Direct array response
+        foldersData = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        // Response wrapped in data property
+        foldersData = response.data;
+      } else if (response && typeof response === 'object') {
+        // Try to extract data from response object
+        foldersData = response.data || response.folders || [];
+      } else {
+        console.warn('Unexpected folders response format:', response);
+        foldersData = [];
+      }
+      
+      console.log('📁 Processed folders data:', foldersData);
+      setFolders(foldersData);
     } catch (err) {
       console.error('Error fetching folders:', err);
+      setFolders([]); // Set empty array on error
     }
   };
 
@@ -136,7 +185,70 @@ const DocumentManagement = () => {
     }
   };
 
-  const filteredDocuments = documents.filter(doc => {
+  // Folder navigation functions
+  const navigateToFolder = (folderName) => {
+    setCurrentFolderPath([...currentFolderPath, folderName]);
+    setSelectedFolder(folderName);
+    setShowFolderNavigation(true);
+  };
+
+  const navigateBack = () => {
+    const newPath = [...currentFolderPath];
+    newPath.pop();
+    setCurrentFolderPath(newPath);
+    
+    if (newPath.length === 0) {
+      setSelectedFolder('all');
+      setShowFolderNavigation(false);
+    } else {
+      setSelectedFolder(newPath[newPath.length - 1]);
+    }
+  };
+
+  const navigateToRoot = () => {
+    setCurrentFolderPath([]);
+    setSelectedFolder('all');
+    setShowFolderNavigation(false);
+  };
+
+  // Admin signing functions
+  const handleDirectSign = (document) => {
+    setSelectedDocumentForSigning(document);
+    setShowSigningModal(true);
+  };
+
+  const handleSignDocument = async () => {
+    try {
+      // Call the e-signature API to sign the document directly
+      const response = await fetch(`/api/esignature/sign-document-directly/${selectedDocumentForSigning.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify({
+          signature_text: `${user.full_name} - ${user.role}`,
+          ip_address: '127.0.0.1',
+          user_agent: navigator.userAgent
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to sign document');
+      }
+
+      setShowSigningModal(false);
+      setSelectedDocumentForSigning(null);
+      await fetchDocuments(); // Refresh documents
+      setError('');
+    } catch (err) {
+      setError('Failed to sign document: ' + err.message);
+      console.error('Error signing document:', err);
+    }
+  };
+
+  const filteredDocuments = (Array.isArray(documents) ? documents : []).filter(doc => {
     if (searchTerm) {
       return doc.original_filename.toLowerCase().includes(searchTerm.toLowerCase());
     }
@@ -193,6 +305,45 @@ const DocumentManagement = () => {
           </button>
         </div>
       </div>
+
+      {/* Folder Navigation Breadcrumb */}
+      {showFolderNavigation && currentFolderPath.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={navigateToRoot}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              📁 Root
+            </button>
+            {currentFolderPath.map((folder, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <span className="text-gray-400">/</span>
+                {index === currentFolderPath.length - 1 ? (
+                  <span className="text-blue-800 font-medium">{folder}</span>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const newPath = currentFolderPath.slice(0, index + 1);
+                      setCurrentFolderPath(newPath);
+                      setSelectedFolder(newPath[newPath.length - 1]);
+                    }}
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    {folder}
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={navigateBack}
+              className="ml-4 px-2 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+            >
+              ← Back
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* System Admin Badge */}
       {isSystemAdmin && (
@@ -273,7 +424,7 @@ const DocumentManagement = () => {
             >
               <option value="all">All Folders</option>
               <option value="root">Root (No Folder)</option>
-              {folders.map(folder => (
+              {Array.isArray(folders) && folders.map(folder => (
                 <option key={folder} value={folder}>{folder}</option>
               ))}
             </select>
@@ -408,9 +559,12 @@ const DocumentManagement = () => {
                       </div>
                       {doc.folder_name && (
                         <div className="mt-1">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          <button
+                            onClick={() => navigateToFolder(doc.folder_name)}
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer"
+                          >
                             📁 {doc.folder_name}
-                          </span>
+                          </button>
                         </div>
                       )}
                       <div className="mt-2">
@@ -430,6 +584,17 @@ const DocumentManagement = () => {
                             console.log('Signature request created:', signatureRequest);
                           }}
                         />
+                      )}
+                      
+                      {/* Admin Direct Signing */}
+                      {canSignDirectly && (
+                        <button
+                          onClick={() => handleDirectSign(doc)}
+                          className="text-green-600 hover:text-green-800 text-sm"
+                          title="Sign document directly"
+                        >
+                          ✍️
+                        </button>
                       )}
                       
                       <button
@@ -461,9 +626,12 @@ const DocumentManagement = () => {
                             <span className="text-xs text-gray-500">{formatFileSize(doc.file_size)}</span>
                             <span className="text-xs text-gray-500">{formatDate(doc.created_at)}</span>
                             {doc.folder_name && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                              <button
+                                onClick={() => navigateToFolder(doc.folder_name)}
+                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer"
+                              >
                                 📁 {doc.folder_name}
-                              </span>
+                              </button>
                             )}
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${doc.processed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                               {doc.processed ? '✓ Processed' : '⏳ Processing'}
@@ -485,6 +653,17 @@ const DocumentManagement = () => {
                         />
                       )}
                       
+                      {/* Admin Direct Signing */}
+                      {canSignDirectly && (
+                        <button
+                          onClick={() => handleDirectSign(doc)}
+                          className="text-green-600 hover:text-green-800 text-sm p-1"
+                          title="Sign document directly"
+                        >
+                          ✍️
+                        </button>
+                      )}
+                      
                       <button
                         onClick={() => handleDeleteDocument(doc.id)}
                         className="text-red-600 hover:text-red-800 text-sm p-1"
@@ -500,6 +679,44 @@ const DocumentManagement = () => {
           </div>
         )}
       </div>
+
+      {/* Admin Signing Modal */}
+      {showSigningModal && selectedDocumentForSigning && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Sign Document: {selectedDocumentForSigning.original_filename}
+              </h3>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  You are about to sign this document directly as {user?.role}. 
+                  This will create a signed version of the document.
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowSigningModal(false);
+                    setSelectedDocumentForSigning(null);
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSignDocument()}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                >
+                  Sign Document
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

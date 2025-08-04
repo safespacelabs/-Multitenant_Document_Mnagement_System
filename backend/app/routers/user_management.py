@@ -9,9 +9,11 @@ from app import models, schemas, auth
 from app.models_company import User as CompanyUser, UserInvitation as CompanyUserInvitation
 from app.utils.permissions import Permission, has_permission, can_manage_role, get_user_permissions
 from app.services.aws_service import aws_service
+from app.services.email_service import email_service
+from app.services.email_extensions import get_extended_email_service
 
 # Add these imports at the top if not already present
-from ..utils.permissions import ESignaturePermissions, PermissionAction, add_custom_esignature_role
+from ..utils.permissions import ESignaturePermissions, PermissionAction, add_custom_esignature_role, get_manageable_roles
 
 router = APIRouter()
 
@@ -56,7 +58,8 @@ async def invite_user(
     # Check if current user can manage the target role
     current_role = str(current_user.role)
     target_role = str(invite_data.role.value)
-    if not can_manage_role(current_role, target_role):
+    manageable_roles = get_manageable_roles(current_role)
+    if target_role not in manageable_roles and current_role != "system_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"You don't have permission to create users with role: {target_role}"
@@ -107,6 +110,33 @@ async def invite_user(
         company_db.add(invitation)
         company_db.commit()
         company_db.refresh(invitation)
+        
+        # Send invitation email automatically
+        try:
+            invited_by_user = company_db.query(CompanyUser).filter(
+                CompanyUser.id == current_user.id
+            ).first()
+            invited_by_name = invited_by_user.full_name if invited_by_user else "Administrator"
+            
+            # Use extended email service for company-specific emails
+            company_email_service = get_extended_email_service(company.name)
+            email_sent = await company_email_service.send_invitation_email(
+                recipient_email=invitation.email,
+                recipient_name=invitation.full_name,
+                company_name=company.name,
+                role=invitation.role,
+                unique_id=invitation.unique_id,
+                expires_at=invitation.expires_at,
+                invited_by=invited_by_name
+            )
+            
+            if email_sent:
+                print(f"✅ Invitation email sent successfully to {invitation.email}")
+            else:
+                print(f"⚠️ Invitation created but email failed to send to {invitation.email}")
+                
+        except Exception as e:
+            print(f"⚠️ Invitation created but email service error: {str(e)}")
         
         # Convert to response format
         response = schemas.UserInviteResponse(
@@ -225,11 +255,8 @@ async def list_invitations(
     """List pending invitations for current company"""
     
     user_role = str(current_user.role)
-    can_list_invitations = (
-        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-    )
+    manageable_roles = get_manageable_roles(user_role)
+    can_list_invitations = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
     if not can_list_invitations:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -274,11 +301,8 @@ async def list_company_users(
     """List users in company based on permissions"""
     
     user_role = str(current_user.role)
-    can_list_users = (
-        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-    )
+    manageable_roles = get_manageable_roles(user_role)
+    can_list_users = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
     if not can_list_users:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -302,7 +326,6 @@ async def list_company_users(
     
     try:
         # Get manageable roles for current user
-        from app.utils.permissions import get_manageable_roles
         manageable_roles = get_manageable_roles(current_user.role)
         
         # Get users with manageable roles
@@ -340,11 +363,8 @@ async def cancel_invitation(
     """Cancel a pending invitation"""
     
     user_role = str(current_user.role)
-    can_cancel_invitations = (
-        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-    )
+    manageable_roles = get_manageable_roles(user_role)
+    can_cancel_invitations = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
     if not can_cancel_invitations:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -395,11 +415,8 @@ async def update_user(
     """Update user role and status"""
     
     user_role = str(current_user.role)
-    can_update_users = (
-        has_permission(user_role, Permission.MANAGE_ALL_COMPANY_USERS) or
-        has_permission(user_role, Permission.MANAGE_EMPLOYEES_CUSTOMERS) or
-        has_permission(user_role, Permission.MANAGE_CUSTOMERS_ONLY)
-    )
+    manageable_roles = get_manageable_roles(user_role)
+    can_update_users = len(manageable_roles) > 0 or user_role in ["hr_admin", "hr_manager"]
     if not can_update_users:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -435,7 +452,8 @@ async def update_user(
             raise HTTPException(status_code=400, detail="Cannot update your own account")
         
         # Check if current user can manage target user's current role
-        if not can_manage_role(current_user.role, target_user.role):
+        manageable_roles = get_manageable_roles(str(current_user.role))
+        if str(target_user.role) not in manageable_roles and str(current_user.role) != "system_admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"You don't have permission to manage users with role: {target_user.role}"
@@ -443,7 +461,8 @@ async def update_user(
         
         # If updating role, check if current user can assign the new role
         if user_update.role and user_update.role != target_user.role:
-            if not can_manage_role(current_user.role, user_update.role):
+            new_role_manageable_roles = get_manageable_roles(str(current_user.role))
+            if str(user_update.role) not in new_role_manageable_roles and str(current_user.role) != "system_admin":
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"You don't have permission to assign role: {user_update.role}"

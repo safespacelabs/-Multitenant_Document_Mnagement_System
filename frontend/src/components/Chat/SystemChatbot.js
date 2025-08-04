@@ -315,7 +315,7 @@ How can I assist you today?`,
                 className="flex-1 border border-blue-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">ChatUploads (default)</option>
-                {folders.map((folder) => (
+                {Array.isArray(folders) && folders.map((folder) => (
                   <option key={folder} value={folder}>
                     {folder}
                   </option>

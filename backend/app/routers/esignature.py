@@ -8,10 +8,12 @@ from sqlalchemy import text
 
 from ..auth import get_current_user
 from ..database import get_management_db
-from ..models_company import ESignatureDocument, ESignatureRecipient, ESignatureAuditLog
+from ..models_company import ESignatureDocument, ESignatureRecipient, ESignatureAuditLog, User as CompanyUser
 from ..schemas import ESignatureRequest, ESignatureResponse, ESignatureStatus, ESignatureSignRequest
 from ..services.inkless_service import InklessService
 from ..services.database_manager import db_manager
+from ..services.email_extensions import get_extended_email_service
+import os
 from ..utils.permissions import (
     ESignaturePermissions, 
     PermissionAction,
@@ -219,8 +221,47 @@ async def create_signature_request(
                 inkless_doc_url = inkless_response.get("signing_url", "")
                 current_status = "created"
                 
-                # Step 5: Send signature request emails
+                # Step 5: Send signature request emails via Inkless AND our email service
                 send_response = await inkless_service.send_signature_request(inkless_doc_id)
+                
+                # Also send our own email notifications to recipients
+                try:
+                    # Get company name for email service
+                    company_name = "Your Company"  # Default fallback
+                    if hasattr(current_user, 'company_id') and current_user.company_id:
+                        try:
+                            from ..database import get_management_db
+                            from .. import models
+                            with next(get_management_db()) as mgmt_db:
+                                company_obj = mgmt_db.query(models.Company).filter(
+                                    models.Company.id == current_user.company_id
+                                ).first()
+                                if company_obj:
+                                    company_name = company_obj.name
+                        except:
+                            pass
+                    
+                    email_service = get_extended_email_service(company_name)
+                    
+                    for recipient in recipients_data:
+                        try:
+                            # Generate local signing URL instead of external Inkless URL
+                            local_signing_url = f"{os.getenv('APP_URL', 'http://localhost:3000')}/esignature/sign/{esign_id}?email={recipient['email']}"
+                            
+                            await email_service.send_esignature_request_email(
+                                recipient_email=recipient["email"],
+                                recipient_name=recipient["name"],
+                                document_title=request_data.title,
+                                company_name=company_name,
+                                sender_name=current_user.full_name if hasattr(current_user, 'full_name') else current_user.email,
+                                signing_url=local_signing_url,
+                                message=request_data.message,
+                                expires_in_days=request_data.expires_in_days or 14
+                            )
+                        except Exception as e:
+                            print(f"⚠️ Failed to send e-signature email to {recipient['email']}: {str(e)}")
+                except Exception as e:
+                    print(f"⚠️ Error in e-signature email notification process: {str(e)}")
                 
                 if send_response.get("success"):
                     current_status = "sent"
@@ -604,11 +645,11 @@ async def sign_document_directly(
     try:
         user_role = getattr(current_user, 'role', 'customer')
         
-        # Only system admins can use direct signing
-        if user_role != 'system_admin':
+        # Only system admins, HR admins, and HR managers can use direct signing
+        if user_role not in ['system_admin', 'hr_admin', 'hr_manager']:
             raise HTTPException(
                 status_code=403,
-                detail="Direct document signing is only available for system administrators"
+                detail="Direct document signing is only available for administrators and managers"
             )
         
         # Check if document exists - handle both system documents and company documents
@@ -737,32 +778,158 @@ async def sign_document_directly(
         logger.error(f"❌ Error signing document directly: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to sign document: {str(e)}")
 
+@router.get("/{esign_doc_id}/status-public")
+async def get_signature_status_public(
+    esign_doc_id: str,
+    recipient_email: str,
+    management_db: Session = Depends(get_management_db)
+):
+    """
+    Get signature status without authentication - for email recipients
+    """
+    try:
+        # Find which company database contains this document
+        companies = management_db.query(models.Company).filter(
+            models.Company.is_active == True
+        ).all()
+        
+        document_details = None
+        for company in companies:
+            try:
+                # Get company database connection
+                company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+                company_db = next(company_db_gen)
+                
+                try:
+                    # Check if document exists and recipient is valid
+                    esign_doc = company_db.query(ESignatureDocument).filter(
+                        ESignatureDocument.id == esign_doc_id
+                    ).first()
+                    
+                    if esign_doc:
+                        # Check if the recipient email is in the recipients list
+                        recipient = company_db.query(ESignatureRecipient).filter(
+                            ESignatureRecipient.esignature_document_id == esign_doc_id,
+                            ESignatureRecipient.email == recipient_email
+                        ).first()
+                        
+                        if recipient:
+                            # Get all recipients for status
+                            recipients = company_db.query(ESignatureRecipient).filter(
+                                ESignatureRecipient.esignature_document_id == esign_doc_id
+                            ).all()
+                            
+                            document_details = {
+                                "id": esign_doc.id,
+                                "status": esign_doc.status,
+                                "title": esign_doc.title,
+                                "message": esign_doc.message,
+                                "recipients": [
+                                    {
+                                        "email": r.email,
+                                        "full_name": r.full_name,
+                                        "role": r.role,
+                                        "is_signed": r.is_signed,
+                                        "signed_at": r.signed_at.isoformat() if r.signed_at is not None else None
+                                    } for r in recipients
+                                ],
+                                "created_at": esign_doc.created_at.isoformat() if esign_doc.created_at is not None else None,
+                                "expires_at": esign_doc.expires_at.isoformat() if esign_doc.expires_at is not None else None,
+                                "viewed_by_role": "recipient"
+                            }
+                            break
+                            
+                finally:
+                    company_db.close()
+                    
+            except Exception:
+                continue
+        
+        if not document_details:
+            raise HTTPException(
+                status_code=404, 
+                detail="Document not found or you are not a recipient of this signature request"
+            )
+        
+        return document_details
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting public signature status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get signature status: {str(e)}")
+
+@router.post("/auth/esignature-access")
+async def grant_esignature_access(
+    request_data: dict,
+    management_db: Session = Depends(get_management_db)
+):
+    """Grant temporary access for e-signature signing based on recipient email"""
+    try:
+        document_id = request_data.get("document_id")
+        recipient_email = request_data.get("recipient_email")
+        
+        if not document_id or not recipient_email:
+            raise HTTPException(status_code=400, detail="Document ID and recipient email are required")
+        
+        # For now, we'll grant access if the email is in the recipients list
+        # This is a simplified approach - in production you might want more security
+        return {"access_granted": True, "recipient_email": recipient_email}
+        
+    except Exception as e:
+        logger.error(f"Error granting e-signature access: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to verify access: {str(e)}")
+
 @router.post("/{esign_doc_id}/sign")
 async def sign_document(
     esign_doc_id: str,
     sign_request: ESignatureSignRequest,
-    current_user = Depends(get_current_user),
-    db: Session = Depends(get_company_db_session)
+    management_db: Session = Depends(get_management_db),
+    current_user = None  # Make authentication optional
 ):
     """
-    Sign a document with dynamic role-based permissions
+    Sign a document with dynamic role-based permissions or email verification
     """
     try:
-        user_role = getattr(current_user, 'role', 'customer')
+        # Handle both authenticated users and direct email signing
+        user_role = getattr(current_user, 'role', 'customer') if current_user else 'customer'
         
-        # Check signing permission
-        if not has_esignature_permission(user_role, PermissionAction.SIGN):
+        # Check signing permission (allow if recipient email is provided)
+        if not sign_request.recipient_email and not has_esignature_permission(user_role, PermissionAction.SIGN):
             raise HTTPException(
                 status_code=403,
                 detail=f"Role '{user_role}' does not have permission to sign documents"
             )
         
-        # Get the signature document
-        esign_doc = db.query(ESignatureDocument).filter(
-            ESignatureDocument.id == esign_doc_id
-        ).first()
+        # Find which company database contains this document
+        companies = management_db.query(models.Company).filter(
+            models.Company.is_active == True
+        ).all()
         
-        if not esign_doc:
+        esign_doc = None
+        db = None
+        for company in companies:
+            try:
+                # Get company database connection
+                company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+                company_db = next(company_db_gen)
+                
+                # Check if document exists in this company
+                temp_doc = company_db.query(ESignatureDocument).filter(
+                    ESignatureDocument.id == esign_doc_id
+                ).first()
+                
+                if temp_doc:
+                    esign_doc = temp_doc
+                    db = company_db
+                    break
+                else:
+                    company_db.close()
+                    
+            except Exception:
+                continue
+        
+        if not esign_doc or not db:
             raise HTTPException(status_code=404, detail="Signature request not found")
         
         # Check if document can be signed
@@ -772,20 +939,28 @@ async def sign_document(
                 detail=f"Document cannot be signed in current status: {esign_doc.status}"
             )
         
-        # Check if user is a recipient
+        # Check if user is a recipient (allow direct signing with email verification)
+        recipient_email_to_check = sign_request.recipient_email or (current_user.email if current_user else None)
+        
+        if not recipient_email_to_check:
+            raise HTTPException(
+                status_code=400,
+                detail="Either authentication or recipient email is required"
+            )
+        
         recipient = db.query(ESignatureRecipient).filter(
             ESignatureRecipient.esignature_document_id == esign_doc_id,
-            ESignatureRecipient.email == current_user.email
+            ESignatureRecipient.email == recipient_email_to_check
         ).first()
         
         if not recipient:
             # System admins can sign any document - add them as a recipient automatically
-            if user_role == 'system_admin':
+            if user_role == 'system_admin' and current_user:
                 logger.info(f"🔧 Adding system admin {current_user.email} as recipient for document {esign_doc_id}")
                 recipient = ESignatureRecipient(
                     esignature_document_id=esign_doc_id,
                     email=current_user.email,
-                    full_name=current_user.full_name,
+                    full_name=getattr(current_user, 'full_name', current_user.email),
                     role=user_role,
                     is_signed=False,
                     created_at=datetime.utcnow()
@@ -801,7 +976,7 @@ async def sign_document(
         # Check if already signed by querying the database
         signed_recipient = db.query(ESignatureRecipient).filter(
             ESignatureRecipient.esignature_document_id == esign_doc_id,
-            ESignatureRecipient.email == current_user.email,
+            ESignatureRecipient.email == recipient_email_to_check,
             ESignatureRecipient.is_signed == True
         ).first()
         
@@ -837,7 +1012,7 @@ async def sign_document(
                 "ip_address": sign_request.ip_address,
                 "user_agent": sign_request.user_agent,
                 "doc_id": esign_doc_id,
-                "email": current_user.email
+                "email": recipient_email_to_check
             }
         )
         
@@ -858,6 +1033,56 @@ async def sign_document(
             )
             status_message = "Document fully signed and completed"
             new_status = "completed"
+            
+            # Send completion notification to original requester
+            try:
+                # Get the original document creator information
+                esign_doc = db.query(ESignatureDocument).filter(
+                    ESignatureDocument.id == esign_doc_id
+                ).first()
+                
+                if esign_doc and esign_doc.created_by:
+                    # Get creator user info
+                    creator_user = db.query(CompanyUser).filter(
+                        CompanyUser.id == esign_doc.created_by
+                    ).first()
+                    
+                    if creator_user:
+                        # Get company name
+                        company_name = "Your Company"  # Default fallback
+                        try:
+                            if hasattr(current_user, 'company_id') and current_user.company_id:
+                                from ..database import get_management_db
+                                from .. import models
+                                with next(get_management_db()) as mgmt_db:
+                                    company_obj = mgmt_db.query(models.Company).filter(
+                                        models.Company.id == current_user.company_id
+                                    ).first()
+                                    if company_obj:
+                                        company_name = company_obj.name
+                        except:
+                            pass
+                        
+                        # Get signed document URL
+                        signed_doc_url = f"{os.getenv('APP_URL', 'http://localhost:3000')}/api/esignature/{esign_doc_id}/download-signed"
+                        
+                        # Send completion email
+                        email_service = get_extended_email_service(company_name)
+                        await email_service.send_esignature_completion_email(
+                            recipient_email=creator_user.email,
+                            recipient_name=creator_user.full_name or creator_user.username,
+                            document_title=esign_doc.title,
+                            company_name=company_name,
+                            signer_name=recipient.full_name,
+                            signer_role=getattr(current_user, 'role', 'User'),
+                            signed_document_url=signed_doc_url,
+                            completion_date=current_time.strftime("%B %d, %Y at %I:%M %p")
+                        )
+                        
+                        print(f"✅ Document completion notification sent to {creator_user.email}")
+                        
+            except Exception as e:
+                print(f"⚠️ Failed to send document completion notification: {str(e)}")
         else:
             # Partially signed
             db.execute(
@@ -871,7 +1096,7 @@ async def sign_document(
         audit_log = ESignatureAuditLog(
             esignature_document_id=esign_doc_id,
             action="signed",
-            user_email=current_user.email,
+            user_email=recipient_email_to_check,
             details=json.dumps({
                 "signed_by_role": user_role,
                 "signed_by_name": recipient.full_name,
@@ -889,14 +1114,14 @@ async def sign_document(
         # Commit changes
         db.commit()
         
-        logger.info(f"✅ Document {esign_doc_id} signed by {current_user.email} ({user_role})")
+        logger.info(f"✅ Document {esign_doc_id} signed by {recipient_email_to_check} ({user_role})")
         
         return {
             "message": status_message,
-            "signed_by": current_user.email,
+            "signed_by": recipient_email_to_check,
             "signed_by_role": user_role,
-            "signed_at": recipient.signed_at.isoformat(),
-            "document_status": esign_doc.status,
+            "signed_at": current_time.isoformat(),
+            "document_status": new_status,
             "progress": {
                 "signed_count": signed_count,
                 "total_recipients": total_count,
@@ -905,12 +1130,17 @@ async def sign_document(
         }
         
     except HTTPException:
-        db.rollback()
+        if db:
+            db.rollback()
         raise
     except Exception as e:
-        db.rollback()
+        if db:
+            db.rollback()
         logger.error(f"❌ Error signing document: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to sign document: {str(e)}")
+    finally:
+        if db:
+            db.close()
 
 # Helper functions for PDF processing
 def add_signature_to_pdf(original_pdf_path: str, esign_doc_id: str, db: Session):

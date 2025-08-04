@@ -12,6 +12,7 @@ import CompanyRegister from './components/Auth/CompanyRegister';
 import Dashboard from './components/Dashboard/Dashboard';
 import TestingInterface from './components/Testing/TestingInterface';
 import ESignatureManager from './components/ESignature/ESignatureManager';
+import EmailDocumentSigning from './components/ESignature/EmailDocumentSigning';
 import {
   SystemOverview,
   SystemAdminManagement,
@@ -107,6 +108,9 @@ function App() {
                 <ESignatureWrapper />
               </ProtectedRoute>
             } />
+            
+            {/* Direct Document Signing - No Auth Required */}
+            <Route path="/esignature/sign/:documentId" element={<EmailDocumentSigning />} />
             
             <Route path="/companies" element={
               <ProtectedRoute allowedRoles={['system_admin']}>
