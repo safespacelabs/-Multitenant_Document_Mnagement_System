@@ -28,6 +28,38 @@ from .. import models
 router = APIRouter(prefix="/esignature", tags=["E-Signature"])
 logger = logging.getLogger(__name__)
 
+def get_s3_info_from_document(document) -> tuple[str, str]:
+    """
+    Helper function to reliably extract S3 bucket and key from a document
+    Returns: (bucket_name, s3_key)
+    """
+    file_path = document.file_path
+    stored_s3_key = getattr(document, 's3_key', None)
+    
+    if not file_path.startswith('s3://'):
+        raise ValueError("Document is not stored in S3")
+    
+    # Extract bucket name from URL
+    s3_path = file_path.replace('s3://', '')
+    bucket_name = s3_path.split('/')[0]
+    
+    if stored_s3_key:
+        # Fix duplicate bucket name issue in stored S3 key
+        if stored_s3_key.startswith(bucket_name + '/'):
+            # Remove bucket name prefix from stored key
+            clean_s3_key = stored_s3_key[len(bucket_name) + 1:]
+            logger.info(f"Fixed duplicate bucket name in S3 key: {stored_s3_key} -> {clean_s3_key}")
+            return bucket_name, clean_s3_key
+        else:
+            # Use stored S3 key as-is
+            logger.info(f"Using stored S3 key: {stored_s3_key} from bucket: {bucket_name}")
+            return bucket_name, stored_s3_key
+    else:
+        # Fallback: Parse S3 URL
+        s3_key = '/'.join(s3_path.split('/')[1:])
+        logger.warning(f"No stored S3 key found, parsing URL: {s3_key} from bucket: {bucket_name}")
+        return bucket_name, s3_key
+
 def get_company_db_session(
     current_user = Depends(get_current_user),
     management_db: Session = Depends(get_management_db)
@@ -1488,13 +1520,40 @@ async def download_signed_document(
                         from ..services.aws_service import aws_service
                         from io import BytesIO
                         
-                        # Parse S3 URL to get bucket and key
-                        s3_path = file_path.replace('s3://', '')
-                        bucket_name = s3_path.split('/')[0]
-                        s3_key = '/'.join(s3_path.split('/')[1:])
+                        # Use helper function for reliable S3 info extraction
+                        bucket_name, s3_key = get_s3_info_from_document(original_doc)
                         
-                        # Download file from S3
-                        file_content = await aws_service.download_file(bucket_name, s3_key)
+                        # Try downloading with smart key detection
+                        file_content = None
+                        last_error = None
+                        
+                        # First try: Use the processed S3 key
+                        try:
+                            logger.info(f"Attempting download with key: {s3_key}")
+                            file_content = await aws_service.download_file(bucket_name, s3_key)
+                        except Exception as e:
+                            last_error = e
+                            logger.warning(f"First attempt failed: {str(e)}")
+                            
+                            # Second try: If key doesn't start with bucket name, try adding it
+                            if not s3_key.startswith(bucket_name + '/'):
+                                try:
+                                    alternative_key = f"{bucket_name}/{s3_key}"
+                                    logger.info(f"Attempting download with alternative key: {alternative_key}")
+                                    file_content = await aws_service.download_file(bucket_name, alternative_key)
+                                except Exception as e2:
+                                    logger.warning(f"Second attempt failed: {str(e2)}")
+                                    
+                            # Third try: Parse directly from file path as final fallback
+                            if file_content is None:
+                                try:
+                                    s3_path = original_doc.file_path.replace('s3://', '')
+                                    fallback_key = '/'.join(s3_path.split('/')[1:])
+                                    logger.info(f"Attempting download with fallback key: {fallback_key}")
+                                    file_content = await aws_service.download_file(bucket_name, fallback_key)
+                                except Exception as e3:
+                                    logger.error(f"All download attempts failed. Last error: {str(e3)}")
+                                    raise last_error  # Raise the original error
                         
                         # Get the original file extension
                         file_extension = os.path.splitext(original_doc.original_filename)[1].lower()
@@ -1507,9 +1566,12 @@ async def download_signed_document(
                             document_content = convert_and_sign_document_from_bytes(file_content, original_doc.original_filename, esign_doc_id, db)
                             
                     except Exception as s3_error:
-                        logger.warning(f"Could not download file from S3: {str(s3_error)}")
-                        # Fall back to certificate
+                        logger.error(f"Could not download file from S3: {str(s3_error)}")
+                        logger.error(f"Debug info - Bucket: {bucket_name}, Key: {s3_key}, File path: {file_path}")
+                        logger.info(f"Falling back to signature certificate for document: {esign_doc_id}")
+                        # Fall back to certificate with enhanced error info
                         document_content = create_signature_certificate_pdf(esign_doc_id, original_doc, db)
+                        document_filename = f"signed_certificate_{original_doc.original_filename}"
                         
                 elif os.path.exists(file_path):
                     # File is stored locally
@@ -1811,4 +1873,161 @@ async def get_audit_logs(
         raise
     except Exception as e:
         logger.error(f"❌ Error getting audit logs: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to get audit logs: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Failed to get audit logs: {str(e)}")
+
+@router.get("/debug/{esign_doc_id}")
+async def debug_esignature_document(
+    esign_doc_id: str,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_company_db_session)
+):
+    """
+    Debug endpoint to check e-signature document and S3 file status
+    """
+    try:
+        # Get the signature document
+        esign_doc = db.query(ESignatureDocument).filter(
+            ESignatureDocument.id == esign_doc_id
+        ).first()
+        
+        if not esign_doc:
+            raise HTTPException(status_code=404, detail="Signature request not found")
+        
+        # Get the original document
+        document_id = esign_doc.document_id
+        original_doc = None
+        s3_info = {}
+        
+        try:
+            from ..models_company import Document as CompanyDocument
+            original_doc = db.query(CompanyDocument).filter(CompanyDocument.id == document_id).first()
+        except Exception:
+            # Try system document
+            try:
+                from ..models import SystemDocument
+                from ..database import get_management_db
+                with next(get_management_db()) as mgmt_db:
+                    original_doc = mgmt_db.query(SystemDocument).filter(SystemDocument.id == document_id).first()
+            except Exception:
+                pass
+        
+        if original_doc:
+            file_path = original_doc.file_path
+            s3_key = getattr(original_doc, 's3_key', 'Not stored')
+            
+            # Parse S3 URL if it's an S3 path
+            if file_path.startswith('s3://'):
+                s3_path = file_path.replace('s3://', '')
+                bucket_name = s3_path.split('/')[0]
+                parsed_s3_key = '/'.join(s3_path.split('/')[1:])
+                
+                s3_info = {
+                    "stored_file_path": file_path,
+                    "stored_s3_key": s3_key,
+                    "parsed_bucket": bucket_name,
+                    "parsed_s3_key": parsed_s3_key,
+                    "keys_match": s3_key == parsed_s3_key
+                }
+                
+                # Check if file exists in mock S3
+                try:
+                    from ..services.aws_service import aws_service
+                    if aws_service.use_mock:
+                        mock_service = aws_service.mock_service
+                        s3_info["mock_s3_status"] = {
+                            "using_mock": True,
+                            "bucket_exists": bucket_name in mock_service.created_buckets,
+                            "file_exists": (bucket_name in mock_service.uploaded_files and 
+                                          parsed_s3_key in mock_service.uploaded_files.get(bucket_name, [])),
+                            "content_exists": (bucket_name in mock_service.file_contents and 
+                                             parsed_s3_key in mock_service.file_contents.get(bucket_name, {})),
+                            "all_buckets": list(mock_service.created_buckets),
+                            "files_in_bucket": mock_service.uploaded_files.get(bucket_name, []),
+                        }
+                    else:
+                        s3_info["mock_s3_status"] = {"using_mock": False, "message": "Using real AWS S3"}
+                except Exception as e:
+                    s3_info["mock_s3_error"] = str(e)
+        
+        return {
+            "esignature_doc_id": esign_doc_id,
+            "esignature_status": esign_doc.status,
+            "document_id": document_id,
+            "original_document_found": original_doc is not None,
+            "original_filename": getattr(original_doc, 'original_filename', 'N/A'),
+            "s3_info": s3_info
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Debug error: {str(e)}")
+        return {"error": str(e)}
+
+@router.get("/test-s3/{document_id}")
+async def test_s3_download(
+    document_id: str,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_company_db_session)
+):
+    """
+    Test endpoint to verify S3 download functionality
+    """
+    try:
+        # Try to find the document
+        document = None
+        
+        # Try company document first
+        try:
+            from ..models_company import Document as CompanyDocument
+            document = db.query(CompanyDocument).filter(CompanyDocument.id == document_id).first()
+        except Exception:
+            pass
+        
+        # Try system document if not found
+        if not document:
+            try:
+                from ..models import SystemDocument
+                from ..database import get_management_db
+                with next(get_management_db()) as mgmt_db:
+                    document = mgmt_db.query(SystemDocument).filter(SystemDocument.id == document_id).first()
+            except Exception:
+                pass
+        
+        if not document:
+            return {"error": "Document not found", "document_id": document_id}
+        
+        # Test S3 download
+        result = {
+            "document_id": document_id,
+            "filename": document.original_filename,
+            "file_path": document.file_path,
+            "s3_key": getattr(document, 's3_key', 'Not stored'),
+            "file_size": getattr(document, 'file_size', 'Unknown')
+        }
+        
+        if document.file_path.startswith('s3://'):
+            try:
+                bucket_name, s3_key = get_s3_info_from_document(document)
+                result["parsed_bucket"] = bucket_name
+                result["parsed_s3_key"] = s3_key
+                
+                # Test download
+                from ..services.aws_service import aws_service
+                file_content = await aws_service.download_file(bucket_name, s3_key)
+                result["download_success"] = True
+                result["downloaded_size"] = len(file_content)
+                result["content_preview"] = str(file_content[:100]) + "..." if len(file_content) > 100 else str(file_content)
+                
+            except Exception as e:
+                result["download_success"] = False
+                result["download_error"] = str(e)
+        else:
+            result["storage_type"] = "local"
+            result["file_exists"] = os.path.exists(document.file_path)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"S3 test error: {str(e)}")
+        return {"error": str(e), "document_id": document_id} 
