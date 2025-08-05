@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 import uvicorn
 from contextlib import asynccontextmanager
+from sqlalchemy.orm import Session
 
 from app.database import get_management_db
 from app.services.database_manager import db_manager
