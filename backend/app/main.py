@@ -85,6 +85,61 @@ async def health_check():
             "timestamp": "2024-01-01T00:00:00Z"
         }
 
+@app.post("/init-admin")
+async def initialize_first_admin(db: Session = Depends(get_management_db)):
+    """One-time endpoint to create the first system admin (no auth required)"""
+    
+    try:
+        # Check if any system admin already exists
+        existing_admin = db.query(models.SystemUser).filter(
+            models.SystemUser.role == "system_admin"
+        ).first()
+        
+        if existing_admin:
+            return {
+                "status": "admin_exists",
+                "message": f"System admin already exists: {existing_admin.username}",
+                "username": existing_admin.username
+            }
+        
+        # Create first system admin user
+        from app.auth import get_password_hash
+        
+        admin_username = "admin"
+        admin_email = "admin@system.local"  
+        admin_password = "admin123"
+        admin_full_name = "System Administrator"
+        
+        hashed_password = get_password_hash(admin_password)
+        
+        admin_user = models.SystemUser(
+            username=admin_username,
+            email=admin_email,
+            hashed_password=hashed_password,
+            full_name=admin_full_name,
+            role="system_admin",
+            is_active=True
+        )
+        
+        db.add(admin_user)
+        db.commit()
+        db.refresh(admin_user)
+        
+        return {
+            "status": "success",
+            "message": "First system admin created successfully!",
+            "credentials": {
+                "username": admin_username,
+                "password": admin_password,
+                "email": admin_email
+            },
+            "warning": "Please change the password after first login and remove this endpoint!"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating system admin: {str(e)}")
+
 @app.get("/api/system/status")
 async def system_status():
     """Get system status including database connections"""
