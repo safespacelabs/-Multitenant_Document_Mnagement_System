@@ -32,11 +32,14 @@ app = FastAPI(
 )
 
 # CORS middleware - using environment variable
+cors_origins = get_cors_origins()
+print(f"🔧 CORS Origins configured: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_cors_origins(),
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -85,6 +88,18 @@ async def health_check():
             "error": str(e),
             "timestamp": "2024-01-01T00:00:00Z"
         }
+
+@app.get("/debug-cors")
+async def debug_cors():
+    """Debug endpoint to check CORS configuration"""
+    from app.config import get_cors_origins
+    import os
+    
+    return {
+        "cors_origins": get_cors_origins(),
+        "cors_origins_env": os.getenv("CORS_ORIGINS", "NOT_SET"),
+        "app_url_env": os.getenv("APP_URL", "NOT_SET")
+    }
 
 @app.post("/init-admin")
 async def initialize_first_admin(db: Session = Depends(get_management_db)):
