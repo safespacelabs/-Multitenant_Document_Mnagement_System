@@ -1,4 +1,3 @@
-# Render.com deployment configuration
 services:
   # Backend API Service
   - type: web
@@ -7,6 +6,8 @@ services:
     buildCommand: "pip install -r requirements.txt && python -m spacy download en_core_web_sm"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
+    rootDir: backend
+    plan: free
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -21,12 +22,7 @@ services:
       - key: ALGORITHM
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: 30
-      - key: CORS_ORIGINS
-        value: https://multitenant-frontend.onrender.com
-      - key: APP_URL
-        value: https://multitenant-frontend.onrender.com
-    rootDir: backend
+        value: "30"
 
   # Frontend Static Site
   - type: web
@@ -35,6 +31,7 @@ services:
     buildCommand: "npm install && npm run build"
     staticPublishPath: ./build
     rootDir: frontend
+    plan: free
     envVars:
       - key: REACT_APP_API_URL
         value: https://multitenant-backend.onrender.com
@@ -44,3 +41,4 @@ databases:
   - name: multitenant-db
     databaseName: document_management
     user: docuser
+    plan: free
