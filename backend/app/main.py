@@ -141,6 +141,38 @@ async def initialize_first_admin(db: Session = Depends(get_management_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error creating system admin: {str(e)}")
 
+@app.post("/reset-admin-password")
+async def reset_admin_password(db: Session = Depends(get_management_db)):
+    """Temporary endpoint to reset admin password (remove after use!)"""
+    
+    try:
+        # Find the existing admin
+        admin = db.query(models.SystemUser).filter(
+            models.SystemUser.role == "system_admin"
+        ).first()
+        
+        if not admin:
+            raise HTTPException(status_code=404, detail="No system admin found")
+        
+        # Reset password to known value
+        from app.auth import get_password_hash
+        new_password = "admin123"
+        admin.hashed_password = get_password_hash(new_password)
+        
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "Admin password reset successfully!",
+            "username": admin.username,
+            "new_password": new_password,
+            "warning": "Please change this password immediately and remove this endpoint!"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error resetting password: {str(e)}")
+
 @app.get("/api/system/status")
 async def system_status():
     """Get system status including database connections"""
