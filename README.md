@@ -142,7 +142,7 @@ Company Database (Per Company)
 - **Docker** - Containerization for consistent deployment
 - **Docker Compose** - Multi-container orchestration
 - **Nginx** - Production web server
-- **Railway** - Full-stack deployment platform
+
 - **Render** - Alternative deployment platform
 
 ## 📋 Prerequisites
@@ -743,79 +743,6 @@ When a company is deleted:
 
 ## 📚 Deployment Guides
 
-### Railway Deployment
-
-Railway provides an excellent platform for deploying full-stack applications with automatic deployments from GitHub.
-
-#### Prerequisites
-1. Railway account (sign up at [railway.app](https://railway.app))
-2. GitHub repository with your code
-3. Database credentials (Neon PostgreSQL or Railway PostgreSQL)
-4. AWS credentials for S3 storage
-5. Groq API key for AI features
-6. Email service credentials (Gmail/SMTP)
-
-#### Deployment Steps
-
-##### 1. Deploy Backend Service
-```bash
-# Install Railway CLI
-npm install -g @railway/cli
-
-# Login to Railway
-railway login
-
-# Navigate to project root
-cd multitenant-document-management
-
-# Create new Railway project
-railway create multitenant-backend
-
-# Deploy backend from backend directory
-cd backend
-railway up
-```
-
-##### 2. Set Backend Environment Variables
-Go to Railway dashboard → Your Project → Backend Service → Variables
-
-Add these variables:
-```env
-DATABASE_URL=your_neon_database_url
-MANAGEMENT_DATABASE_URL=your_neon_database_url
-SECRET_KEY=your_super_secret_key
-AWS_ACCESS_KEY_ID=your_aws_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret
-GROQ_API_KEY=your_groq_key
-SENDER_EMAIL=your_email@domain.com
-SENDER_PASSWORD=your_email_password
-PORT=8000
-```
-
-##### 3. Deploy Frontend Service
-```bash
-# From project root
-cd frontend
-railway create multitenant-frontend
-railway up
-```
-
-##### 4. Set Frontend Environment Variables
-```env
-REACT_APP_API_URL=https://your-backend-service.railway.app
-PORT=3000
-CI=false
-```
-
-##### 5. Update CORS Configuration
-After both services are deployed:
-
-1. Get your frontend URL: `https://your-frontend.railway.app`
-2. Update backend environment variables:
-   ```env
-   APP_URL=https://your-frontend.railway.app
-   CORS_ORIGINS=https://your-frontend.railway.app
-   ```
 
 ### Render.com Deployment
 
@@ -1117,8 +1044,8 @@ multitenant-document-management/
 │   ├── create_admin.py     # Initial admin setup
 │   ├── create_esignature_tables.py # E-signature setup
 │   ├── initialize_dynamic_esignature.py # Dynamic e-signature initialization
-│   ├── railway.toml        # Railway deployment config
-│   └── nixpacks.toml       # Build configuration
+
+
 ├── frontend/
 │   ├── src/
 │   │   ├── components/      # React components
@@ -1135,10 +1062,10 @@ multitenant-document-management/
 │   │   └── index.js        # React entry point
 │   ├── package.json        # Node.js dependencies
 │   ├── Dockerfile         # Frontend Docker configuration
-│   ├── railway.toml       # Railway deployment config
-│   └── nixpacks.toml      # Build configuration
+
+
 ├── docker-compose.yml     # Multi-container configuration
-├── railway.toml           # Monorepo Railway config
+
 ├── .env.example           # Environment variables template
 └── README.md             # This comprehensive documentation
 ```
@@ -1276,11 +1203,7 @@ python backend/create_admin.py
 
 #### Logs and Debugging
 ```bash
-# Backend logs (if using Railway)
-railway logs --service=backend
 
-# Frontend logs (if using Railway)
-railway logs --service=frontend
 
 # Docker logs
 docker-compose logs backend
@@ -1324,7 +1247,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Groq** for high-performance AI processing
 - **Neon** for serverless PostgreSQL hosting
 - **AWS** for scalable cloud infrastructure
-- **Railway** for seamless deployment
+
 - **Render** for free-tier hosting
 
 ---
