@@ -142,7 +142,37 @@ async def create_signature_request(
             if not recipient.full_name:
                 raise HTTPException(status_code=400, detail="Recipient full name is required")
         
-        # Step 1: Create the main signature document in database
+        # Step 1: Handle system admin user ID for company database compatibility
+        # System admins exist in management DB, not company DB, so we need to create a temp user
+        creator_user_id = current_user.id
+        
+        if user_role == 'system_admin':
+            # Check if system admin already exists in company database
+            from app.models_company import User as CompanyUser
+            existing_user = db.query(CompanyUser).filter(
+                CompanyUser.email == current_user.email
+            ).first()
+            
+            if not existing_user:
+                # Create a temporary system admin user record in company database
+                temp_system_user = CompanyUser(
+                    id=f"temp_sysadmin_{current_user.id}",
+                    username=f"sysadmin_{current_user.username}",
+                    email=current_user.email,
+                    full_name=current_user.full_name,
+                    role="system_admin",
+                    s3_folder="system_admin",
+                    password_set=True,
+                    is_active=True,
+                    created_at=datetime.utcnow()
+                )
+                db.add(temp_system_user)
+                db.flush()  # Ensure the user is created before using the ID
+                creator_user_id = temp_system_user.id
+            else:
+                creator_user_id = existing_user.id
+        
+        # Step 2: Create the main signature document in database
         esign_id = f"esign_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         expires_at = datetime.utcnow() + timedelta(days=request_data.expires_in_days if request_data.expires_in_days else 14)
         
@@ -153,7 +183,7 @@ async def create_signature_request(
             title=request_data.title,
             message=request_data.message,
             status="pending",
-            created_by_user_id=current_user.id,
+            created_by_user_id=creator_user_id,
             require_all_signatures=True,
             expires_at=expires_at,
             created_at=datetime.utcnow()
@@ -162,7 +192,7 @@ async def create_signature_request(
         db.add(esign_doc)
         db.flush()
         
-        # Step 2: Create recipient records
+        # Step 3: Create recipient records
         recipients_data = []
         for recipient in request_data.recipients:
             recipient_record = ESignatureRecipient(
@@ -180,7 +210,7 @@ async def create_signature_request(
                 "role": recipient.role or "Recipient"
             })
         
-        # Step 3: Create audit log entry
+        # Step 4: Create audit log entry
         audit_log = ESignatureAuditLog(
             esignature_document_id=esign_id,
             action="created",
@@ -195,7 +225,7 @@ async def create_signature_request(
         )
         db.add(audit_log)
         
-        # Step 4: Auto-send if user has send permission
+        # Step 5: Auto-send if user has send permission
         current_status = "pending"
         inkless_doc_id = ""
         inkless_doc_url = ""
@@ -301,7 +331,7 @@ async def create_signature_request(
                 )
                 db.add(failure_audit)
         
-        # Step 6: Update document with final status and commit
+        # Step 7: Update document with final status and commit
         db.execute(
             text("UPDATE esignature_documents SET status = :status, inkless_document_id = :doc_id, inkless_document_url = :doc_url WHERE id = :id"),
             {
@@ -313,14 +343,14 @@ async def create_signature_request(
         )
         db.commit()
         
-        # Step 7: Return success response
+        # Step 8: Return success response
         return {
             "id": esign_id,
             "document_id": request_data.document_id,
             "title": request_data.title,
             "message": request_data.message,
             "status": current_status,
-            "created_by_user_id": current_user.id,
+            "created_by_user_id": creator_user_id,
             "created_by_role": user_role,
             "recipients": recipients_data,
             "expires_at": expires_at.isoformat(),
@@ -890,6 +920,7 @@ async def sign_document(
     """
     Sign a document with dynamic role-based permissions or email verification
     """
+    db = None  # Initialize db variable at the start
     try:
         # Handle both authenticated users and direct email signing
         user_role = getattr(current_user, 'role', 'customer') if current_user else 'customer'
@@ -901,13 +932,15 @@ async def sign_document(
                 detail=f"Role '{user_role}' does not have permission to sign documents"
             )
         
+        # Import models at the function level to avoid scope issues
+        from .. import models
+        
         # Find which company database contains this document
         companies = management_db.query(models.Company).filter(
             models.Company.is_active == True
         ).all()
         
         esign_doc = None
-        db = None
         for company in companies:
             try:
                 # Get company database connection
@@ -933,10 +966,27 @@ async def sign_document(
             raise HTTPException(status_code=404, detail="Signature request not found")
         
         # Check if document can be signed
-        if esign_doc.status not in ["sent", "signed"]:
+        # Allow signing if:
+        # 1. Document is "sent" or "signed" (normal flow)
+        # 2. Document is "created" and user is both creator and recipient (self-signing)
+        can_sign = esign_doc.status in ["sent", "signed"]
+        
+        if not can_sign and esign_doc.status == "created":
+            # Check if this is a self-signing scenario (creator is also a recipient)
+            recipient_email_to_check = sign_request.recipient_email or (current_user.email if current_user else None)
+            if recipient_email_to_check:
+                is_recipient = db.query(ESignatureRecipient).filter(
+                    ESignatureRecipient.esignature_document_id == esign_doc_id,
+                    ESignatureRecipient.email == recipient_email_to_check
+                ).first() is not None
+                
+                if is_recipient:
+                    can_sign = True
+        
+        if not can_sign:
             raise HTTPException(
                 status_code=400,
-                detail=f"Document cannot be signed in current status: {esign_doc.status}"
+                detail=f"Document cannot be signed in current status: {esign_doc.status}. Please send the document first or ensure you are a valid recipient."
             )
         
         # Check if user is a recipient (allow direct signing with email verification)
@@ -1016,13 +1066,22 @@ async def sign_document(
             }
         )
         
-        # Check if all recipients have signed
-        all_recipients = db.query(ESignatureRecipient).filter(
-            ESignatureRecipient.esignature_document_id == esign_doc_id
-        ).all()
+        # Force flush to ensure the SQL update is applied
+        db.flush()
         
-        signed_count = sum(1 for r in all_recipients if r.is_signed)
-        total_count = len(all_recipients)
+        # Check if all recipients have signed using SQL queries to avoid cache issues
+        signed_count_result = db.execute(
+            text("SELECT COUNT(*) FROM esignature_recipients WHERE esignature_document_id = :doc_id AND is_signed = true"),
+            {"doc_id": esign_doc_id}
+        ).scalar()
+        
+        total_count_result = db.execute(
+            text("SELECT COUNT(*) FROM esignature_recipients WHERE esignature_document_id = :doc_id"),
+            {"doc_id": esign_doc_id}
+        ).scalar()
+        
+        signed_count = signed_count_result or 0
+        total_count = total_count_result or 0
         
         # Update document status
         if signed_count == total_count:
