@@ -29,10 +29,24 @@ const CompanyAccess = () => {
 
   const loadCompany = async () => {
     try {
+      console.log('🔍 Loading company with ID:', companyId);
       const response = await companiesAPI.getPublic(companyId);
+      console.log('✅ Company loaded successfully:', response.data);
       setCompany(response.data);
     } catch (error) {
-      setError('Company not found');
+      console.error('❌ Failed to load company:', error);
+      console.error('Error details:', error.response?.data);
+      
+      // Provide more specific error messages
+      if (error.response?.status === 404) {
+        setError('Company ID not found. Please check your Company ID and try again.');
+      } else if (error.response?.status === 0 || error.code === 'NETWORK_ERROR') {
+        setError('Unable to connect to the server. Please check your internet connection and try again.');
+      } else if (error.response?.status === 500) {
+        setError('Server error occurred. Please try again later.');
+      } else {
+        setError(error.response?.data?.detail || 'Unable to access company information. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

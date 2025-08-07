@@ -23,6 +23,10 @@ services:
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "30"
+      - key: CORS_ORIGINS
+        value: "https://multitenant-frontend.onrender.com,http://localhost:3000,http://127.0.0.1:3000"
+      - key: APP_URL
+        value: "https://multitenant-frontend.onrender.com"
 
   # Frontend Static Site
   - type: web
@@ -34,7 +38,7 @@ services:
     plan: free
     envVars:
       - key: REACT_APP_API_URL
-        value: https://multitenant-backend.onrender.com
+        value: https://multitenant-backend-mlap.onrender.com
 
 # Database
 databases:
