@@ -35,13 +35,10 @@ const MainLanding = () => {
     setError('');
 
     try {
-      // First test the API connection
+      // First test the API connection with simple GET
       console.log('🧪 Testing API connection...');
-      const testResponse = await fetch('https://multitenant-backend-mlap.onrender.com/', {
+      const testResponse = await fetch('https://multitenant-backend-mlap.onrender.com/test-cors', {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         mode: 'cors'
       });
       console.log('🔗 API test response:', testResponse.status, testResponse.ok);
@@ -56,9 +53,6 @@ const MainLanding = () => {
       // Test the specific company endpoint directly
       const companyResponse = await fetch(`https://multitenant-backend-mlap.onrender.com/api/companies/${companyId.trim()}/public`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         mode: 'cors'
       });
       console.log('🏢 Company API response:', companyResponse.status, companyResponse.ok);
