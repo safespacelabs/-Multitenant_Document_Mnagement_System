@@ -61,7 +61,9 @@ async def root():
         "message": "Multi-Tenant Document Management System API",
         "version": "2.0.0",
         "status": "running",
-        "architecture": "true_database_isolation"
+        "architecture": "true_database_isolation",
+        "cors_enabled": True,
+        "frontend_url": "https://multitenant-frontend.onrender.com"
     }
 
 @app.get("/health")
@@ -98,7 +100,9 @@ async def debug_cors():
     return {
         "cors_origins": get_cors_origins(),
         "cors_origins_env": os.getenv("CORS_ORIGINS", "NOT_SET"),
-        "app_url_env": os.getenv("APP_URL", "NOT_SET")
+        "app_url_env": os.getenv("APP_URL", "NOT_SET"),
+        "frontend_url": "https://multitenant-frontend.onrender.com",
+        "backend_url": "https://multitenant-backend-mlap.onrender.com"
     }
 
 @app.post("/init-admin")

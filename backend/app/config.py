@@ -51,8 +51,10 @@ ENABLE_ESIGNATURE_NOTIFICATIONS = os.getenv("ENABLE_ESIGNATURE_NOTIFICATIONS", "
 # CORS origins function
 def get_cors_origins():
     """Get CORS origins from environment variable"""
-    origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
-    return [origin.strip() for origin in origins_str.split(",")]
+    origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,https://multitenant-frontend.onrender.com")
+    origins = [origin.strip() for origin in origins_str.split(",")]
+    print(f"🔧 CORS Origins configured: {origins}")
+    return origins
 
 # Settings class for new structured approach (optional)
 class Settings:
