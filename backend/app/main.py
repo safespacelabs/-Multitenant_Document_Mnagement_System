@@ -39,9 +39,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
-    expose_headers=["*"]
+    expose_headers=["*"],
+    max_age=3600
 )
 
 # Security
@@ -115,7 +116,21 @@ async def test_cors():
 @app.get("/test-cors")
 async def test_cors_get():
     """Test CORS GET request"""
-    return {"message": "CORS GET request successful"}
+    return {
+        "message": "CORS GET request successful",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "cors_enabled": True,
+        "frontend_url": "https://multitenant-frontend.onrender.com"
+    }
+
+@app.post("/test-cors")
+async def test_cors_post():
+    """Test CORS POST request"""
+    return {
+        "message": "CORS POST request successful",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "cors_enabled": True
+    }
 
 @app.post("/init-admin")
 async def initialize_first_admin(db: Session = Depends(get_management_db)):
