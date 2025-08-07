@@ -21,6 +21,9 @@ api.interceptors.request.use((config) => {
     } else {
       console.log('❌ No token found, request will fail');
     }
+  } else {
+    console.log('🌐 Public API Request:', config.url);
+    console.log('🔗 Full URL:', config.baseURL + config.url);
   }
   return config;
 });
@@ -29,10 +32,17 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => {
     console.log('✅ API Response:', response.config.url, response.status);
+    console.log('📦 Response data:', response.data);
     return response;
   },
   (error) => {
     console.log('❌ API Error:', error.config?.url, error.response?.status, error.response?.data);
+    console.log('🔍 Error details:', {
+      message: error.message,
+      code: error.code,
+      config: error.config,
+      response: error.response
+    });
     
     if (error.response?.status === 401) {
       console.log('🔐 401 Unauthorized - clearing auth data');

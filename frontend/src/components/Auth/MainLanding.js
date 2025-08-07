@@ -35,12 +35,47 @@ const MainLanding = () => {
     setError('');
 
     try {
+      // First test the API connection
+      console.log('🧪 Testing API connection...');
+      const testResponse = await fetch('https://multitenant-backend-mlap.onrender.com/');
+      console.log('🔗 API test response:', testResponse.status, testResponse.ok);
+      
+      if (!testResponse.ok) {
+        throw new Error(`API connection failed: ${testResponse.status}`);
+      }
+
       // Verify company exists before redirecting
+      console.log('🔍 Looking up company:', companyId.trim());
+      
+      // Test the specific company endpoint directly
+      const companyResponse = await fetch(`https://multitenant-backend-mlap.onrender.com/api/companies/${companyId.trim()}/public`);
+      console.log('🏢 Company API response:', companyResponse.status, companyResponse.ok);
+      
+      if (!companyResponse.ok) {
+        throw new Error(`Company lookup failed: ${companyResponse.status}`);
+      }
+      
+      const companyData = await companyResponse.json();
+      console.log('📋 Company data:', companyData);
+      
       await companiesAPI.getPublic(companyId.trim());
+      console.log('✅ Company found, navigating...');
       navigate(`/company/${companyId.trim()}/access`);
     } catch (error) {
-      console.error('Company verification failed:', error);
-      setError('Company ID not found. Please check your Company ID and try again.');
+      console.error('❌ Company verification failed:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response,
+        status: error.response?.status
+      });
+      
+      if (error.message.includes('API connection failed')) {
+        setError('Unable to connect to the server. Please try again later.');
+      } else if (error.response?.status === 404) {
+        setError('Company ID not found. Please check your Company ID and try again.');
+      } else {
+        setError(`Error: ${error.message || 'Unable to verify company. Please try again.'}`);
+      }
     } finally {
       setLoading(false);
     }
