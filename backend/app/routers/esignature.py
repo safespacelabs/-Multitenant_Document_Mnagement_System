@@ -608,7 +608,7 @@ async def get_signature_status(
             ESignatureRecipient.esignature_document_id == esign_doc_id
         ).all()
         
-    return {
+        return {
             "id": esign_doc.id,
             "status": esign_doc.status,
             "title": esign_doc.title,
