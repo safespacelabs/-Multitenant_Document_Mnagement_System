@@ -112,7 +112,10 @@ export function AuthProvider({ children }) {
 
   const systemAdminLogin = async (credentials) => {
     try {
+      console.log('🔐 Attempting system admin login with credentials:', credentials);
       const response = await authAPI.systemAdminLogin(credentials);
+      console.log('✅ System admin login response received:', response);
+      
       const { access_token, user: userData, company: companyData, permissions } = response;
       
       localStorage.setItem('access_token', access_token);
@@ -138,7 +141,7 @@ export function AuthProvider({ children }) {
 
   const register = async (userData) => {
     const response = await authAPI.register(userData);
-    const { access_token, user: newUser, company: companyData } = response.data;
+    const { access_token, user: newUser, company: companyData } = response;
     
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('user', JSON.stringify(newUser));
@@ -147,7 +150,7 @@ export function AuthProvider({ children }) {
     setUser(newUser);
     setCompany(companyData);
     
-    return response.data;
+    return response;
   };
 
   const logout = () => {

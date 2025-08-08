@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -12,6 +12,8 @@ from typing import List
 
 router = APIRouter()
 security = HTTPBearer()
+
+
 
 @router.post("/system/register", response_model=schemas.SystemUserResponse)
 async def register_system_user(
@@ -318,12 +320,15 @@ async def system_admin_login(
 ):
     """Dedicated login endpoint for system administrators"""
     
+    print(f"🔐 System admin login attempt for username: {user_credentials.username}")
+    
     # Check if this is a system user
     system_user = management_db.query(models.SystemUser).filter(
         models.SystemUser.username == user_credentials.username
     ).first()
     
     if not system_user:
+        print(f"❌ System admin login failed: User '{user_credentials.username}' not found")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid system administrator credentials",
@@ -338,6 +343,7 @@ async def system_admin_login(
         )
     
     if not auth_utils.verify_password(user_credentials.password, system_user.hashed_password):
+        print(f"❌ System admin login failed: Invalid password for user '{user_credentials.username}'")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid system administrator credentials",
@@ -363,13 +369,18 @@ async def system_admin_login(
         is_active=system_user.is_active
     )
     
-    return {
+    response_data = {
         "access_token": access_token,
         "token_type": "bearer",
         "user": user_response,
         "company": None,
         "permissions": get_user_permissions(str(system_user.role))
     }
+    
+    print(f"✅ System admin login successful for {user_credentials.username}")
+    print(f"📤 Sending response: {response_data}")
+    
+    return response_data
 
 @router.get("/system/admins", response_model=List[schemas.SystemUserResponse])
 async def list_system_admins(

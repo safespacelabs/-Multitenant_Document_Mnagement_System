@@ -45,6 +45,8 @@ app.add_middleware(
     max_age=3600
 )
 
+
+
 # Security
 security = HTTPBearer()
 
@@ -98,6 +100,13 @@ async def debug_cors():
     """Debug endpoint to check CORS configuration"""
     from app.config import get_cors_origins
     import os
+    
+    return {
+        "cors_origins": get_cors_origins(),
+        "environment": os.getenv("NODE_ENV", "development"),
+        "frontend_url": "https://multitenant-frontend.onrender.com",
+        "message": "CORS debug endpoint"
+    }
     
     return {
         "cors_origins": get_cors_origins(),

@@ -28,6 +28,9 @@ const authAPI = {
   },
 
   systemAdminLogin: async (credentials) => {
+    console.log('🌐 Making system admin login request to:', buildApiUrl('/api/auth/system-admin/login'));
+    console.log('📤 Request payload:', credentials);
+    
     const response = await fetch(buildApiUrl('/api/auth/system-admin/login'), {
       method: 'POST',
       headers: {
@@ -36,12 +39,18 @@ const authAPI = {
       body: JSON.stringify(credentials)
     });
     
+    console.log('📥 Response status:', response.status);
+    console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
       const error = await response.json();
+      console.error('❌ System admin login failed:', error);
       throw new Error(error.detail || 'System admin login failed');
     }
     
-    return response.json();
+    const data = await response.json();
+    console.log('✅ System admin login successful:', data);
+    return data;
   },
 
   register: async (userData, companyId) => {
