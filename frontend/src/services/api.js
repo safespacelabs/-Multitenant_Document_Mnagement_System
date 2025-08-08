@@ -250,6 +250,90 @@ const userManagementAPI = {
     }
     
     return response.json();
+  },
+
+  inviteUser: async (inviteData, companyId) => {
+    const response = await fetch(buildApiUrl('/api/user-management/invite'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify({ ...inviteData, company_id: companyId })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to invite user');
+    }
+    
+    return response.json();
+  },
+
+  listInvitations: async (companyId) => {
+    const response = await fetch(buildApiUrl('/api/user-management/invitations'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch invitations');
+    }
+    
+    return response.json();
+  },
+
+  cancelInvitation: async (invitationId, companyId) => {
+    const response = await fetch(buildApiUrl(`/api/user-management/invitations/${invitationId}`), {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to cancel invitation');
+    }
+    
+    return response.json();
+  },
+
+  updateUser: async (userId, userData, companyId) => {
+    const response = await fetch(buildApiUrl(`/api/user-management/users/${userId}`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify({ ...userData, company_id: companyId })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update user');
+    }
+    
+    return response.json();
+  },
+
+  getPermissions: async () => {
+    const response = await fetch(buildApiUrl('/api/user-management/permissions'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch permissions');
+    }
+    
+    return response.json();
   }
 };
 
@@ -538,6 +622,155 @@ const systemAdminAPI = {
   }
 };
 
+// E-Signature API
+const esignatureAPI = {
+  list: async (filter = 'all') => {
+    const response = await fetch(buildApiUrl(`/api/esignature/list${filter !== 'all' ? `?status=${filter}` : ''}`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch e-signature requests');
+    }
+    
+    return response.json();
+  },
+
+  createRequest: async (requestData) => {
+    const response = await fetch(buildApiUrl('/api/esignature/create-request'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify(requestData)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create e-signature request');
+    }
+    
+    return response.json();
+  },
+
+  sendRequest: async (requestId) => {
+    const response = await fetch(buildApiUrl(`/api/esignature/${requestId}/send`), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to send e-signature request');
+    }
+    
+    return response.json();
+  },
+
+  cancelRequest: async (requestId) => {
+    const response = await fetch(buildApiUrl(`/api/esignature/${requestId}/cancel`), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to cancel e-signature request');
+    }
+    
+    return response.json();
+  },
+
+  getStatus: async (requestId) => {
+    const response = await fetch(buildApiUrl(`/api/esignature/${requestId}/status`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get e-signature status');
+    }
+    
+    return response.json();
+  },
+
+  getPublicStatus: async (documentId, recipientEmail) => {
+    const response = await fetch(buildApiUrl(`/api/esignature/${documentId}/status-public?recipient_email=${encodeURIComponent(recipientEmail)}`), {
+      method: 'GET'
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get e-signature status');
+    }
+    
+    return response.json();
+  },
+
+  signDocument: async (documentId, signRequest) => {
+    const response = await fetch(buildApiUrl(`/api/esignature/${documentId}/sign`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(signRequest)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to sign document');
+    }
+    
+    return response.json();
+  },
+
+  signDocumentDirectly: async (documentId, signData) => {
+    const response = await fetch(buildApiUrl(`/api/esignature/sign-document-directly/${documentId}`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify(signData)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to sign document directly');
+    }
+    
+    return response.json();
+  },
+
+  downloadSigned: async (requestId) => {
+    const response = await fetch(buildApiUrl(`/api/esignature/${requestId}/download-signed`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to download signed document');
+    }
+    
+    return response.blob();
+  }
+};
+
 export { 
   authAPI, 
   documentsAPI, 
@@ -547,5 +780,6 @@ export {
   chatAPI, 
   systemChatAPI, 
   systemDocumentsAPI,
-  systemAdminAPI 
+  systemAdminAPI,
+  esignatureAPI
 };

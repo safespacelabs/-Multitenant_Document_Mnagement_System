@@ -12,7 +12,7 @@ import {
   Plus,
   PenTool
 } from 'lucide-react';
-import api from '../../services/api';
+import { documentsAPI, esignatureAPI } from '../../services/api';
 import DocumentSigning from './DocumentSigning';
 
 const ESignatureManager = ({ userRole, userId }) => {
@@ -29,8 +29,8 @@ const ESignatureManager = ({ userRole, userId }) => {
   const fetchSignatureRequests = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/esignature/list${filter !== 'all' ? `?status=${filter}` : ''}`);
-      setSignatureRequests(response.data);
+      const response = await esignatureAPI.list(filter);
+              setSignatureRequests(response);
     } catch (error) {
       console.error('Error fetching signature requests:', error);
     } finally {
@@ -110,7 +110,7 @@ const ESignatureManager = ({ userRole, userId }) => {
 
   const sendSignatureRequest = async (requestId) => {
     try {
-      await api.post(`/api/esignature/${requestId}/send`);
+              await esignatureAPI.sendRequest(requestId);
       fetchSignatureRequests();
       alert('Signature request sent successfully!');
     } catch (error) {
@@ -123,7 +123,7 @@ const ESignatureManager = ({ userRole, userId }) => {
     if (!window.confirm('Are you sure you want to cancel this signature request?')) return;
     
     try {
-      await api.post(`/api/esignature/${requestId}/cancel`);
+              await esignatureAPI.cancelRequest(requestId);
       fetchSignatureRequests();
       alert('Signature request cancelled successfully!');
     } catch (error) {
@@ -134,11 +134,9 @@ const ESignatureManager = ({ userRole, userId }) => {
 
   const downloadSignedDocument = async (requestId, title) => {
     try {
-      const response = await api.get(`/api/esignature/${requestId}/download-signed`, {
-        responseType: 'blob'
-      });
+              const response = await esignatureAPI.downloadSigned(requestId);
       
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+              const blob = new Blob([response], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -162,8 +160,8 @@ const ESignatureManager = ({ userRole, userId }) => {
 
   const viewSignatureStatus = async (requestId) => {
     try {
-      const response = await api.get(`/api/esignature/${requestId}/status`);
-      const statusData = response.data;
+              const response = await esignatureAPI.getStatus(requestId);
+              const statusData = response;
       
       // Create a modal to display the status information
       const statusModal = document.createElement('div');
@@ -534,11 +532,11 @@ const CreateSignatureModal = ({ type, userRole, onClose, onSuccess }) => {
       setLoadingDocs(true);
       let response;
       if (userRole === 'system_admin') {
-        response = await api.get('/api/documents/system/');
+        response = await systemDocumentsAPI.list();
       } else {
-        response = await api.get('/api/documents/');
+                  response = await documentsAPI.list(companyId);
       }
-      setDocuments(response.data);
+              setDocuments(response);
     } catch (error) {
       console.error('Failed to load documents:', error);
       setDocuments([]);
@@ -620,7 +618,7 @@ const CreateSignatureModal = ({ type, userRole, onClose, onSuccess }) => {
     try {
       setLoading(true);
       
-      const response = await api.post('/api/esignature/create-request', {
+              const response = await esignatureAPI.createRequest({
         document_id: selectedDocumentId,
         title: title.trim(),
         message: message.trim(),

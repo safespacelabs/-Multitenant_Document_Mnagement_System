@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../services/api';
+import { userManagementAPI, usersAPI } from '../../services/api';
 import { useAuth } from '../../utils/auth';
 import { 
   Users, 
@@ -95,23 +95,22 @@ function UserManagement({ companyId, onClose }) {
       if (isSystemAdmin && companyId) {
         // System admin endpoints with company ID in path
         [usersResponse, invitationsResponse, permissionsResponse] = await Promise.all([
-          api.get(`/api/user-management/admin/companies/${companyId}/users`),
-          api.get(`/api/user-management/admin/companies/${companyId}/invitations`),
-          api.get('/api/user-management/admin/permissions')
+          usersAPI.list(companyId),
+          userManagementAPI.listInvitations(companyId),
+          userManagementAPI.getPermissions()
         ]);
       } else {
-        // Regular company user endpoints with headers
-        const headers = companyId ? { 'X-Company-ID': companyId } : {};
+        // Regular company user endpoints
         [usersResponse, invitationsResponse, permissionsResponse] = await Promise.all([
-          api.get('/api/user-management/users', { headers }),
-          api.get('/api/user-management/invitations', { headers }),
-          api.get('/api/user-management/permissions', { headers })
+          usersAPI.list(companyId),
+          userManagementAPI.listInvitations(companyId),
+          userManagementAPI.getPermissions()
         ]);
       }
 
-      setUsers(usersResponse.data);
-      setInvitations(invitationsResponse.data);
-      setPermissions(permissionsResponse.data);
+      setUsers(usersResponse);
+      setInvitations(invitationsResponse);
+      setPermissions(permissionsResponse);
     } catch (err) {
       setError('Failed to fetch user data');
       console.error('Error fetching data:', err);
@@ -123,26 +122,24 @@ function UserManagement({ companyId, onClose }) {
   const handleInviteUser = async (e) => {
     e.preventDefault();
     try {
-      const headers = companyId ? { 'X-Company-ID': companyId } : {};
-      await api.post('/api/user-management/invite', inviteForm, { headers });
+      await userManagementAPI.inviteUser(inviteForm, companyId);
       setShowInviteModal(false);
       setInviteForm({ email: '', full_name: '', role: 'customer' });
       await fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to invite user');
+      setError(err.message || 'Failed to invite user');
     }
   };
 
   const handleEditUser = async (e) => {
     e.preventDefault();
     try {
-      const headers = companyId ? { 'X-Company-ID': companyId } : {};
-      await api.put(`/api/user-management/users/${selectedUser.id}`, editForm, { headers });
+      await userManagementAPI.updateUser(selectedUser.id, editForm, companyId);
       setShowEditModal(false);
       setSelectedUser(null);
       await fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to update user');
+      setError(err.message || 'Failed to update user');
     }
   };
 
@@ -150,11 +147,10 @@ function UserManagement({ companyId, onClose }) {
     if (!window.confirm('Are you sure you want to cancel this invitation?')) return;
     
     try {
-      const headers = companyId ? { 'X-Company-ID': companyId } : {};
-      await api.delete(`/api/user-management/invitations/${invitationId}`, { headers });
+      await userManagementAPI.cancelInvitation(invitationId, companyId);
       await fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to cancel invitation');
+      setError(err.message || 'Failed to cancel invitation');
     }
   };
 
@@ -162,11 +158,10 @@ function UserManagement({ companyId, onClose }) {
     if (!window.confirm('Are you sure you want to deactivate this user?')) return;
     
     try {
-      const headers = companyId ? { 'X-Company-ID': companyId } : {};
-      await api.put(`/api/user-management/users/${userId}`, { is_active: false }, { headers });
+      await userManagementAPI.updateUser(userId, { is_active: false }, companyId);
       await fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to deactivate user');
+      setError(err.message || 'Failed to deactivate user');
     }
   };
 

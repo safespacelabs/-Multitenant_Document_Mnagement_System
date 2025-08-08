@@ -8,7 +8,7 @@ import {
   ExternalLink,
   PenTool
 } from 'lucide-react';
-import api from '../../services/api';
+import { documentsAPI, esignatureAPI } from '../../services/api';
 
 const DocumentESignatureIntegration = ({ document, userRole, userId, onSignatureRequestCreated }) => {
   const [showESignModal, setShowESignModal] = useState(false);
@@ -58,7 +58,7 @@ const DocumentESignatureIntegration = ({ document, userRole, userId, onSignature
 
     setDirectSignLoading(true);
     try {
-      const response = await api.post(`/api/esignature/sign-document-directly/${document.id}`, {
+              const response = await esignatureAPI.signDocumentDirectly(document.id, {
         signature_text: signatureText.trim(),
         ip_address: '127.0.0.1', // In a real app, get actual IP
         user_agent: navigator.userAgent
@@ -113,7 +113,7 @@ const DocumentESignatureIntegration = ({ document, userRole, userId, onSignature
 
     setLoading(true);
     try {
-      const response = await api.post('/api/esignature/create-request', {
+              const response = await esignatureAPI.createRequest({
         document_id: document.id,
         title: requestTitle,
         message: requestMessage,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api, { companiesAPI } from '../../services/api';
+import { companiesAPI } from '../../services/api';
 import { useAuth } from '../../utils/auth';
 import UserManagement from '../Users/UserManagement';
 import Header from '../Layout/Header';

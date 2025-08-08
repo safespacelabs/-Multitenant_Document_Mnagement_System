@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../services/api';
+import { documentsAPI, esignatureAPI } from '../../services/api';
 
 const DocumentSigning = ({ documentId, onSigningComplete, onCancel }) => {
   const [loading, setLoading] = useState(false);
@@ -14,8 +14,8 @@ const DocumentSigning = ({ documentId, onSigningComplete, onCancel }) => {
     const loadDocumentDetails = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/api/esignature/${documentId}/status`);
-        setDocumentDetails(response.data);
+        const response = await esignatureAPI.getStatus(documentId);
+                  setDocumentDetails(response);
         setIsDocumentLoaded(true);
       } catch (err) {
         setError('Failed to load document details');
@@ -55,7 +55,7 @@ const DocumentSigning = ({ documentId, onSigningComplete, onCancel }) => {
         user_agent: navigator.userAgent
       };
 
-      const response = await api.post(`/api/esignature/${documentId}/sign`, signRequest);
+              const response = await esignatureAPI.signDocument(documentId, signRequest);
       
       setSuccess({
         message: response.data.message,

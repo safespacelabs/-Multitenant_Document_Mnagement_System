@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
-import api from '../../services/api';
+import { documentsAPI, esignatureAPI } from '../../services/api';
 
 const EmailDocumentSigning = () => {
   const { documentId } = useParams();
@@ -30,8 +30,8 @@ const EmailDocumentSigning = () => {
         setLoading(true);
         
         // Use the public endpoint that doesn't require authentication
-        const response = await api.get(`/api/esignature/${documentId}/status-public?recipient_email=${encodeURIComponent(recipientEmail)}`);
-        setDocumentDetails(response.data);
+        const response = await esignatureAPI.getPublicStatus(documentId, recipientEmail);
+                  setDocumentDetails(response);
         setIsDocumentLoaded(true);
         
       } catch (err) {
@@ -82,7 +82,7 @@ const EmailDocumentSigning = () => {
         recipient_email: recipientEmail // Include recipient email for verification
       };
 
-      const response = await api.post(`/api/esignature/${documentId}/sign`, signRequest);
+              const response = await esignatureAPI.signDocument(documentId, signRequest);
       
       setSuccess({
         message: response.data.message,
