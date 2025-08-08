@@ -549,5 +549,3 @@ export {
   systemDocumentsAPI,
   systemAdminAPI 
 };
-
-export default api;
