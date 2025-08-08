@@ -90,6 +90,7 @@ const authAPI = {
 // Companies API
 const companiesAPI = {
   list: async () => {
+    console.log('🏢 Making companies list request to:', buildApiUrl('/api/companies/'));
     const response = await fetch(buildApiUrl('/api/companies/'), {
       method: 'GET',
       headers: {
@@ -97,12 +98,17 @@ const companiesAPI = {
       }
     });
     
+    console.log('📥 Companies response status:', response.status);
+    
     if (!response.ok) {
       const error = await response.json();
+      console.error('❌ Companies list failed:', error);
       throw new Error(error.detail || 'Failed to fetch companies');
     }
     
-    return response.json();
+    const data = await response.json();
+    console.log('✅ Companies list successful:', data);
+    return data;
   },
 
   create: async (companyData) => {

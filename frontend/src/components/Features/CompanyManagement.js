@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 const CompanyManagement = () => {
+  console.log('🏢 CompanyManagement component rendering...');
   const { user } = useAuth();
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -30,17 +31,20 @@ const CompanyManagement = () => {
   const [testingConnections, setTestingConnections] = useState({});
 
   useEffect(() => {
+    console.log('🏢 CompanyManagement useEffect triggered');
     loadCompanies();
   }, []);
 
   const loadCompanies = async () => {
+    console.log('🏢 Loading companies...');
     try {
       setLoading(true);
       const response = await companiesAPI.list();
-      setCompanies(response.data);
+      console.log('✅ Companies loaded:', response);
+      setCompanies(response);
       setError(null);
     } catch (error) {
-      console.error('Failed to load companies:', error);
+      console.error('❌ Failed to load companies:', error);
       setError('Failed to load companies');
     } finally {
       setLoading(false);

@@ -28,6 +28,11 @@ const Dashboard = () => {
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
 
+  console.log('🏠 Dashboard component rendering...');
+  console.log('👤 User:', user);
+  console.log('🏢 Company:', company);
+  console.log('📍 Location:', location.pathname);
+
   useEffect(() => {
     // Only load stats if user is authenticated
     if (user && user.username) {
@@ -315,16 +320,23 @@ const Dashboard = () => {
     }
 
     // Individual sections
+    console.log('🔍 Current path:', currentPath);
+    console.log('🔍 Base path:', basePath);
+    
     if (currentPath.includes('/system-admins')) {
+      console.log('📋 Rendering SystemAdminManagement');
       return <SystemAdminManagement />;
     }
     if (currentPath.includes('/companies')) {
+      console.log('🏢 Rendering CompanyManagement');
       return <CompanyManagement />;
     }
     if (currentPath.includes('/users')) {
+      console.log('👥 Rendering UserManagement');
       return <UserManagement />;
     }
     if (currentPath.includes('/documents')) {
+      console.log('📄 Rendering DocumentManagement');
       return <DocumentManagement />;
     }
     if (currentPath.includes('/esignature')) {
@@ -492,11 +504,13 @@ const Dashboard = () => {
     }
 
     // Default fallback
+    console.log('⚠️ No matching route found, showing fallback');
     return (
       <div className="p-6">
         <div className="text-center">
           <h2 className="text-2xl font-semibold text-gray-900 mb-4">Page Not Found</h2>
           <p className="text-gray-600">The requested page could not be found.</p>
+          <p className="text-sm text-gray-500 mt-2">Current path: {currentPath}</p>
         </div>
       </div>
     );
