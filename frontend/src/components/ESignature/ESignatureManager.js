@@ -532,6 +532,16 @@ const CreateSignatureModal = ({ type, userRole, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [loadingDocs, setLoadingDocs] = useState(true);
 
+  // Get company ID from localStorage
+  const getCompanyId = () => {
+    const savedCompany = localStorage.getItem('company');
+    if (savedCompany && savedCompany !== 'null') {
+      const companyData = JSON.parse(savedCompany);
+      return companyData.id;
+    }
+    return null;
+  };
+
   useEffect(() => {
     loadDocuments();
     setDefaultTemplate();
