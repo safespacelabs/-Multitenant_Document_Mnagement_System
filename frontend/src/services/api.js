@@ -1,141 +1,407 @@
-import axios from 'axios';
+// API base URL - use full URL in production, relative in development
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://multitenant-backend-mlap.onrender.com'
+  : '';
 
-// Use environment variable for API URL, fallback to localhost for development
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Helper function to build API URLs
+const buildApiUrl = (endpoint) => {
+  return `${API_BASE_URL}${endpoint}`;
+};
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-});
-
-// Add auth token to requests (except for public endpoints)
-api.interceptors.request.use((config) => {
-  // Skip authorization for public endpoints
-  if (!config.url.includes('/public') && !config.url.includes('/system-admin/login')) {
-    const token = localStorage.getItem('access_token');
-    console.log('🔍 API Request:', config.url);
-    console.log('🔑 Token from localStorage:', token ? token.substring(0, 50) + '...' : 'None');
-    
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-      console.log('✅ Authorization header set');
-    } else {
-      console.log('❌ No token found, request will fail');
-    }
-  } else {
-    console.log('🌐 Public API Request:', config.url);
-    console.log('🔗 Full URL:', config.baseURL + config.url);
-  }
-  return config;
-});
-
-// Handle auth errors
-api.interceptors.response.use(
-  (response) => {
-    console.log('✅ API Response:', response.config.url, response.status);
-    console.log('📦 Response data:', response.data);
-    return response;
-  },
-  (error) => {
-    console.log('❌ API Error:', error.config?.url, error.response?.status, error.response?.data);
-    console.log('🔍 Error details:', {
-      message: error.message,
-      code: error.code,
-      config: error.config,
-      response: error.response
+// Authentication API
+const authAPI = {
+  login: async (credentials) => {
+    const response = await fetch(buildApiUrl('/api/auth/login'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials)
     });
     
-    if (error.response?.status === 401) {
-      console.log('🔐 401 Unauthorized - clearing auth data');
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('company');
-      window.location.href = '/';
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Login failed');
     }
-    return Promise.reject(error);
-  }
-);
-
-const authAPI = {
-  login: (credentials) => api.post('/api/auth/login', credentials),
-  register: (userData, companyId = null) => {
-    if (companyId) {
-      return api.post(`/api/auth/register?company_id=${companyId}`, userData);
-    }
-    return api.post('/api/auth/register', userData);
+    
+    return response.json();
   },
-  systemAdminLogin: (credentials) => api.post('/api/auth/system-admin/login', credentials),
-  getMe: () => api.get('/api/auth/me'),
+
+  systemAdminLogin: async (credentials) => {
+    const response = await fetch(buildApiUrl('/api/auth/system-admin/login'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'System admin login failed');
+    }
+    
+    return response.json();
+  },
+
+  register: async (userData, companyId) => {
+    const response = await fetch(buildApiUrl(`/api/auth/register?company_id=${companyId}`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Registration failed');
+    }
+    
+    return response.json();
+  },
+
+  getMe: async () => {
+    const response = await fetch(buildApiUrl('/api/auth/me'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get user info');
+    }
+    
+    return response.json();
+  }
 };
 
+// Companies API
 const companiesAPI = {
-  list: () => api.get('/api/companies'),
-  listPublic: () => api.get('/api/companies/public'), // Public endpoint for main landing
-  create: (companyData) => api.post('/api/companies', companyData),
-  get: (id) => api.get(`/api/companies/${id}`),
-  getPublic: (id) => api.get(`/api/companies/${id}/public`), // Public endpoint for company access
-  getStats: (id) => api.get(`/api/companies/${id}/stats`),
-  delete: (id) => api.delete(`/api/companies/${id}`),
-  requestAccess: (id, requestData) => api.post(`/api/companies/${id}/request-access`, requestData),
+  list: async () => {
+    const response = await fetch(buildApiUrl('/api/companies/'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch companies');
+    }
+    
+    return response.json();
+  },
+
+  create: async (companyData) => {
+    const response = await fetch(buildApiUrl('/api/companies/'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify(companyData)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create company');
+    }
+    
+    return response.json();
+  },
+
+  delete: async (companyId) => {
+    const response = await fetch(buildApiUrl(`/api/companies/${companyId}`), {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete company');
+    }
+    
+    return response.json();
+  }
 };
 
+// Users API
+const usersAPI = {
+  list: async (companyId) => {
+    const response = await fetch(buildApiUrl(`/api/users/${companyId}`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch users');
+    }
+    
+    return response.json();
+  },
+
+  create: async (userData, companyId) => {
+    const response = await fetch(buildApiUrl(`/api/users/${companyId}`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify(userData)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create user');
+    }
+    
+    return response.json();
+  },
+
+  delete: async (userId, companyId) => {
+    const response = await fetch(buildApiUrl(`/api/users/${companyId}/${userId}`), {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete user');
+    }
+    
+    return response.json();
+  }
+};
+
+// User Management API
+const userManagementAPI = {
+  getRoles: async () => {
+    const response = await fetch(buildApiUrl('/api/user-management/roles'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch roles');
+    }
+    
+    return response.json();
+  },
+
+  createCustomRole: async (roleData) => {
+    const response = await fetch(buildApiUrl('/api/user-management/roles/create-custom-role'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify(roleData)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create custom role');
+    }
+    
+    return response.json();
+  },
+
+  deleteCustomRole: async (roleName) => {
+    const response = await fetch(buildApiUrl(`/api/user-management/roles/delete-custom-role/${roleName}`), {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete custom role');
+    }
+    
+    return response.json();
+  },
+
+  getPermissionActions: async () => {
+    const response = await fetch(buildApiUrl('/api/user-management/roles/permission-actions'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch permission actions');
+    }
+    
+    return response.json();
+  }
+};
+
+// Documents API
 const documentsAPI = {
-  upload: (file, folderName = null) => {
+  list: async (companyId) => {
+    const response = await fetch(buildApiUrl(`/api/documents/${companyId}`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch documents');
+    }
+    
+    return response.json();
+  },
+
+  upload: async (file, companyId) => {
     const formData = new FormData();
     formData.append('file', file);
-    if (folderName) {
-      formData.append('folder_name', folderName);
-    }
-    return api.post('/api/documents/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    
+    const response = await fetch(buildApiUrl(`/api/documents/${companyId}/upload`), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: formData
     });
-  },
-  list: (folderName = null) => {
-    const params = folderName !== null ? { folder_name: folderName } : {};
-    return api.get('/api/documents/', { params });
-  },
-  folders: () => api.get('/api/documents/folders'),
-  get: (id) => api.get(`/api/documents/${id}`),
-  delete: (id) => api.delete(`/api/documents/${id}`),
-};
-
-const usersAPI = {
-  list: () => api.get('/api/users/'),
-  get: (id) => api.get(`/api/users/${id}`),
-  update: (id, userData) => api.put(`/api/users/${id}`, userData),
-  delete: (id) => api.delete(`/api/users/${id}`),
-  activate: (id) => api.post(`/api/users/${id}/activate`),
-  getStats: () => api.get('/api/users/stats/company'),
-};
-
-const userManagementAPI = {
-  inviteUser: (inviteData) => api.post('/api/user-management/invite', inviteData),
-  setupPassword: (setupData) => api.post('/api/user-management/setup-password', setupData),
-  listInvitations: () => api.get('/api/user-management/invitations'),
-  listUsers: () => api.get('/api/user-management/users'),
-  cancelInvitation: (id) => api.delete(`/api/user-management/invitations/${id}`),
-  getPermissions: () => api.get('/api/user-management/permissions'),
-  getInvitationDetails: (uniqueId) => api.get(`/api/user-management/invitation/${uniqueId}`),
-};
-
-const chatAPI = {
-  sendMessage: (question) => api.post('/api/chat', { question }),
-  getHistory: () => api.get('/api/chat/history'),
-};
-
-const systemChatAPI = {
-  sendMessage: (question) => api.post('/api/chat/system', { question }),
-  getHistory: () => api.get('/api/chat/system/history'),
-};
-
-// System Admin Document API
-const systemDocumentsAPI = {
-  list: async (folderName = null) => {
-    const params = new URLSearchParams();
-    if (folderName !== null) {
-      params.append('folder_name', folderName);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to upload document');
     }
     
-    const response = await fetch(`/api/documents/system/?${params}`, {
+    return response.json();
+  },
+
+  delete: async (documentId, companyId) => {
+    const response = await fetch(buildApiUrl(`/api/documents/${companyId}/${documentId}`), {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete document');
+    }
+    
+    return response.json();
+  },
+
+  download: async (documentId, companyId) => {
+    const response = await fetch(buildApiUrl(`/api/documents/${companyId}/${documentId}/download`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get download URL');
+    }
+    
+    return response.json();
+  }
+};
+
+// Chat API
+const chatAPI = {
+  sendMessage: async (message, companyId) => {
+    const response = await fetch(buildApiUrl(`/api/chat/${companyId}`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify({ message })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to send message');
+    }
+    
+    return response.json();
+  },
+
+  getHistory: async (companyId) => {
+    const response = await fetch(buildApiUrl(`/api/chat/${companyId}/history`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch chat history');
+    }
+    
+    return response.json();
+  }
+};
+
+// System Chat API
+const systemChatAPI = {
+  sendMessage: async (message) => {
+    const response = await fetch(buildApiUrl('/api/chat/system'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify({ message })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to send system message');
+    }
+    
+    return response.json();
+  },
+
+  getHistory: async () => {
+    const response = await fetch(buildApiUrl('/api/chat/system/history'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch system chat history');
+    }
+    
+    return response.json();
+  }
+};
+
+// System Documents API
+const systemDocumentsAPI = {
+  list: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/system'), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -150,14 +416,11 @@ const systemDocumentsAPI = {
     return response.json();
   },
 
-  upload: async (file, folderName = null) => {
+  upload: async (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    if (folderName) {
-      formData.append('folder_name', folderName);
-    }
     
-    const response = await fetch('/api/documents/system/upload', {
+    const response = await fetch(buildApiUrl('/api/documents/system/upload'), {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -173,24 +436,8 @@ const systemDocumentsAPI = {
     return response.json();
   },
 
-  get: async (documentId) => {
-    const response = await fetch(`/api/documents/system/${documentId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-      }
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to fetch system document');
-    }
-    
-    return response.json();
-  },
-
   delete: async (documentId) => {
-    const response = await fetch(`/api/documents/system/${documentId}`, {
+    const response = await fetch(buildApiUrl(`/api/documents/system/${documentId}`), {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -206,7 +453,7 @@ const systemDocumentsAPI = {
   },
 
   download: async (documentId) => {
-    const response = await fetch(`/api/documents/system/${documentId}/download`, {
+    const response = await fetch(buildApiUrl(`/api/documents/system/${documentId}/download`), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -222,7 +469,7 @@ const systemDocumentsAPI = {
   },
 
   getFolders: async () => {
-    const response = await fetch('/api/documents/system/folders', {
+    const response = await fetch(buildApiUrl('/api/documents/system/folders'), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -241,7 +488,7 @@ const systemDocumentsAPI = {
 // System Admin Management API
 const systemAdminAPI = {
   create: async (adminData) => {
-    const response = await fetch('/api/auth/system/register', {
+    const response = await fetch(buildApiUrl('/api/auth/system/register'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -259,7 +506,7 @@ const systemAdminAPI = {
   },
 
   list: async () => {
-    const response = await fetch('/api/auth/system/admins', {
+    const response = await fetch(buildApiUrl('/api/auth/system/admins'), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -275,7 +522,7 @@ const systemAdminAPI = {
   },
 
   delete: async (adminId) => {
-    const response = await fetch(`/api/auth/system/admins/${adminId}`, {
+    const response = await fetch(buildApiUrl(`/api/auth/system/admins/${adminId}`), {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
