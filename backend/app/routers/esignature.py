@@ -264,29 +264,29 @@ async def create_signature_request(
         inkless_doc_url = ""
         
         if can_send_esignature_request(user_role):
-            try:
+        try:
                 # Initialize Inkless service
                 inkless_service = InklessService()
                 document_url = f"https://mock-document-url.com/documents/{request_data.document_id}"
                 
-                # Create signature request in Inkless
-                inkless_response = await inkless_service.create_signature_request(
-                    document_url=document_url,
-                    document_name=request_data.title,
-                    recipients=recipients_data,
-                    title=request_data.title,
-                    message=request_data.message,
-                    expires_in_days=request_data.expires_in_days if request_data.expires_in_days else 14
-                )
-                
-                # Extract response data
-                inkless_doc_id = inkless_response.get("document_id", "")
-                inkless_doc_url = inkless_response.get("signing_url", "")
-                current_status = "created"
-                
+            # Create signature request in Inkless
+            inkless_response = await inkless_service.create_signature_request(
+                document_url=document_url,
+                document_name=request_data.title,
+                recipients=recipients_data,
+                title=request_data.title,
+                message=request_data.message,
+                expires_in_days=request_data.expires_in_days if request_data.expires_in_days else 14
+            )
+            
+            # Extract response data
+            inkless_doc_id = inkless_response.get("document_id", "")
+            inkless_doc_url = inkless_response.get("signing_url", "")
+            current_status = "created"
+            
                 # Step 5: Send signature request emails via Inkless AND our email service
-                send_response = await inkless_service.send_signature_request(inkless_doc_id)
-                
+            send_response = await inkless_service.send_signature_request(inkless_doc_id)
+            
                 # Also send our own email notifications to recipients
                 try:
                     # Get company name for email service
