@@ -12,7 +12,7 @@ import {
   Plus,
   PenTool
 } from 'lucide-react';
-import { documentsAPI, esignatureAPI } from '../../services/api';
+import { documentsAPI, esignatureAPI, systemDocumentsAPI } from '../../services/api';
 import DocumentSigning from './DocumentSigning';
 
 const ESignatureManager = ({ userRole, userId }) => {
@@ -21,6 +21,16 @@ const ESignatureManager = ({ userRole, userId }) => {
   const [filter, setFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSigningModal, setShowSigningModal] = useState(null);
+  
+  // Get company ID from localStorage
+  const getCompanyId = () => {
+    const savedCompany = localStorage.getItem('company');
+    if (savedCompany && savedCompany !== 'null') {
+      const companyData = JSON.parse(savedCompany);
+      return companyData.id;
+    }
+    return null;
+  };
 
   useEffect(() => {
     fetchSignatureRequests();
@@ -534,9 +544,15 @@ const CreateSignatureModal = ({ type, userRole, onClose, onSuccess }) => {
       if (userRole === 'system_admin') {
         response = await systemDocumentsAPI.list();
       } else {
-                  response = await documentsAPI.list(companyId);
+        const companyId = getCompanyId();
+        if (!companyId) {
+          console.error('No company ID found');
+          setDocuments([]);
+          return;
+        }
+        response = await documentsAPI.list(companyId);
       }
-              setDocuments(response);
+      setDocuments(response);
     } catch (error) {
       console.error('Failed to load documents:', error);
       setDocuments([]);
