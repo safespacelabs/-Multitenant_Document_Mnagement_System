@@ -80,9 +80,9 @@ export function AuthProvider({ children }) {
       
       console.log('📤 Making login request with payload:', payload);
       const response = await authAPI.login(payload);
-      console.log('✅ Login response received:', response.data);
+      console.log('✅ Login response received:', response);
       
-      const { access_token, user: userData, company: companyData } = response.data;
+      const { access_token, user: userData, company: companyData } = response;
       
       console.log('💾 Storing token and user data...');
       localStorage.setItem('access_token', access_token);
@@ -113,7 +113,7 @@ export function AuthProvider({ children }) {
   const systemAdminLogin = async (credentials) => {
     try {
       const response = await authAPI.systemAdminLogin(credentials);
-      const { access_token, user: userData, company: companyData, permissions } = response.data;
+      const { access_token, user: userData, company: companyData, permissions } = response;
       
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('user', JSON.stringify(userData));
