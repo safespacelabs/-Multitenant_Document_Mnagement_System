@@ -499,25 +499,40 @@ const systemChatAPI = {
 
 // System Documents API
 const systemDocumentsAPI = {
-  list: async () => {
-    const response = await fetch(buildApiUrl('/api/documents/system'), {
+  list: async (folderName = null) => {
+    let url = buildApiUrl('/api/documents/system/');
+    if (folderName !== null) {
+      url += `?folder_name=${encodeURIComponent(folderName)}`;
+    }
+    
+    console.log('📄 Making system documents list request to:', url);
+    
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
     
+    console.log('📥 System documents response status:', response.status);
+    
     if (!response.ok) {
       const error = await response.json();
+      console.error('❌ System documents list failed:', error);
       throw new Error(error.detail || 'Failed to fetch system documents');
     }
     
-    return response.json();
+    const data = await response.json();
+    console.log('✅ System documents list successful:', data);
+    return data;
   },
 
-  upload: async (file) => {
+  upload: async (file, folderName = null) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (folderName) {
+      formData.append('folder_name', folderName);
+    }
     
     const response = await fetch(buildApiUrl('/api/documents/system/upload'), {
       method: 'POST',
