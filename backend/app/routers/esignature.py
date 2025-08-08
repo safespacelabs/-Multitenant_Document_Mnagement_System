@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -1607,10 +1608,9 @@ async def download_signed_document(
         db.add(audit_log)
         db.commit()
         
-    from fastapi.responses import Response
-    return Response(
+        return Response(
             content=document_content or b"No document content available",
-        media_type="application/pdf",
+            media_type="application/pdf",
             headers={"Content-Disposition": f"attachment; filename={document_filename}"}
         )
         
