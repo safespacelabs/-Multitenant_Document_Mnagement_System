@@ -263,29 +263,29 @@ async def create_signature_request(
         inkless_doc_url = ""
         
         if can_send_esignature_request(user_role):
-        try:
+            try:
                 # Initialize Inkless service
                 inkless_service = InklessService()
                 document_url = f"https://mock-document-url.com/documents/{request_data.document_id}"
                 
-            # Create signature request in Inkless
-            inkless_response = await inkless_service.create_signature_request(
-                document_url=document_url,
-                document_name=request_data.title,
-                recipients=recipients_data,
-                title=request_data.title,
-                message=request_data.message,
-                expires_in_days=request_data.expires_in_days if request_data.expires_in_days else 14
-            )
-            
-            # Extract response data
-            inkless_doc_id = inkless_response.get("document_id", "")
-            inkless_doc_url = inkless_response.get("signing_url", "")
-            current_status = "created"
-            
+                # Create signature request in Inkless
+                inkless_response = await inkless_service.create_signature_request(
+                    document_url=document_url,
+                    document_name=request_data.title,
+                    recipients=recipients_data,
+                    title=request_data.title,
+                    message=request_data.message,
+                    expires_in_days=request_data.expires_in_days if request_data.expires_in_days else 14
+                )
+                
+                # Extract response data
+                inkless_doc_id = inkless_response.get("document_id", "")
+                inkless_doc_url = inkless_response.get("signing_url", "")
+                current_status = "created"
+                
                 # Step 5: Send signature request emails via Inkless AND our email service
-            send_response = await inkless_service.send_signature_request(inkless_doc_id)
-            
+                send_response = await inkless_service.send_signature_request(inkless_doc_id)
+                
                 # Also send our own email notifications to recipients
                 try:
                     # Get company name for email service
@@ -325,43 +325,43 @@ async def create_signature_request(
                 except Exception as e:
                     print(f"⚠️ Error in e-signature email notification process: {str(e)}")
                 
-            if send_response.get("success"):
-                current_status = "sent"
-                
-                # Log the send action
-                send_audit = ESignatureAuditLog(
-                    esignature_document_id=esign_id,
-                    action="sent",
-                    user_email=current_user.email,
-                    details=json.dumps({
-                        "recipients_notified": len(recipients_data),
+                if send_response.get("success"):
+                    current_status = "sent"
+                    
+                    # Log the send action
+                    send_audit = ESignatureAuditLog(
+                        esignature_document_id=esign_id,
+                        action="sent",
+                        user_email=current_user.email,
+                        details=json.dumps({
+                            "recipients_notified": len(recipients_data),
                             "inkless_document_id": inkless_doc_id,
                             "auto_sent": True,
                             "sent_by_role": user_role
+                        }),
+                        created_at=datetime.utcnow()
+                    )
+                    db.add(send_audit)
+                    
+                    logger.info(f"✅ E-signature request {esign_id} auto-sent successfully to {len(recipients_data)} recipients by {user_role}")
+            
+            except Exception as inkless_error:
+                logger.warning(f"⚠️ Inkless service error: {str(inkless_error)}")
+                current_status = "failed"
+                
+                # Log the failure
+                failure_audit = ESignatureAuditLog(
+                    esignature_document_id=esign_id,
+                    action="failed",
+                    user_email=current_user.email,
+                    details=json.dumps({
+                        "error": str(inkless_error),
+                        "fallback_mode": True,
+                        "attempted_by_role": user_role
                     }),
                     created_at=datetime.utcnow()
                 )
-                db.add(send_audit)
-                
-                    logger.info(f"✅ E-signature request {esign_id} auto-sent successfully to {len(recipients_data)} recipients by {user_role}")
-            
-        except Exception as inkless_error:
-            logger.warning(f"⚠️ Inkless service error: {str(inkless_error)}")
-            current_status = "failed"
-            
-            # Log the failure
-            failure_audit = ESignatureAuditLog(
-                esignature_document_id=esign_id,
-                action="failed",
-                user_email=current_user.email,
-                details=json.dumps({
-                    "error": str(inkless_error),
-                        "fallback_mode": True,
-                        "attempted_by_role": user_role
-                }),
-                created_at=datetime.utcnow()
-            )
-            db.add(failure_audit)
+                db.add(failure_audit)
         
         # Step 7: Update document with final status and commit
         db.execute(
