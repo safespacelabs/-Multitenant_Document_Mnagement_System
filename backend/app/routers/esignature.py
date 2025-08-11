@@ -1439,6 +1439,233 @@ def create_signature_certificate_pdf(esign_doc_id: str, original_doc, db: Sessio
     p.save()
     return buffer.getvalue()
 
+@router.get("/{esign_doc_id}/view-original")
+async def view_original_document(
+    esign_doc_id: str,
+    recipient_email: Optional[str] = None,
+    management_db: Session = Depends(get_management_db)
+):
+    """
+    View original document before signing (public endpoint for email recipients)
+    """
+    try:
+        # Find which company database contains this document
+        companies = management_db.query(models.Company).filter(
+            models.Company.is_active == True
+        ).all()
+        
+        esign_doc = None
+        db = None
+        
+        for company in companies:
+            try:
+                # Get company database connection
+                company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+                company_db = next(company_db_gen)
+                
+                # Check if document exists in this company
+                temp_doc = company_db.query(ESignatureDocument).filter(
+                    ESignatureDocument.id == esign_doc_id
+                ).first()
+                
+                if temp_doc:
+                    esign_doc = temp_doc
+                    db = company_db
+                    break
+                else:
+                    company_db.close()
+                    
+            except Exception:
+                continue
+        
+        if not esign_doc or not db:
+            raise HTTPException(status_code=404, detail="Signature request not found")
+        
+        # Check if document can be viewed
+        if esign_doc.status not in ["sent", "signed", "created"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Document cannot be viewed in current status: {esign_doc.status}"
+            )
+        
+        # Verify recipient if email is provided
+        if recipient_email:
+            recipient = db.query(ESignatureRecipient).filter(
+                ESignatureRecipient.esignature_document_id == esign_doc_id,
+                ESignatureRecipient.email == recipient_email
+            ).first()
+            
+            if not recipient:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You are not a recipient of this signature request"
+                )
+        
+        # Get the original document
+        document_id = esign_doc.document_id
+        original_doc = None
+        
+        try:
+            if document_id.startswith("sysdoc_"):
+                # This is a system document, query from management database
+                from .. import models
+                from ..database import get_management_db
+                management_db_gen = get_management_db()
+                management_db = next(management_db_gen)
+                try:
+                    original_doc = management_db.query(models.SystemDocument).filter(
+                        models.SystemDocument.id == document_id
+                    ).first()
+                finally:
+                    management_db.close()
+            else:
+                # This is a company document, query from company database
+                from app.models_company import Document
+                original_doc = db.query(Document).filter(Document.id == document_id).first()
+            
+            if not original_doc:
+                raise HTTPException(status_code=404, detail="Original document not found")
+            
+            # Try to read the actual file content
+            import os
+            file_path = original_doc.file_path
+            
+            # Handle S3 URLs vs local file paths
+            if file_path.startswith('s3://'):
+                # File is stored in S3, download it first
+                try:
+                    from ..services.aws_service import aws_service
+                    from io import BytesIO
+                    
+                    # Use helper function for reliable S3 info extraction
+                    bucket_name, s3_key = get_s3_info_from_document(original_doc)
+                    
+                    # Try downloading with smart key detection
+                    file_content = None
+                    last_error = None
+                    
+                    # First try: Use the processed S3 key
+                    try:
+                        logger.info(f"Attempting download with key: {s3_key}")
+                        file_content = await aws_service.download_file(bucket_name, s3_key)
+                    except Exception as e:
+                        last_error = e
+                        logger.warning(f"First attempt failed: {str(e)}")
+                        
+                        # Second try: If key doesn't start with bucket name, try adding it
+                        if not s3_key.startswith(bucket_name + '/'):
+                            try:
+                                alt_key = f"{bucket_name}/{s3_key}"
+                                logger.info(f"Attempting download with alt key: {alt_key}")
+                                file_content = await aws_service.download_file(bucket_name, alt_key)
+                            except Exception as e2:
+                                last_error = e2
+                                logger.warning(f"Second attempt failed: {str(e2)}")
+                        
+                        if not file_content:
+                            # Final fallback: try with just the filename
+                            try:
+                                fallback_key = original_doc.original_filename
+                                logger.info(f"Attempting download with fallback key: {fallback_key}")
+                                file_content = await aws_service.download_file(bucket_name, fallback_key)
+                            except Exception as e3:
+                                last_error = e3
+                                logger.warning(f"Fallback attempt failed: {str(e3)}")
+                    
+                    if not file_content:
+                        logger.error(f"All S3 download attempts failed. Last error: {str(last_error)}")
+                        raise HTTPException(
+                            status_code=500,
+                            detail=f"Failed to download document from S3: {str(last_error)}"
+                        )
+                    
+                    # Determine content type based on file extension
+                    file_extension = original_doc.original_filename.lower().split('.')[-1]
+                    content_type = "application/octet-stream"  # Default
+                    
+                    if file_extension in ['pdf']:
+                        content_type = "application/pdf"
+                    elif file_extension in ['doc', 'docx']:
+                        content_type = "application/msword"
+                    elif file_extension in ['xls', 'xlsx']:
+                        content_type = "application/vnd.ms-excel"
+                    elif file_extension in ['txt']:
+                        content_type = "text/plain"
+                    elif file_extension in ['jpg', 'jpeg']:
+                        content_type = "image/jpeg"
+                    elif file_extension in ['png']:
+                        content_type = "image/png"
+                    
+                    # Return the file content
+                    return Response(
+                        content=file_content,
+                        media_type=content_type,
+                        headers={
+                            "Content-Disposition": f"inline; filename={original_doc.original_filename}",
+                            "Cache-Control": "no-cache"
+                        }
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Error downloading from S3: {str(e)}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to download document: {str(e)}"
+                    )
+            else:
+                # Local file path
+                if not os.path.exists(file_path):
+                    raise HTTPException(status_code=404, detail="Document file not found")
+                
+                # Read local file
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+                
+                # Determine content type
+                file_extension = original_doc.original_filename.lower().split('.')[-1]
+                content_type = "application/octet-stream"
+                
+                if file_extension in ['pdf']:
+                    content_type = "application/pdf"
+                elif file_extension in ['doc', 'docx']:
+                    content_type = "application/msword"
+                elif file_extension in ['xls', 'xlsx']:
+                    content_type = "application/vnd.ms-excel"
+                elif file_extension in ['txt']:
+                    content_type = "text/plain"
+                elif file_extension in ['jpg', 'jpeg']:
+                    content_type = "image/jpeg"
+                elif file_extension in ['png']:
+                    content_type = "image/png"
+                
+                return Response(
+                    content=file_content,
+                    media_type=content_type,
+                    headers={
+                        "Content-Disposition": f"inline; filename={original_doc.original_filename}",
+                        "Cache-Control": "no-cache"
+                    }
+                )
+                
+        except Exception as e:
+            logger.error(f"Error reading document: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to read document: {str(e)}"
+            )
+        finally:
+            if db:
+                db.close()
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in view_original_document: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error"
+        )
+
 @router.get("/{esign_doc_id}/download-signed")
 async def download_signed_document(
     esign_doc_id: str,

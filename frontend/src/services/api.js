@@ -749,6 +749,24 @@ const esignatureAPI = {
     return response.json();
   },
 
+  viewOriginalDocument: async (documentId, recipientEmail = null) => {
+    let url = buildApiUrl(`/api/esignature/${documentId}/view-original`);
+    if (recipientEmail) {
+      url += `?recipient_email=${encodeURIComponent(recipientEmail)}`;
+    }
+    
+    const response = await fetch(url, {
+      method: 'GET'
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to view document');
+    }
+    
+    return response;
+  },
+
   signDocument: async (documentId, signRequest) => {
     const response = await fetch(buildApiUrl(`/api/esignature/${documentId}/sign`), {
       method: 'POST',

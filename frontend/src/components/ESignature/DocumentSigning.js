@@ -8,6 +8,8 @@ const DocumentSigning = ({ documentId, onSigningComplete, onCancel }) => {
   const [documentDetails, setDocumentDetails] = useState(null);
   const [signatureText, setSignatureText] = useState('');
   const [isDocumentLoaded, setIsDocumentLoaded] = useState(false);
+  const [showDocument, setShowDocument] = useState(false);
+  const [documentUrl, setDocumentUrl] = useState(null);
 
   // Load document details
   useEffect(() => {
@@ -100,6 +102,34 @@ const DocumentSigning = ({ documentId, onSigningComplete, onCancel }) => {
     return recipient && !recipient.is_signed;
   };
 
+  // Function to view document
+  const handleViewDocument = async () => {
+    try {
+      setLoading(true);
+      const response = await esignatureAPI.viewOriginalDocument(documentId);
+      
+      // Create a blob URL for the document
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setDocumentUrl(url);
+      setShowDocument(true);
+    } catch (err) {
+      console.error('Error viewing document:', err);
+      setError('Failed to load document. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to close document view
+  const handleCloseDocument = () => {
+    setShowDocument(false);
+    if (documentUrl) {
+      URL.revokeObjectURL(documentUrl);
+      setDocumentUrl(null);
+    }
+  };
+
   if (loading && !isDocumentLoaded) {
     return (
       <div className="flex justify-center items-center p-8">
@@ -185,6 +215,30 @@ const DocumentSigning = ({ documentId, onSigningComplete, onCancel }) => {
           {documentDetails.expires_at && (
             <div><strong>Expires:</strong> {new Date(documentDetails.expires_at).toLocaleString()}</div>
           )}
+        </div>
+        
+        {/* Document View Button */}
+        <div className="mt-4 text-center">
+          <button
+            onClick={handleViewDocument}
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center mx-auto space-x-2"
+          >
+            {loading ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <span>View Document Before Signing</span>
+              </>
+            )}
+          </button>
+          <p className="text-sm text-gray-500 mt-2">
+            Review the document content before proceeding with your signature
+          </p>
         </div>
       </div>
 
@@ -343,6 +397,51 @@ const DocumentSigning = ({ documentId, onSigningComplete, onCancel }) => {
           </button>
         )}
       </div>
+
+      {/* Document View Modal */}
+      {showDocument && documentUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full h-5/6 flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Document Preview: {documentDetails?.title}
+              </h3>
+              <button
+                onClick={handleCloseDocument}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="flex-1 p-4 overflow-hidden">
+              {documentUrl && (
+                <iframe
+                  src={documentUrl}
+                  className="w-full h-full border-0 rounded"
+                  title="Document Preview"
+                />
+              )}
+            </div>
+            
+            <div className="p-4 border-t bg-gray-50">
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-gray-600">
+                  Review the document carefully before signing
+                </p>
+                <button
+                  onClick={handleCloseDocument}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Close Preview
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
