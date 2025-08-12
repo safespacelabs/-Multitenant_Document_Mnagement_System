@@ -54,9 +54,11 @@ const ChatInterface = () => {
     
     try {
       const response = await chatAPI.getHistory(company.id);
-      setChatHistory(response.data);
+      const historyData = response.data || response || [];
+      setChatHistory(Array.isArray(historyData) ? historyData : []);
     } catch (error) {
       console.error('Failed to load chat history:', error);
+      setChatHistory([]);
     }
   };
 
@@ -366,7 +368,7 @@ const ChatInterface = () => {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Total Conversations:</span>
-                  <span className="font-medium">{chatHistory.length}</span>
+                  <span className="font-medium">{chatHistory?.length || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Messages Today:</span>
@@ -384,7 +386,7 @@ const ChatInterface = () => {
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="font-medium text-gray-900 mb-3">Recent History</h3>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {chatHistory.slice(0, 10).map((chat, index) => (
+                  {(chatHistory || []).slice(0, 10).map((chat, index) => (
                     <div key={index} className="p-2 bg-gray-50 rounded text-xs">
                       <p className="font-medium text-gray-700 truncate">{chat.question}</p>
                       <p className="text-gray-500 mt-1 truncate">{chat.answer}</p>
@@ -393,7 +395,7 @@ const ChatInterface = () => {
                       </p>
                     </div>
                   ))}
-                  {chatHistory.length === 0 && (
+                  {(chatHistory?.length || 0) === 0 && (
                     <p className="text-gray-500 text-sm">No chat history yet</p>
                   )}
                 </div>

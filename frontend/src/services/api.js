@@ -194,7 +194,7 @@ const companiesAPI = {
 // Users API
 const usersAPI = {
   list: async (companyId) => {
-    const response = await fetch(buildApiUrl(`/api/users/${companyId}`), {
+    const response = await fetch(buildApiUrl('/api/user-management/users'), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -210,7 +210,7 @@ const usersAPI = {
   },
 
   create: async (userData, companyId) => {
-    const response = await fetch(buildApiUrl(`/api/users/${companyId}`), {
+    const response = await fetch(buildApiUrl('/api/user-management/invite'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -228,7 +228,7 @@ const usersAPI = {
   },
 
   delete: async (userId, companyId) => {
-    const response = await fetch(buildApiUrl(`/api/users/${companyId}/${userId}`), {
+    const response = await fetch(buildApiUrl(`/api/user-management/users/${userId}`), {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
