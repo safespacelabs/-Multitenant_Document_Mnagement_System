@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { companiesAPI } from '../../services/api';
 import { 
   Building2, 
   Shield, 
@@ -64,7 +63,6 @@ const MainLanding = () => {
       const companyData = await companyResponse.json();
       console.log('📋 Company data:', companyData);
       
-      await companiesAPI.getPublic(companyId.trim());
       console.log('✅ Company found, navigating...');
       navigate(`/company/${companyId.trim()}/access`);
     } catch (error) {
