@@ -309,7 +309,9 @@ async def create_signature_request(
                     for recipient in recipients_data:
                         try:
                             # Generate local signing URL instead of external Inkless URL
-                            local_signing_url = f"{os.getenv('APP_URL', 'http://localhost:3000')}/esignature/sign/{esign_id}?email={recipient['email']}"
+                            # Ensure no double slashes in URL
+                            base_url = os.getenv('APP_URL', 'http://localhost:3000').rstrip('/')
+                            local_signing_url = f"{base_url}/esignature/sign/{esign_id}?email={recipient['email']}"
                             
                             await email_service.send_esignature_request_email(
                                 recipient_email=recipient["email"],

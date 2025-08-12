@@ -9,6 +9,13 @@ const EmailDocumentSigning = () => {
   const navigate = useNavigate();
   const { user, login } = useAuth();
 
+  // Debug logging for URL parameters
+  console.log('EmailDocumentSigning URL params:', {
+    documentId,
+    searchParams: Object.fromEntries(searchParams.entries()),
+    currentUrl: window.location.href
+  });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -26,17 +33,24 @@ const EmailDocumentSigning = () => {
   // Load document details - use public endpoint for email recipients
   useEffect(() => {
     const loadDocumentDetails = async () => {
-      if (!documentId || !recipientEmail) return;
+      if (!documentId || !recipientEmail) {
+        console.log('Missing documentId or recipientEmail:', { documentId, recipientEmail });
+        return;
+      }
       
       try {
         setLoading(true);
+        console.log('Loading document details for:', { documentId, recipientEmail });
         
         // Use the public endpoint that doesn't require authentication
         const response = await esignatureAPI.getPublicStatus(documentId, recipientEmail);
-                  setDocumentDetails(response);
+        console.log('Document details response:', response);
+        
+        setDocumentDetails(response);
         setIsDocumentLoaded(true);
         
       } catch (err) {
+        console.error('Error loading document:', err);
         if (err.response?.status === 404) {
           setError('Document not found or you are not a recipient of this signature request.');
         } else if (err.response?.status === 401) {
@@ -44,7 +58,6 @@ const EmailDocumentSigning = () => {
         } else {
           setError('Failed to load document details. Please check the link or contact the sender.');
         }
-        console.error('Error loading document:', err);
       } finally {
         setLoading(false);
       }
@@ -151,7 +164,17 @@ const EmailDocumentSigning = () => {
     return recipient && !recipient.is_signed;
   };
 
-  // No need to check user authentication for direct signing
+  // Debug logging
+  console.log('EmailDocumentSigning render state:', {
+    loading,
+    isDocumentLoaded,
+    documentDetails,
+    error,
+    success,
+    documentId,
+    recipientEmail,
+    canSign: canSignDocument()
+  });
 
   if (loading && !isDocumentLoaded) {
     return (
