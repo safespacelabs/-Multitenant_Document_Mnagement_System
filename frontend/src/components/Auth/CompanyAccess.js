@@ -31,8 +31,14 @@ const CompanyAccess = () => {
     try {
       console.log('🔍 Loading company with ID:', companyId);
       const response = await companiesAPI.getPublic(companyId);
-      console.log('✅ Company loaded successfully:', response.data);
-      setCompany(response.data);
+      console.log('✅ Company loaded successfully:', response);
+      console.log('🔍 Company details:', {
+        id: response.id,
+        name: response.name,
+        is_active: response.is_active,
+        email: response.email
+      });
+      setCompany(response);
     } catch (error) {
       console.error('❌ Failed to load company:', error);
       console.error('Error details:', error.response?.data);
@@ -177,6 +183,13 @@ const CompanyAccess = () => {
               }`}>
                 {company?.is_active ? 'Active Company' : 'Inactive Company'}
               </span>
+            </div>
+            {/* Debug Info */}
+            <div className="mt-4 p-3 bg-blue-900 bg-opacity-20 rounded-lg">
+              <p className="text-xs text-blue-100">
+                Debug: is_active = {String(company?.is_active)}, 
+                Company ID = {company?.id}
+              </p>
             </div>
           </div>
 
