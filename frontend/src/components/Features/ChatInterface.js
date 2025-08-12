@@ -53,7 +53,7 @@ const ChatInterface = () => {
     }
     
     try {
-      const response = await chatAPI.getHistory();
+      const response = await chatAPI.getHistory(company.id);
       setChatHistory(response.data);
     } catch (error) {
       console.error('Failed to load chat history:', error);
@@ -89,7 +89,7 @@ const ChatInterface = () => {
     setLoading(true);
 
     try {
-      const response = await chatAPI.sendMessage(currentMessage);
+      const response = await chatAPI.sendMessage(currentMessage, company.id);
       
       const aiMessage = {
         id: Date.now() + 1,

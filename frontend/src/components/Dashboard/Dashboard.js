@@ -61,7 +61,7 @@ const Dashboard = () => {
       if (user.role !== 'system_admin' && company) {
         try {
           console.log('📄 Loading documents...');
-          const documentsResponse = await documentsAPI.list();
+          const documentsResponse = await documentsAPI.list(null);
           // Check if response has data property, otherwise use the response directly
           const documentsData = documentsResponse.data || documentsResponse;
           statsData.documentsCount = Array.isArray(documentsData) ? documentsData.length : 0;
@@ -76,7 +76,7 @@ const Dashboard = () => {
       if (['hr_admin', 'hr_manager'].includes(user.role) && company) {
         try {
           console.log('👥 Loading users...');
-          const usersResponse = await usersAPI.list();
+          const usersResponse = await usersAPI.list(company.id);
           // Check if response has data property, otherwise use the response directly
           const usersData = usersResponse.data || usersResponse;
           statsData.usersCount = Array.isArray(usersData) ? usersData.length : 0;

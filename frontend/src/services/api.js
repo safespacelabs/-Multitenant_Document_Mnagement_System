@@ -156,6 +156,38 @@ const companiesAPI = {
     }
     
     return response.json();
+  },
+
+  testDatabase: async (companyId) => {
+    const response = await fetch(buildApiUrl(`/api/companies/${companyId}/test-database`), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to test company database');
+    }
+    
+    return response.json();
+  },
+
+  getStats: async (companyId) => {
+    const response = await fetch(buildApiUrl(`/api/companies/${companyId}/stats`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get company statistics');
+    }
+    
+    return response.json();
   }
 };
 
@@ -367,27 +399,42 @@ const userManagementAPI = {
 
 // Documents API
 const documentsAPI = {
-  list: async (companyId) => {
-    const response = await fetch(buildApiUrl(`/api/documents/${companyId}`), {
+  list: async (folderName = null) => {
+    let url = buildApiUrl('/api/documents/');
+    if (folderName !== null) {
+      url += `?folder_name=${encodeURIComponent(folderName)}`;
+    }
+    
+    console.log('📄 Making company documents list request to:', url);
+    
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
     
+    console.log('📥 Company documents response status:', response.status);
+    
     if (!response.ok) {
       const error = await response.json();
+      console.error('❌ Company documents list failed:', error);
       throw new Error(error.detail || 'Failed to fetch documents');
     }
     
-    return response.json();
+    const data = await response.json();
+    console.log('✅ Company documents list successful:', data);
+    return data;
   },
 
-  upload: async (file, companyId) => {
+  upload: async (file, folderName = null) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (folderName) {
+      formData.append('folder_name', folderName);
+    }
     
-    const response = await fetch(buildApiUrl(`/api/documents/${companyId}/upload`), {
+    const response = await fetch(buildApiUrl('/api/documents/upload'), {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -403,8 +450,8 @@ const documentsAPI = {
     return response.json();
   },
 
-  delete: async (documentId, companyId) => {
-    const response = await fetch(buildApiUrl(`/api/documents/${companyId}/${documentId}`), {
+  delete: async (documentId) => {
+    const response = await fetch(buildApiUrl(`/api/documents/${documentId}`), {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -419,8 +466,8 @@ const documentsAPI = {
     return response.json();
   },
 
-  download: async (documentId, companyId) => {
-    const response = await fetch(buildApiUrl(`/api/documents/${companyId}/${documentId}/download`), {
+  download: async (documentId) => {
+    const response = await fetch(buildApiUrl(`/api/documents/${documentId}/download`), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -430,6 +477,22 @@ const documentsAPI = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get download URL');
+    }
+    
+    return response.json();
+  },
+
+  folders: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/folders'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch folders');
     }
     
     return response.json();

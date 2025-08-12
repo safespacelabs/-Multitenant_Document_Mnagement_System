@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../utils/auth';
-import { userManagementAPI } from '../../services/api';
+import { userManagementAPI, usersAPI } from '../../services/api';
 
 const UserManagement = () => {
   const { user, company } = useAuth();
@@ -25,11 +25,15 @@ const UserManagement = () => {
     
     try {
       setLoading(true);
-      const response = await userManagementAPI.listUsers();
-      setUsers(response.data);
+      const response = await usersAPI.list(company.id);
+      // Handle different response formats safely
+      const usersData = response.data || response || [];
+      setUsers(Array.isArray(usersData) ? usersData : []);
+      setError(null);
     } catch (error) {
       console.error('Failed to load users:', error);
-      setError('Failed to load users');
+      setError('Failed to load users: ' + (error.message || 'Unknown error'));
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -41,10 +45,13 @@ const UserManagement = () => {
     }
     
     try {
-      const response = await userManagementAPI.listInvitations();
-      setInvitations(response.data);
+      const response = await userManagementAPI.listInvitations(company.id);
+      // Handle different response formats safely
+      const invitationsData = response.data || response || [];
+      setInvitations(Array.isArray(invitationsData) ? invitationsData : []);
     } catch (error) {
       console.error('Failed to load invitations:', error);
+      setInvitations([]);
     }
   };
 
@@ -66,7 +73,7 @@ const UserManagement = () => {
     
     try {
       setLoading(true);
-      await userManagementAPI.inviteUser(inviteForm);
+      await userManagementAPI.inviteUser(inviteForm, company.id);
       setShowInviteModal(false);
       setInviteForm({ email: '', full_name: '', role: 'employee' });
       loadInvitations();
@@ -88,7 +95,7 @@ const UserManagement = () => {
     if (!window.confirm('Are you sure you want to cancel this invitation?')) return;
     
     try {
-      await userManagementAPI.cancelInvitation(invitationId);
+      await userManagementAPI.cancelInvitation(invitationId, company.id);
       loadInvitations();
       alert('Invitation cancelled successfully!');
     } catch (error) {
@@ -196,7 +203,7 @@ const UserManagement = () => {
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
-                Active Users ({users.length})
+                Active Users ({users?.length || 0})
               </button>
               <button
                 onClick={() => setActiveTab('invitations')}
@@ -206,7 +213,7 @@ const UserManagement = () => {
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
-                Pending Invitations ({invitations.length})
+                Pending Invitations ({invitations?.length || 0})
               </button>
             </nav>
           </div>
@@ -219,13 +226,13 @@ const UserManagement = () => {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
                   <p className="mt-4 text-gray-600">Loading users...</p>
                 </div>
-              ) : users.length === 0 ? (
+              ) : (users?.length || 0) === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <p>No users found</p>
                 </div>
               ) : (
                 <div className="grid gap-4">
-                  {users.map((user) => (
+                  {(users || []).map((user) => (
                     <div key={user.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
@@ -269,13 +276,13 @@ const UserManagement = () => {
           {/* Invitations Tab */}
           {activeTab === 'invitations' && (
             <div className="p-6">
-              {invitations.length === 0 ? (
+              {(invitations?.length || 0) === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <p>No pending invitations</p>
                 </div>
               ) : (
                 <div className="grid gap-4">
-                  {invitations.map((invitation) => (
+                  {(invitations || []).map((invitation) => (
                     <div key={invitation.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
