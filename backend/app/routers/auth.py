@@ -105,7 +105,8 @@ async def register_company_user(
             hashed_password=hashed_password,
             full_name=user.full_name,
             role=user.role.value,
-            s3_folder=f"users/{user.username}/"
+            s3_folder=f"users/{user.username}/",
+            company_id=company_id
         )
         
         company_db.add(db_user)

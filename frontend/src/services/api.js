@@ -401,7 +401,7 @@ const userManagementAPI = {
 const documentsAPI = {
   list: async (folderName = null) => {
     let url = buildApiUrl('/api/documents/');
-    if (folderName !== null) {
+    if (folderName !== null && folderName !== '' && folderName !== 'root') {
       url += `?folder_name=${encodeURIComponent(folderName)}`;
     }
     
@@ -502,13 +502,13 @@ const documentsAPI = {
 // Chat API
 const chatAPI = {
   sendMessage: async (message, companyId) => {
-    const response = await fetch(buildApiUrl(`/api/chat/${companyId}`), {
+    const response = await fetch(buildApiUrl('/api/chat/'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       },
-      body: JSON.stringify({ message })
+      body: JSON.stringify({ question: message })
     });
     
     if (!response.ok) {
@@ -520,7 +520,7 @@ const chatAPI = {
   },
 
   getHistory: async (companyId) => {
-    const response = await fetch(buildApiUrl(`/api/chat/${companyId}/history`), {
+    const response = await fetch(buildApiUrl('/api/chat/history'), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`

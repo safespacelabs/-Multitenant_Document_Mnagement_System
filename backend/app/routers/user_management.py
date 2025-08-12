@@ -217,6 +217,7 @@ async def setup_password(
             hashed_password=hashed_password,
             full_name=invitation.full_name,
             role=invitation.role,
+            company_id=target_company.id,
             created_by=invitation.created_by,
             s3_folder=f"users/{setup_data.username}/",
             password_set=True,

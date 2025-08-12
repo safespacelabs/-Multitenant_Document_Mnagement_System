@@ -560,7 +560,7 @@ const CreateSignatureModal = ({ type, userRole, onClose, onSuccess }) => {
           setDocuments([]);
           return;
         }
-        response = await documentsAPI.list(companyId);
+        response = await documentsAPI.list(null);
       }
       setDocuments(response);
     } catch (error) {
