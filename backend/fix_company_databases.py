@@ -1,138 +1,120 @@
 #!/usr/bin/env python3
 """
-Script to fix company databases by adding missing columns and ensuring all tables exist
-Usage: python fix_company_databases.py
+Script to fix missing company_id fields in existing company databases.
+This script should be run after updating the models to add the company_id field.
 """
-
+import os
 import sys
-from sqlalchemy import text
+from sqlalchemy import create_engine, text, inspect
+from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+
+sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
 from app.database import get_management_db
-from app.models import Company
-from app.services.database_manager import db_manager
+from app import models
 
-def fix_company_database(company_id: str, company_name: str, database_url: str):
-    """Fix a company database by adding missing columns and ensuring all tables exist"""
+def fix_company_databases():
+    """Fix missing company_id fields in all company databases"""
+    
+    # Load environment variables
+    load_dotenv()
+    
+    # Get management database connection
+    management_db = next(get_management_db())
     
     try:
-        print(f"🔧 Fixing database for {company_name}...")
+        # Get all active companies
+        companies = management_db.query(models.Company).filter(
+            models.Company.is_active == True
+        ).all()
         
-        # Get company database engine
-        engine = db_manager.get_company_engine(company_id, database_url)
+        print(f"Found {len(companies)} active companies")
         
-        # Check if folder_name column exists in documents table
-        with engine.connect() as conn:
-            # Check if documents table exists
-            result = conn.execute(text("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
-                    AND table_name = 'documents'
-                );
-            """))
-            table_exists = result.scalar()
+        for company in companies:
+            print(f"\n🔧 Processing company: {company.name} ({company.id})")
             
-            if not table_exists:
-                print(f"  ❌ Documents table doesn't exist for {company_name}")
-                return False
-            
-            # Check if folder_name column exists
-            result = conn.execute(text("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.columns 
-                    WHERE table_name = 'documents' 
-                    AND column_name = 'folder_name'
-                );
-            """))
-            column_exists = result.scalar()
-            
-            if not column_exists:
-                print(f"  ➕ Adding folder_name column to documents table...")
-                conn.execute(text("ALTER TABLE documents ADD COLUMN folder_name VARCHAR;"))
-                conn.commit()
-                print(f"  ✅ Added folder_name column to {company_name}")
-            else:
-                print(f"  ✅ folder_name column already exists for {company_name}")
-            
-            # Check if all required tables exist
-            required_tables = [
-                'users', 'documents', 'chat_history', 
-                'esignature_documents', 'esignature_recipients', 
-                'esignature_audit_logs', 'workflow_approvals',
-                'user_invitations'
-            ]
-            
-            missing_tables = []
-            for table in required_tables:
-                result = conn.execute(text(f"""
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables 
-                        WHERE table_schema = 'public' 
-                        AND table_name = '{table}'
-                    );
-                """))
-                if not result.scalar():
-                    missing_tables.append(table)
-            
-            if missing_tables:
-                print(f"  ⚠️  Missing tables for {company_name}: {missing_tables}")
-                print(f"  🔄 Creating missing tables...")
+            try:
+                # Create engine for company database
+                company_engine = create_engine(company.database_url)
+                company_inspector = inspect(company_engine)
                 
-                # Create all tables using SQLAlchemy
-                from app.models_company import CompanyBase
-                CompanyBase.metadata.create_all(bind=engine)
-                print(f"  ✅ Created missing tables for {company_name}")
-            else:
-                print(f"  ✅ All required tables exist for {company_name}")
+                # Check if tables exist and get their structure
+                tables_to_check = ['users', 'documents', 'user_invitations', 'esignature_documents']
+                
+                for table_name in tables_to_check:
+                    if company_inspector.has_table(table_name):
+                        print(f"  📋 Checking table: {table_name}")
+                        
+                        # Check if company_id column exists
+                        columns = [col['name'] for col in company_inspector.get_columns(table_name)]
+                        
+                        if 'company_id' not in columns:
+                            print(f"    ➕ Adding company_id column to {table_name}")
+                            
+                            # Add company_id column
+                            with company_engine.connect() as conn:
+                                conn.execute(text(f"""
+                                    ALTER TABLE {table_name} 
+                                    ADD COLUMN company_id VARCHAR
+                                """))
+                                conn.commit()
+                            
+                            print(f"    ✅ Added company_id column to {table_name}")
+                            
+                            # Update existing records with company ID
+                            print(f"    🔄 Updating existing records in {table_name}")
+                            
+                            with company_engine.connect() as conn:
+                                result = conn.execute(text(f"""
+                                    UPDATE {table_name} 
+                                    SET company_id = '{company.id}' 
+                                    WHERE company_id IS NULL
+                                """))
+                                conn.commit()
+                                
+                                print(f"    ✅ Updated {result.rowcount} records in {table_name}")
+                        else:
+                            print(f"    ✅ company_id column already exists in {table_name}")
+                            
+                            # Check if there are any NULL company_id values
+                            with company_engine.connect() as conn:
+                                result = conn.execute(text(f"""
+                                    SELECT COUNT(*) as count 
+                                    FROM {table_name} 
+                                    WHERE company_id IS NULL
+                                """))
+                                null_count = result.fetchone()[0]
+                                
+                                if null_count > 0:
+                                    print(f"    🔄 Updating {null_count} records with NULL company_id")
+                                    conn.execute(text(f"""
+                                        UPDATE {table_name} 
+                                        SET company_id = '{company.id}' 
+                                        WHERE company_id IS NULL
+                                    """))
+                                    conn.commit()
+                                    print(f"    ✅ Updated {null_count} records in {table_name}")
+                                else:
+                                    print(f"    ✅ All records in {table_name} have company_id set")
+                    else:
+                        print(f"  ⚠️  Table {table_name} does not exist in {company.name}")
+                
+                company_engine.dispose()
+                print(f"  ✅ Completed processing {company.name}")
+                
+            except Exception as e:
+                print(f"  ❌ Error processing {company.name}: {str(e)}")
+                continue
         
-        return True
+        print(f"\n🎉 Database migration completed for {len(companies)} companies")
         
     except Exception as e:
-        print(f"  ❌ Error fixing database for {company_name}: {str(e)}")
-        return False
-
-def main():
-    """Main function"""
-    print("🔧 Fixing Company Databases")
-    print("=" * 50)
-    
-    # Get management database session
-    management_db = get_management_db()
-    db = next(management_db)
-    
-    try:
-        # Get all companies
-        companies = db.query(Company).all()
-        
-        if not companies:
-            print("❌ No companies found in the system")
-            return
-        
-        print(f"Found {len(companies)} companies:")
-        for company in companies:
-            print(f"  - {company.name} (ID: {company.id})")
-        print()
-        
-        # Fix each company database
-        fixed_count = 0
-        for company in companies:
-            success = fix_company_database(
-                company.id, 
-                company.name, 
-                company.database_url
-            )
-            if success:
-                fixed_count += 1
-            print()
-        
-        print("=" * 50)
-        print(f"✅ Fixed {fixed_count}/{len(companies)} company databases")
-        print("=" * 50)
-        
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        sys.exit(1)
+        print(f"❌ Error in migration: {str(e)}")
+        raise
     finally:
-        db.close()
+        management_db.close()
 
 if __name__ == "__main__":
-    main() 
+    print("🚀 Starting company database migration...")
+    fix_company_databases()
+    print("✅ Migration completed successfully!") 
