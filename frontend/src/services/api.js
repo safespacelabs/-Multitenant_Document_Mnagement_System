@@ -143,6 +143,19 @@ const companiesAPI = {
     }
     
     return response.json();
+  },
+
+  getPublic: async (companyId) => {
+    const response = await fetch(buildApiUrl(`/api/companies/${companyId}/public`), {
+      method: 'GET'
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get company public info');
+    }
+    
+    return response.json();
   }
 };
 

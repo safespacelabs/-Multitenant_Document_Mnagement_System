@@ -62,7 +62,9 @@ const Dashboard = () => {
         try {
           console.log('📄 Loading documents...');
           const documentsResponse = await documentsAPI.list();
-          statsData.documentsCount = documentsResponse.data.length;
+          // Check if response has data property, otherwise use the response directly
+          const documentsData = documentsResponse.data || documentsResponse;
+          statsData.documentsCount = Array.isArray(documentsData) ? documentsData.length : 0;
           console.log('✅ Documents loaded:', statsData.documentsCount);
         } catch (err) {
           console.error('❌ Failed to load documents:', err);
@@ -75,7 +77,9 @@ const Dashboard = () => {
         try {
           console.log('👥 Loading users...');
           const usersResponse = await usersAPI.list();
-          statsData.usersCount = usersResponse.data.length;
+          // Check if response has data property, otherwise use the response directly
+          const usersData = usersResponse.data || usersResponse;
+          statsData.usersCount = Array.isArray(usersData) ? usersData.length : 0;
           console.log('✅ Users loaded:', statsData.usersCount);
         } catch (err) {
           console.error('❌ Failed to load users:', err);
@@ -88,7 +92,9 @@ const Dashboard = () => {
         try {
           console.log('🏢 Loading companies...');
           const companiesResponse = await companiesAPI.list();
-          statsData.companiesCount = companiesResponse.data.length;
+          // Check if response has data property, otherwise use the response directly
+          const companiesData = companiesResponse.data || companiesResponse;
+          statsData.companiesCount = Array.isArray(companiesData) ? companiesData.length : 0;
           console.log('✅ Companies loaded:', statsData.companiesCount);
         } catch (err) {
           console.error('❌ Failed to load companies:', err);
