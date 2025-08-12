@@ -102,6 +102,7 @@ async def invite_user(
             email=invite_data.email,
             full_name=invite_data.full_name,
             role=invite_data.role.value,
+            company_id=company.id,
             created_by=current_user.id,
             expires_at=datetime.utcnow() + timedelta(days=7),  # 7 days to set password
             unique_id=secrets.token_urlsafe(16)

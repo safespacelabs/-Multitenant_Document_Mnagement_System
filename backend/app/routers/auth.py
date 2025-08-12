@@ -236,6 +236,12 @@ async def login_user(
                     company_db.close()
                     raise HTTPException(status_code=400, detail="Inactive user")
                 
+                # Fix missing company_id for existing users
+                if not user.company_id:
+                    user.company_id = company.id
+                    company_db.commit()
+                    company_db.refresh(user)
+                
                 access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
                 access_token = auth_utils.create_access_token(
                     data={"sub": user.username}, expires_delta=access_token_expires
@@ -248,7 +254,7 @@ async def login_user(
                     email=user.email,
                     full_name=user.full_name,
                     role=user.role,
-                    company_id=company.id,
+                    company_id=user.company_id or company.id,
                     created_at=user.created_at,
                     is_active=user.is_active
                 )

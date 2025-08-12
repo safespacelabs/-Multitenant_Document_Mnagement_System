@@ -17,7 +17,7 @@ class User(CompanyBase):
     full_name = Column(String, nullable=False)
     role = Column(String, nullable=False, default="customer")  # hr_admin, hr_manager, employee, customer
     s3_folder = Column(String, nullable=False)
-    company_id = Column(String, nullable=False)  # Company ID for multi-tenancy
+    company_id = Column(String, nullable=True)  # Company ID for multi-tenancy (temporarily nullable for existing users)
     unique_id = Column(String, unique=True, nullable=True)  # For initial registration
     password_set = Column(Boolean, default=False)  # Track if password has been set
     created_by = Column(String, ForeignKey("users.id"), nullable=True)  # Who registered this user
@@ -35,7 +35,7 @@ class UserInvitation(CompanyBase):
     email = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
     role = Column(String, nullable=False)
-    company_id = Column(String, nullable=False)  # Company ID for multi-tenancy
+    company_id = Column(String, nullable=True)  # Company ID for multi-tenancy (temporarily nullable for existing users)
     created_by = Column(String, ForeignKey("users.id"), nullable=False)  # user_id who created this invitation
     expires_at = Column(DateTime, nullable=False)
     is_used = Column(Boolean, default=False, nullable=False)
@@ -55,7 +55,7 @@ class Document(CompanyBase):
     s3_key = Column(String, nullable=False)
     folder_name = Column(String, nullable=True)  # New field for folder organization
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    company_id = Column(String, nullable=False)  # Company ID for multi-tenancy
+    company_id = Column(String, nullable=True)  # Company ID for multi-tenancy (temporarily nullable for existing users)
     metadata_json = Column(JSON)
     processed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -85,7 +85,7 @@ class ESignatureDocument(CompanyBase):
     status = Column(String, nullable=False, default="pending")  # pending, sent, signed, completed, cancelled, expired
     inkless_document_id = Column(String, nullable=True)  # Inkless document ID
     inkless_document_url = Column(String, nullable=True)  # Inkless document URL
-    company_id = Column(String, nullable=False)  # Company ID for multi-tenancy
+    company_id = Column(String, nullable=True)  # Company ID for multi-tenancy (temporarily nullable for existing users)
     created_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)  # User who initiated the signature request
     require_all_signatures = Column(Boolean, default=True, nullable=False)
     expires_at = Column(DateTime, nullable=False)
