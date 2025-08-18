@@ -100,12 +100,6 @@ function App() {
             
             <Route path="/documents" element={
               <ProtectedRoute>
-                <DocumentManagement />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/documents/enhanced" element={
-              <ProtectedRoute>
                 <EnhancedDocumentManager />
               </ProtectedRoute>
             } />

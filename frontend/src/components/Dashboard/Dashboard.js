@@ -7,7 +7,7 @@ import Sidebar from '../Layout/Sidebar';
 import CompanyManagement from '../Features/CompanyManagement';
 import SystemAdminManagement from '../Features/SystemAdminManagement';
 import UserManagement from '../Features/UserManagement';
-import DocumentManagement from '../Features/DocumentManagement';
+import EnhancedDocumentManager from '../Documents/EnhancedDocumentManager';
 import ChatInterface from '../Features/ChatInterface';
 import Analytics from '../Features/Analytics';
 import Settings from '../Features/Settings';
@@ -342,8 +342,8 @@ const Dashboard = () => {
       return <UserManagement />;
     }
     if (currentPath.includes('/documents')) {
-      console.log('📄 Rendering DocumentManagement');
-      return <DocumentManagement />;
+              console.log('📄 Rendering EnhancedDocumentManager');
+        return <EnhancedDocumentManager />;
     }
     if (currentPath.includes('/esignature')) {
       return (
