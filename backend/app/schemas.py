@@ -305,3 +305,150 @@ class BulkESignatureRequest(BaseModel):
     recipients: List[ESignatureRecipient]
     require_all_signatures: bool = True
     expires_in_days: int = 14 
+
+# Enhanced Document Management Schemas
+class DocumentCategoryBase(BaseModel):
+    name: str
+    display_name: str
+    description: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    parent_category_id: Optional[str] = None
+    sort_order: Optional[int] = 0
+
+class DocumentCategoryCreate(DocumentCategoryBase):
+    pass
+
+class DocumentCategoryUpdate(DocumentCategoryBase):
+    is_active: Optional[bool] = None
+
+class DocumentCategoryResponse(DocumentCategoryBase):
+    id: str
+    company_id: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    subcategories: List['DocumentCategoryResponse'] = []
+    
+    class Config:
+        from_attributes = True
+
+class DocumentFolderBase(BaseModel):
+    name: str
+    display_name: str
+    description: Optional[str] = None
+    category_id: Optional[str] = None
+    parent_folder_id: Optional[str] = None
+    sort_order: Optional[int] = 0
+
+class DocumentFolderCreate(DocumentFolderBase):
+    pass
+
+class DocumentFolderUpdate(DocumentFolderBase):
+    is_active: Optional[bool] = None
+
+class DocumentFolderResponse(DocumentFolderBase):
+    id: str
+    company_id: Optional[str] = None
+    created_by_user_id: str
+    is_active: bool
+    created_at: datetime
+    category: Optional[DocumentCategoryResponse] = None
+    subfolders: List['DocumentFolderResponse'] = []
+    
+    class Config:
+        from_attributes = True
+
+class DocumentAccessBase(BaseModel):
+    document_id: str
+    user_id: Optional[str] = None
+    role_id: Optional[str] = None
+    access_type: str  # read, write, admin
+    expires_at: Optional[datetime] = None
+
+class DocumentAccessCreate(DocumentAccessBase):
+    pass
+
+class DocumentAccessUpdate(DocumentAccessBase):
+    is_active: Optional[bool] = None
+
+class DocumentAccessResponse(DocumentAccessBase):
+    id: str
+    company_id: Optional[str] = None
+    granted_by_user_id: str
+    granted_at: datetime
+    is_active: bool
+    
+    class Config:
+        from_attributes = True
+
+class DocumentAuditLogResponse(BaseModel):
+    id: str
+    document_id: str
+    user_id: str
+    action: str
+    details: Optional[dict] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    company_id: Optional[str] = None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Enhanced Document schemas
+class DocumentCreateEnhanced(DocumentCreate):
+    document_category: Optional[str] = None
+    document_subcategory: Optional[str] = None
+    tags: Optional[List[str]] = None
+    description: Optional[str] = None
+    is_public: Optional[bool] = False
+    access_level: Optional[str] = "private"
+    expiry_date: Optional[datetime] = None
+    version: Optional[str] = "1.0"
+    status: Optional[str] = "active"
+
+class DocumentResponseEnhanced(DocumentResponse):
+    document_category: Optional[str] = None
+    document_subcategory: Optional[str] = None
+    tags: Optional[List[str]] = None
+    description: Optional[str] = None
+    is_public: bool
+    access_level: str
+    expiry_date: Optional[datetime] = None
+    version: str
+    status: str
+    category_info: Optional[DocumentCategoryResponse] = None
+    folder_info: Optional[DocumentFolderResponse] = None
+
+# Document Management Response schemas
+class DocumentManagementResponse(BaseModel):
+    documents: List[DocumentResponseEnhanced]
+    categories: List[DocumentCategoryResponse]
+    folders: List[DocumentFolderResponse]
+    total_count: int
+    current_page: int
+    total_pages: int
+
+class DocumentFilterRequest(BaseModel):
+    category_id: Optional[str] = None
+    folder_id: Optional[str] = None
+    file_type: Optional[str] = None
+    search_query: Optional[str] = None
+    tags: Optional[List[str]] = None
+    date_from: Optional[datetime] = None
+    date_to: Optional[datetime] = None
+    status: Optional[str] = None
+    access_level: Optional[str] = None
+    user_id: Optional[str] = None
+    page: Optional[int] = 1
+    page_size: Optional[int] = 20
+    sort_by: Optional[str] = "created_at"
+    sort_order: Optional[str] = "desc"
+
+class BulkDocumentOperation(BaseModel):
+    document_ids: List[str]
+    operation: str  # download, delete, move, share, archive
+    target_folder_id: Optional[str] = None
+    target_category_id: Optional[str] = None
+    user_ids: Optional[List[str]] = None
+    access_type: Optional[str] = None 

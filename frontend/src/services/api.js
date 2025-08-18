@@ -496,6 +496,81 @@ const documentsAPI = {
     }
     
     return response.json();
+  },
+
+  // Enhanced document management endpoints
+  getCategories: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/categories'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch categories');
+    }
+    
+    return response.json();
+  },
+
+  getEnhanced: async (params = {}) => {
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        queryParams.append(key, value);
+      }
+    });
+    
+    const url = buildApiUrl(`/api/documents/enhanced?${queryParams.toString()}`);
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch enhanced documents');
+    }
+    
+    return response.json();
+  },
+
+  bulkOperation: async (operation) => {
+    const response = await fetch(buildApiUrl('/api/documents/bulk-operation'), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(operation)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch enhanced documents');
+    }
+    
+    return response.json();
+  },
+
+  getStats: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/stats'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch document statistics');
+    }
+    
+    return response.json();
   }
 };
 
