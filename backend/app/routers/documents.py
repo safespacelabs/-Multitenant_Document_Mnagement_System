@@ -14,14 +14,12 @@ from sqlalchemy import func
 from app.database import get_management_db, get_company_db
 from app import models, schemas
 from app import auth
-from app.models_company import Document as CompanyDocument, User as CompanyUser
+from app.models_company import Document as CompanyDocument, User as CompanyUser, DocumentCategory, DocumentFolder, DocumentAccess, DocumentAuditLog
 from app.services.aws_service import aws_service
 from app.services.groq_service import groq_service
 from app.services.email_extensions import get_extended_email_service
 from ..schemas import DocumentResponse, DocumentCreate, SystemDocumentResponse, SystemDocumentCreate
 from ..models import SystemDocument, SystemUser
-from ..database import get_management_db
-from app.models_company import DocumentCategory, DocumentFolder, DocumentAccess, DocumentAuditLog
 
 router = APIRouter()
 
@@ -668,14 +666,21 @@ async def download_document(
 # Enhanced Document Management Endpoints
 @router.get("/categories", response_model=List[schemas.DocumentCategoryResponse])
 async def list_document_categories(
-    current_user: CompanyUser = Depends(auth.get_current_user),
+    current_user = Depends(auth.get_current_user_or_system_user),
     company_db: Session = Depends(get_company_db)
 ):
     """List all document categories for the company"""
-    categories = company_db.query(DocumentCategory).filter(
-        DocumentCategory.company_id == current_user.company_id,
-        DocumentCategory.is_active == True
-    ).order_by(DocumentCategory.sort_order).all()
+    # For system admins, show categories from all companies
+    if hasattr(current_user, 'role') and current_user.role == 'system_admin':
+        categories = company_db.query(DocumentCategory).filter(
+            DocumentCategory.is_active == True
+        ).order_by(DocumentCategory.sort_order).all()
+    else:
+        # For company users, show only their company's categories
+        categories = company_db.query(DocumentCategory).filter(
+            DocumentCategory.company_id == current_user.company_id,
+            DocumentCategory.is_active == True
+        ).order_by(DocumentCategory.sort_order).all()
     
     return categories
 
@@ -701,14 +706,21 @@ async def create_document_category(
 @router.get("/folders", response_model=List[schemas.DocumentFolderResponse])
 async def list_document_folders(
     category_id: Optional[str] = None,
-    current_user: CompanyUser = Depends(auth.get_current_user),
+    current_user = Depends(auth.get_current_user_or_system_user),
     company_db: Session = Depends(get_company_db)
 ):
     """List document folders, optionally filtered by category"""
-    query = company_db.query(DocumentFolder).filter(
-        DocumentFolder.company_id == current_user.company_id,
-        DocumentFolder.is_active == True
-    )
+    # For system admins, show folders from all companies
+    if hasattr(current_user, 'role') and current_user.role == 'system_admin':
+        query = company_db.query(DocumentFolder).filter(
+            DocumentFolder.is_active == True
+        )
+    else:
+        # For company users, show only their company's folders
+        query = company_db.query(DocumentFolder).filter(
+            DocumentFolder.company_id == current_user.company_id,
+            DocumentFolder.is_active == True
+        )
     
     if category_id:
         query = query.filter(DocumentFolder.category_id == category_id)
@@ -752,69 +764,77 @@ async def list_enhanced_documents(
     page_size: int = 20,
     sort_by: str = "created_at",
     sort_order: str = "desc",
-    current_user: CompanyUser = Depends(auth.get_current_user),
+    current_user = Depends(auth.get_current_user_or_system_user),
     company_db: Session = Depends(get_company_db)
 ):
     """Enhanced document listing with advanced filtering and pagination"""
     
     # Build query
-    query = company_db.query(models_company.Document).filter(
-        models_company.Document.company_id == current_user.company_id
-    )
+    if hasattr(current_user, 'role') and current_user.role == 'system_admin':
+        # System admins can see documents from all companies
+        query = company_db.query(CompanyDocument)
+    else:
+        # Company users can only see their company's documents
+        query = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id
+        )
     
     # Apply filters
     if category_id:
-        query = query.filter(models_company.Document.document_category == category_id)
+        query = query.filter(CompanyDocument.document_category == category_id)
     
     if folder_id:
-        query = query.filter(models_company.Document.folder_name == folder_id)
+        query = query.filter(CompanyDocument.folder_name == folder_id)
     
     if file_type and file_type != "All Files":
-        query = query.filter(models_company.Document.file_type.contains(file_type))
+        query = query.filter(CompanyDocument.file_type.contains(file_type))
     
     if search_query:
         search_filter = or_(
-            models_company.Document.original_filename.contains(search_query),
-            models_company.Document.description.contains(search_query),
-            models_company.Document.tags.contains([search_query])
+            CompanyDocument.original_filename.contains(search_query),
+            CompanyDocument.description.contains(search_query),
+            CompanyDocument.tags.contains([search_query])
         )
         query = query.filter(search_filter)
     
     if tags:
         tag_list = [tag.strip() for tag in tags.split(',')]
-        query = query.filter(models_company.Document.tags.contains(tag_list))
+        query = query.filter(CompanyDocument.tags.contains(tag_list))
     
     if date_from:
         try:
             date_from_obj = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
-            query = query.filter(models_company.Document.created_at >= date_from_obj)
+            query = query.filter(CompanyDocument.created_at >= date_from_obj)
         except ValueError:
             pass
     
     if date_to:
         try:
             date_to_obj = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
-            query = query.filter(models_company.Document.created_at <= date_to_obj)
+            query = query.filter(CompanyDocument.created_at <= date_to_obj)
         except ValueError:
             pass
     
     if status:
-        query = query.filter(models_company.Document.status == status)
+        query = query.filter(CompanyDocument.status == status)
     
     if access_level:
-        query = query.filter(models_company.Document.access_level == access_level)
+        query = query.filter(CompanyDocument.access_level == access_level)
     
     if user_id:
-        query = query.filter(models_company.Document.user_id == user_id)
+        query = query.filter(CompanyDocument.user_id == user_id)
     
     # Apply access control
-    if current_user.role not in ['hr_admin', 'hr_manager']:
+    if hasattr(current_user, 'role') and current_user.role == 'system_admin':
+        # System admins can see all documents
+        pass
+    elif current_user.role not in ['hr_admin', 'hr_manager']:
         # Regular users can only see their own documents or public documents
         query = query.filter(
             or_(
-                models_company.Document.user_id == current_user.id,
-                models_company.Document.is_public == True,
-                models_company.Document.access_level == "public"
+                CompanyDocument.user_id == current_user.id,
+                CompanyDocument.is_public == True,
+                CompanyDocument.access_level == "public"
             )
         )
     
@@ -822,30 +842,39 @@ async def list_enhanced_documents(
     total_count = query.count()
     
     # Apply sorting
-    if hasattr(models_company.Document, sort_by):
-        sort_column = getattr(models_company.Document, sort_by)
+    if hasattr(CompanyDocument, sort_by):
+        sort_column = getattr(CompanyDocument, sort_by)
         if sort_order == "desc":
             query = query.order_by(sort_column.desc())
         else:
             query = query.order_by(sort_column.asc())
     else:
         # Default sorting
-        query = query.order_by(models_company.Document.created_at.desc())
+        query = query.order_by(CompanyDocument.created_at.desc())
     
     # Apply pagination
     offset = (page - 1) * page_size
     documents = query.offset(offset).limit(page_size).all()
     
     # Get categories and folders for the response
-    categories = company_db.query(DocumentCategory).filter(
-        DocumentCategory.company_id == current_user.company_id,
-        DocumentCategory.is_active == True
-    ).all()
-    
-    folders = company_db.query(DocumentFolder).filter(
-        DocumentFolder.company_id == current_user.company_id,
-        DocumentFolder.is_active == True
-    ).all()
+    if hasattr(current_user, 'role') and current_user.role == 'system_admin':
+        # System admins can see categories and folders from all companies
+        categories = company_db.query(DocumentCategory).filter(
+            DocumentCategory.is_active == True
+        ).all()
+        folders = company_db.query(DocumentFolder).filter(
+            DocumentFolder.is_active == True
+        ).all()
+    else:
+        # Company users can only see their company's categories and folders
+        categories = company_db.query(DocumentCategory).filter(
+            DocumentCategory.company_id == current_user.company_id,
+            DocumentCategory.is_active == True
+        ).all()
+        folders = company_db.query(DocumentFolder).filter(
+            DocumentFolder.company_id == current_user.company_id,
+            DocumentFolder.is_active == True
+        ).all()
     
     # Calculate pagination info
     total_pages = (total_count + page_size - 1) // page_size
@@ -862,18 +891,23 @@ async def list_enhanced_documents(
 @router.post("/bulk-operation")
 async def bulk_document_operation(
     operation: schemas.BulkDocumentOperation,
-    current_user: CompanyUser = Depends(auth.get_current_user),
+    current_user = Depends(auth.get_current_user_or_system_user),
     company_db: Session = Depends(get_company_db)
 ):
     """Perform bulk operations on documents"""
-    if current_user.role not in ['hr_admin', 'hr_manager']:
+    if hasattr(current_user, 'role') and current_user.role == 'system_admin':
+        # System admins can perform bulk operations on all documents
+        documents = company_db.query(CompanyDocument).filter(
+            CompanyDocument.id.in_(operation.document_ids)
+        ).all()
+    elif current_user.role not in ['hr_admin', 'hr_manager']:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
-    
-    # Verify documents exist and user has access
-    documents = company_db.query(models_company.Document).filter(
-        models_company.Document.id.in_(operation.document_ids),
-        models_company.Document.company_id == current_user.company_id
-    ).all()
+    else:
+        # Company users can only perform bulk operations on their company's documents
+        documents = company_db.query(CompanyDocument).filter(
+            CompanyDocument.id.in_(operation.document_ids),
+            CompanyDocument.company_id == current_user.company_id
+        ).all()
     
     if len(documents) != len(operation.document_ids):
         raise HTTPException(status_code=400, detail="Some documents not found")
@@ -900,12 +934,14 @@ async def bulk_document_operation(
             
             for doc in documents:
                 for user_id in operation.user_ids:
+                    # For system admins, use the document's company_id; for company users, use their company_id
+                    company_id = getattr(current_user, 'company_id', doc.company_id)
                     access = DocumentAccess(
                         document_id=doc.id,
                         user_id=user_id,
                         access_type=operation.access_type,
                         granted_by_user_id=current_user.id,
-                        company_id=current_user.company_id
+                        company_id=company_id
                     )
                     company_db.add(access)
         
@@ -913,12 +949,14 @@ async def bulk_document_operation(
         
         # Log the bulk operation
         for doc in documents:
+            # For system admins, use the document's company_id; for company users, use their company_id
+            company_id = getattr(current_user, 'company_id', doc.company_id)
             audit_log = DocumentAuditLog(
                 document_id=doc.id,
                 user_id=current_user.id,
                 action=f"bulk_{operation.operation}",
                 details={"operation": operation.operation, "affected_documents": len(documents)},
-                company_id=current_user.company_id
+                company_id=company_id
             )
             company_db.add(audit_log)
         
@@ -937,16 +975,20 @@ async def get_document_audit_logs(
     action: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
-    current_user: CompanyUser = Depends(auth.get_current_user),
+    current_user = Depends(auth.get_current_user_or_system_user),
     company_db: Session = Depends(get_company_db)
 ):
-    """Get document audit logs (HR admins and managers only)"""
-    if current_user.role not in ['hr_admin', 'hr_manager']:
+    """Get document audit logs (HR admins, managers, and system admins only)"""
+    if hasattr(current_user, 'role') and current_user.role == 'system_admin':
+        # System admins can see all audit logs
+        query = company_db.query(DocumentAuditLog)
+    elif current_user.role not in ['hr_admin', 'hr_manager']:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
-    
-    query = company_db.query(DocumentAuditLog).filter(
-        DocumentAuditLog.company_id == current_user.company_id
-    )
+    else:
+        # Company users can only see their company's audit logs
+        query = company_db.query(DocumentAuditLog).filter(
+            DocumentAuditLog.company_id == current_user.company_id
+        )
     
     if document_id:
         query = query.filter(DocumentAuditLog.document_id == document_id)
@@ -965,46 +1007,50 @@ async def get_document_audit_logs(
 
 @router.get("/stats")
 async def get_document_statistics(
-    current_user: CompanyUser = Depends(auth.get_current_user),
+    current_user = Depends(auth.get_current_user_or_system_user),
     company_db: Session = Depends(get_company_db)
 ):
-    """Get document statistics for the company"""
+    """Get document statistics for the company or all companies (for system admins)"""
     
-    # Base query for company documents
-    base_query = company_db.query(models_company.Document).filter(
-        models_company.Document.company_id == current_user.company_id
-    )
+    # Base query for documents
+    if hasattr(current_user, 'role') and current_user.role == 'system_admin':
+        # System admins can see stats from all companies
+        base_query = company_db.query(CompanyDocument)
+        category_filter = CompanyDocument.document_category.isnot(None)
+        file_type_filter = True
+        size_filter = True
+    else:
+        # Company users can only see their company's stats
+        base_query = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id
+        )
+        category_filter = CompanyDocument.document_category.isnot(None)
+        file_type_filter = CompanyDocument.company_id == current_user.company_id
+        size_filter = CompanyDocument.company_id == current_user.company_id
     
     # Total documents
     total_documents = base_query.count()
     
     # Documents by category
     category_stats = company_db.query(
-        models_company.Document.document_category,
-        func.count(models_company.Document.id)
-    ).filter(
-        models_company.Document.company_id == current_user.company_id,
-        models_company.Document.document_category.isnot(None)
-    ).group_by(models_company.Document.document_category).all()
+        CompanyDocument.document_category,
+        func.count(CompanyDocument.id)
+    ).filter(category_filter).group_by(CompanyDocument.document_category).all()
     
     # Documents by file type
     file_type_stats = company_db.query(
-        models_company.Document.file_type,
-        func.count(models_company.Document.id)
-    ).filter(
-        models_company.Document.company_id == current_user.company_id
-    ).group_by(models_company.Document.file_type).all()
+        CompanyDocument.file_type,
+        func.count(CompanyDocument.id)
+    ).filter(file_type_filter).group_by(CompanyDocument.file_type).all()
     
     # Recent uploads (last 30 days)
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
     recent_uploads = base_query.filter(
-        models_company.Document.created_at >= thirty_days_ago
+        CompanyDocument.created_at >= thirty_days_ago
     ).count()
     
     # Storage usage
-    total_size = company_db.query(func.sum(models_company.Document.file_size)).filter(
-        models_company.Document.company_id == current_user.company_id
-    ).scalar() or 0
+    total_size = company_db.query(func.sum(CompanyDocument.file_size)).filter(size_filter).scalar() or 0
     
     return {
         "total_documents": total_documents,
