@@ -233,26 +233,51 @@ const MainLanding = () => {
                     )}
                   </button>
                   
-                  {/* Direct Company Login Link */}
-                  <div className="text-center">
-                    <span className="text-sm text-gray-600">or</span>
-                  </div>
-                  
-                  <button
-                    onClick={() => navigate('/company-login')}
-                    className="w-full px-6 py-3 rounded-lg transition-all duration-200 flex items-center justify-center text-base font-semibold shadow-md bg-white border-2 border-blue-500 text-blue-600 hover:bg-blue-50 hover:border-blue-600 transform hover:-translate-y-0.5"
-                  >
-                    <Building className="h-5 w-5 mr-2" />
-                    Direct Company Login
-                  </button>
+                                     {/* Direct Company Login Link */}
+                   <div className="text-center">
+                     <span className="text-sm text-gray-600">or</span>
+                   </div>
+                   
+                   <button
+                     onClick={() => navigate('/company-login')}
+                     className="w-full px-6 py-3 rounded-lg transition-all duration-200 flex items-center justify-center text-base font-semibold shadow-md bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 hover:shadow-lg transform hover:-translate-y-0.5"
+                   >
+                     <Building className="h-5 w-5 mr-2" />
+                     Direct Company Login
+                   </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* How It Works Section */}
-        <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-lg p-8">
+                 {/* Direct Company Login Highlight */}
+         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl shadow-lg p-8 mb-8 border border-green-200">
+           <div className="text-center">
+             <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+               <Building className="h-8 w-8 text-green-600" />
+             </div>
+             <h3 className="text-2xl font-bold text-green-900 mb-3">
+               Quick Company Access
+             </h3>
+             <p className="text-base text-green-700 mb-6 max-w-2xl mx-auto">
+               Know your company? Skip the company lookup and go straight to your secure login portal.
+             </p>
+             <button
+               onClick={() => navigate('/company-login')}
+               className="bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-center text-base font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-0.5 mx-auto"
+             >
+               <Building className="h-5 w-5 mr-2" />
+               Go to Company Login
+               <svg className="h-5 w-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+               </svg>
+             </button>
+           </div>
+         </div>
+
+         {/* How It Works Section */}
+         <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-lg p-8">
           <div className="text-center mb-8">
             <h3 className="text-2xl font-bold text-gray-900 mb-3">
               How It Works
