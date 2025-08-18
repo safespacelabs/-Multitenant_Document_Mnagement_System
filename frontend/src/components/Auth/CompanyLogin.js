@@ -81,9 +81,7 @@ const CompanyLogin = () => {
     setError('');
   };
 
-  const handleBackToMain = () => {
-    navigate('/');
-  };
+
 
   // Company ID Entry Step (like SAP SuccessFactors)
   if (step === 'company') {
@@ -105,15 +103,7 @@ const CompanyLogin = () => {
             </p>
           </div>
 
-          {/* Back to Main Button */}
-          <div className="text-center">
-            <button
-              onClick={handleBackToMain}
-              className="text-indigo-600 hover:text-indigo-500 text-sm font-medium"
-            >
-              ← Back to Main
-            </button>
-          </div>
+          
 
           {/* Company ID Form */}
           <form className="mt-8 space-y-6" onSubmit={handleCompanySubmit}>
