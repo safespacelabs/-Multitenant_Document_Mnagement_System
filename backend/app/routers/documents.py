@@ -11,7 +11,7 @@ from datetime import timedelta
 from sqlalchemy import or_
 from sqlalchemy import func
 
-from app.database import get_management_db, get_company_db
+from app.database import get_management_db, get_company_db, get_default_company_db
 from app import models, schemas
 from app import auth
 from app.models_company import Document as CompanyDocument, User as CompanyUser, DocumentCategory, DocumentFolder, DocumentAccess, DocumentAuditLog
@@ -667,7 +667,7 @@ async def download_document(
 @router.get("/categories", response_model=List[schemas.DocumentCategoryResponse])
 async def list_document_categories(
     current_user = Depends(auth.get_current_user_or_system_user),
-    company_db: Session = Depends(get_company_db)
+    company_db: Session = Depends(get_default_company_db)
 ):
     """List all document categories for the company"""
     # For system admins, show categories from all companies
@@ -707,7 +707,7 @@ async def create_document_category(
 async def list_document_folders(
     category_id: Optional[str] = None,
     current_user = Depends(auth.get_current_user_or_system_user),
-    company_db: Session = Depends(get_company_db)
+    company_db: Session = Depends(get_default_company_db)
 ):
     """List document folders, optionally filtered by category"""
     # For system admins, show folders from all companies
@@ -765,7 +765,7 @@ async def list_enhanced_documents(
     sort_by: str = "created_at",
     sort_order: str = "desc",
     current_user = Depends(auth.get_current_user_or_system_user),
-    company_db: Session = Depends(get_company_db)
+    company_db: Session = Depends(get_default_company_db)
 ):
     """Enhanced document listing with advanced filtering and pagination"""
     
@@ -892,7 +892,7 @@ async def list_enhanced_documents(
 async def bulk_document_operation(
     operation: schemas.BulkDocumentOperation,
     current_user = Depends(auth.get_current_user_or_system_user),
-    company_db: Session = Depends(get_company_db)
+    company_db: Session = Depends(get_default_company_db)
 ):
     """Perform bulk operations on documents"""
     if hasattr(current_user, 'role') and current_user.role == 'system_admin':
@@ -976,7 +976,7 @@ async def get_document_audit_logs(
     page: int = 1,
     page_size: int = 50,
     current_user = Depends(auth.get_current_user_or_system_user),
-    company_db: Session = Depends(get_company_db)
+    company_db: Session = Depends(get_default_company_db)
 ):
     """Get document audit logs (HR admins, managers, and system admins only)"""
     if hasattr(current_user, 'role') and current_user.role == 'system_admin':
@@ -1008,7 +1008,7 @@ async def get_document_audit_logs(
 @router.get("/stats")
 async def get_document_statistics(
     current_user = Depends(auth.get_current_user_or_system_user),
-    company_db: Session = Depends(get_company_db)
+    company_db: Session = Depends(get_default_company_db)
 ):
     """Get document statistics for the company or all companies (for system admins)"""
     

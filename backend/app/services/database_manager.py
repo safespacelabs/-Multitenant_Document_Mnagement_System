@@ -60,6 +60,28 @@ class DatabaseManager:
         finally:
             db.close()
 
+    def get_default_company_db(self) -> Generator[Session, None, None]:
+        """Get a default company database for system admin operations"""
+        # Get the first active company from management database
+        from app import models
+        from sqlalchemy.orm import Session as SQLAlchemySession
+        
+        # Create a temporary session to query companies
+        temp_db = self.management_session_local()
+        try:
+            company = temp_db.query(models.Company).filter(
+                models.Company.is_active == True
+            ).first()
+            
+            if not company:
+                raise Exception("No active companies found")
+            
+            # Use this company's database
+            return self.get_company_db(str(company.id), str(company.database_url))
+            
+        finally:
+            temp_db.close()
+
     def remove_company_connection(self, company_id: str):
         """Remove company database connection from cache"""
         if company_id in self._company_engines:

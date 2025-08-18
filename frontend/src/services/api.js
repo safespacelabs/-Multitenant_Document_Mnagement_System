@@ -515,6 +515,28 @@ const documentsAPI = {
     return response.json();
   },
 
+  getFolders: async (categoryId = null) => {
+    const queryParams = new URLSearchParams();
+    if (categoryId) {
+      queryParams.append('category_id', categoryId);
+    }
+    
+    const url = buildApiUrl(`/api/documents/folders?${queryParams.toString()}`);
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch folders');
+    }
+    
+    return response.json();
+  },
+
   getEnhanced: async (params = {}) => {
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {

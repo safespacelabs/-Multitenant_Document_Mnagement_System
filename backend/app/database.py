@@ -33,6 +33,15 @@ def get_management_db():
     finally:
         db.close()
 
-def get_company_db(company_id: str, database_url: str):
+def get_company_db(company_id: str = None, database_url: str = None):
     """Get company-specific database session"""
-    return db_manager.get_company_db(company_id, database_url)
+    if company_id and database_url:
+        return db_manager.get_company_db(company_id, database_url)
+    else:
+        # For system admin users, get the first available company database
+        # This allows system admins to view documents from all companies
+        return db_manager.get_default_company_db()
+
+def get_default_company_db():
+    """Get a default company database for system admin operations"""
+    return db_manager.get_default_company_db()
