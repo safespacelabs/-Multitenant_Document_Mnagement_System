@@ -24,7 +24,7 @@ import {
   Analytics,
   Settings
 } from './components/Features';
-import EnhancedDocumentManager from './components/Documents/EnhancedDocumentManager';
+import { EnhancedDocumentManager } from './components/Documents';
 import './App.css';
 
 function ProtectedRoute({ children, allowedRoles = [] }) {

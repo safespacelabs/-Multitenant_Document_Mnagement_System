@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EnhancedDocumentManager } from '../Documents/EnhancedDocumentManager';
+import { EnhancedDocumentManager } from '../Documents';
 
 const CompanyDashboard = () => {
   const [userData, setUserData] = useState(null);

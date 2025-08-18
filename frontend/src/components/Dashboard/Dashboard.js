@@ -7,7 +7,7 @@ import Sidebar from '../Layout/Sidebar';
 import CompanyManagement from '../Features/CompanyManagement';
 import SystemAdminManagement from '../Features/SystemAdminManagement';
 import UserManagement from '../Features/UserManagement';
-import EnhancedDocumentManager from '../Documents/EnhancedDocumentManager';
+import { EnhancedDocumentManager } from '../Documents';
 import ChatInterface from '../Features/ChatInterface';
 import Analytics from '../Features/Analytics';
 import Settings from '../Features/Settings';
