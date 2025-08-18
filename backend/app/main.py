@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 import uvicorn
+import os
 from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 
@@ -31,8 +32,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware - using environment variable
-cors_origins = get_cors_origins()
+# CORS middleware - explicit configuration for production
+cors_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://multitenant-frontend.onrender.com",
+    "https://multitenant-frontend.onrender.com/",
+    "https://multitenant-frontend.onrender.com/*"
+]
+
+# Also get from environment if available
+env_origins = get_cors_origins()
+if env_origins:
+    cors_origins.extend(env_origins)
+
+# Remove duplicates
+cors_origins = list(set(cors_origins))
 print(f"🔧 CORS Origins configured: {cors_origins}")
 
 app.add_middleware(
@@ -44,6 +59,31 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600
 )
+
+# Add a more permissive CORS configuration as fallback for development
+if os.getenv("ENVIRONMENT", "production") == "development":
+    print("🔧 Development mode: Adding permissive CORS")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+# Add explicit CORS headers for production as well
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    """Add CORS headers to all responses"""
+    response = await call_next(request)
+    
+    # Add CORS headers
+    response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    
+    return response
 
 
 
@@ -98,8 +138,12 @@ async def health_check():
 @app.get("/debug-cors")
 async def debug_cors():
     """Debug endpoint to check CORS configuration"""
-    from app.config import get_cors_origins
-    import os
+    return {
+        "cors_origins": cors_origins,
+        "environment": os.getenv("ENVIRONMENT", "production"),
+        "frontend_url": "https://multitenant-frontend.onrender.com",
+        "cors_enabled": True
+    }
     
     return {
         "cors_origins": get_cors_origins(),
@@ -227,6 +271,34 @@ async def reset_admin_password(db: Session = Depends(get_management_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error resetting password: {str(e)}")
+
+@app.get("/debug-cors")
+async def debug_cors():
+    """Debug endpoint to check CORS configuration"""
+    return {
+        "cors_origins": cors_origins,
+        "environment": os.getenv("ENVIRONMENT", "production"),
+        "frontend_url": "https://multitenant-frontend.onrender.com",
+        "cors_enabled": True
+    }
+
+@app.get("/test-cors")
+async def test_cors():
+    """Simple test endpoint to verify CORS is working"""
+    return {
+        "message": "CORS test successful",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "status": "ok"
+    }
+
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """Handle OPTIONS requests for CORS preflight"""
+    return {
+        "message": "OPTIONS request handled",
+        "path": full_path,
+        "cors_enabled": True
+    }
 
 @app.get("/api/system/status")
 async def system_status():
