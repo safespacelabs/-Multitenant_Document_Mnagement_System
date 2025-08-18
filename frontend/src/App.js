@@ -23,6 +23,7 @@ import {
   Analytics,
   Settings
 } from './components/Features';
+import EnhancedDocumentManager from './components/Documents/EnhancedDocumentManager';
 import './App.css';
 
 function ProtectedRoute({ children, allowedRoles = [] }) {
@@ -100,6 +101,12 @@ function App() {
             <Route path="/documents" element={
               <ProtectedRoute>
                 <DocumentManagement />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/documents/enhanced" element={
+              <ProtectedRoute>
+                <EnhancedDocumentManager />
               </ProtectedRoute>
             } />
             
