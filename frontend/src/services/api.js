@@ -84,6 +84,61 @@ const authAPI = {
     }
     
     return response.json();
+  },
+
+  // Company login methods
+  getCompanies: async () => {
+    const response = await fetch(buildApiUrl('/api/companies/'), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch companies');
+    }
+    
+    return response.json();
+  },
+
+  getCompany: async (companyId) => {
+    const response = await fetch(buildApiUrl(`/api/companies/${companyId}/public`), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch company');
+    }
+    
+    return response.json();
+  },
+
+  loginCompany: async (username, password, companyId, databaseUrl) => {
+    const response = await fetch(buildApiUrl('/api/auth/company-login'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username,
+        password,
+        company_id: companyId,
+        database_url: databaseUrl
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Company login failed');
+    }
+    
+    return response.json();
   }
 };
 

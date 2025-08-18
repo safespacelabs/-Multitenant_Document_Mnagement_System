@@ -89,6 +89,12 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
+class CompanyLoginCredentials(BaseModel):
+    username: str
+    password: str
+    company_id: str
+    database_url: Optional[str] = None
+
 class UserResponse(BaseModel):
     id: str
     username: str

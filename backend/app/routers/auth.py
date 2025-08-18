@@ -320,6 +320,91 @@ async def read_users_me(current_user = Depends(auth_utils.get_current_user)):
             is_active=current_user.is_active
         )
 
+@router.post("/company-login", response_model=schemas.Token)
+async def company_login(
+    user_credentials: schemas.CompanyLoginCredentials, 
+    management_db: Session = Depends(get_management_db)
+):
+    """Login for company users with specific company context"""
+    
+    # Check if company exists
+    company = management_db.query(models.Company).filter(
+        models.Company.id == user_credentials.company_id,
+        models.Company.is_active == True
+    ).first()
+    
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Find user in company database
+        user = company_db.query(CompanyUser).filter(
+            CompanyUser.username == user_credentials.username
+        ).first()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        if not auth_utils.verify_password(user_credentials.password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        if not bool(user.is_active):
+            raise HTTPException(status_code=400, detail="Inactive user")
+        
+        # Fix missing company_id for existing users
+        if not user.company_id:
+            user.company_id = company.id
+            company_db.commit()
+            company_db.refresh(user)
+        
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = auth_utils.create_access_token(
+            data={"sub": user.username}, expires_delta=access_token_expires
+        )
+        
+        # Convert to response formats
+        user_response = schemas.UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            company_id=user.company_id or company.id,
+            created_at=user.created_at,
+            is_active=user.is_active
+        )
+        
+        company_response = schemas.CompanyResponse(
+            id=company.id,
+            name=company.name,
+            domain=company.domain,
+            is_active=company.is_active,
+            created_at=company.created_at
+        )
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": user_response,
+            "company": company_response,
+            "permissions": get_user_permissions(str(user.role))
+        }
+        
+    finally:
+        company_db.close()
+
 @router.post("/system-admin/login", response_model=schemas.Token)
 async def system_admin_login(
     user_credentials: schemas.UserLogin, 

@@ -9,6 +9,7 @@ import Register from './components/Auth/Register';
 import PasswordSetup from './components/Auth/PasswordSetup';
 import CompanyLogin from './components/Auth/CompanyLogin';
 import CompanyRegister from './components/Auth/CompanyRegister';
+import CompanyDashboard from './components/Company/CompanyDashboard';
 import Dashboard from './components/Dashboard/Dashboard';
 import TestingInterface from './components/Testing/TestingInterface';
 import ESignatureManager from './components/ESignature/ESignatureManager';
@@ -61,6 +62,10 @@ function App() {
             <Route path="/company/:companyId/access" element={<CompanyAccess />} />
             <Route path="/company/:companyId/login" element={<CompanyLogin />} />
             <Route path="/company/:companyId/signup" element={<CompanyRegister />} />
+            
+            {/* New Company Login Route */}
+            <Route path="/company-login" element={<CompanyLogin />} />
+            <Route path="/company-dashboard" element={<CompanyDashboard />} />
             
             {/* Legacy Authentication Routes */}
             <Route path="/login" element={<Login />} />

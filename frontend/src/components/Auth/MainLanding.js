@@ -209,7 +209,7 @@ const MainLanding = () => {
                   </div>
                 </div>
                 
-                <div className="max-w-sm mx-auto">
+                <div className="max-w-sm mx-auto space-y-3">
                   <button
                     onClick={handleCompanyAccess}
                     disabled={loading || !companyId.trim()}
@@ -231,6 +231,19 @@ const MainLanding = () => {
                         <ArrowRight className="h-4 w-4 ml-2" />
                       </>
                     )}
+                  </button>
+                  
+                  {/* Direct Company Login Link */}
+                  <div className="text-center">
+                    <span className="text-sm text-gray-600">or</span>
+                  </div>
+                  
+                  <button
+                    onClick={() => navigate('/company-login')}
+                    className="w-full px-6 py-3 rounded-lg transition-all duration-200 flex items-center justify-center text-base font-semibold shadow-md bg-white border-2 border-blue-500 text-blue-600 hover:bg-blue-50 hover:border-blue-600 transform hover:-translate-y-0.5"
+                  >
+                    <Building className="h-5 w-5 mr-2" />
+                    Direct Company Login
                   </button>
                 </div>
               </div>
@@ -305,6 +318,20 @@ const MainLanding = () => {
                   <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
                   <p className="text-sm text-gray-700">Manage documents and collaborate securely</p>
                 </div>
+                <div className="flex items-start space-x-3">
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <p className="text-sm text-gray-700">Use direct login if you know your company</p>
+                </div>
+              </div>
+              
+              {/* Direct Login Option */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => navigate('/company-login')}
+                  className="w-full px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+                >
+                  Direct Company Login →
+                </button>
               </div>
             </div>
           </div>
