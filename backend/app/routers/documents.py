@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -22,6 +23,20 @@ from ..schemas import DocumentResponse, DocumentCreate, SystemDocumentResponse, 
 from ..models import SystemDocument, SystemUser
 
 router = APIRouter()
+
+# Add CORS headers to all document endpoints
+@router.middleware("http")
+async def add_cors_headers(request, call_next):
+    """Add CORS headers to all document endpoints"""
+    response = await call_next(request)
+    
+    # Add CORS headers
+    response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    
+    return response
 
 def get_allowed_extensions():
     return ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'csv', 'xlsx', 'xls']
