@@ -537,7 +537,23 @@ async def list_document_categories(
         
         # Create response with explicit CORS headers
         from fastapi.responses import JSONResponse
-        response = JSONResponse(content=all_categories)
+        # Convert SQLAlchemy objects to dictionaries for JSON serialization
+        all_categories_dict = []
+        for category in all_categories:
+            category_dict = {
+                "id": category.id,
+                "name": category.name,
+                "description": category.description,
+                "sort_order": category.sort_order,
+                "is_active": category.is_active,
+                "company_id": category.company_id,
+                "company_name": getattr(category, 'company_name', None),
+                "created_at": category.created_at.isoformat() if category.created_at else None,
+                "updated_at": category.updated_at.isoformat() if category.updated_at else None
+            }
+            all_categories_dict.append(category_dict)
+        
+        response = JSONResponse(content=all_categories_dict)
         response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
         response.headers["Access-Control-Allow-Headers"] = "*"
@@ -712,7 +728,16 @@ async def list_enhanced_documents(
             current_page=page,
             total_pages=total_pages
         )
-        response = JSONResponse(content=response_data.dict())
+        # Convert to dict and handle datetime serialization
+        response_dict = response_data.dict()
+        # Convert datetime objects to ISO strings
+        for doc in response_dict.get('documents', []):
+            if hasattr(doc, 'created_at') and doc.created_at:
+                doc.created_at = doc.created_at.isoformat()
+            if hasattr(doc, 'updated_at') and doc.updated_at:
+                doc.updated_at = doc.updated_at.isoformat()
+        
+        response = JSONResponse(content=response_dict)
         response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
         response.headers["Access-Control-Allow-Headers"] = "*"
@@ -825,7 +850,16 @@ async def list_enhanced_documents(
                 current_page=page,
                 total_pages=total_pages
             )
-            response = JSONResponse(content=response_data.dict())
+            # Convert to dict and handle datetime serialization
+            response_dict = response_data.dict()
+            # Convert datetime objects to ISO strings
+            for doc in response_dict.get('documents', []):
+                if hasattr(doc, 'created_at') and doc.created_at:
+                    doc.created_at = doc.created_at.isoformat()
+                if hasattr(doc, 'updated_at') and doc.updated_at:
+                    doc.updated_at = doc.updated_at.isoformat()
+            
+            response = JSONResponse(content=response_dict)
             response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
             response.headers["Access-Control-Allow-Headers"] = "*"
