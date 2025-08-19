@@ -1072,10 +1072,10 @@ export const hrAdminAPI = {
     if (filters.roleFilter) params.append('role_filter', filters.roleFilter);
     if (filters.search) params.append('search', filters.search);
     
-    const response = await fetch(`/api/hr-admin/company/users?${params}`, {
+    const response = await fetch(buildApiUrl(`/api/hr-admin/company/users?${params}`), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${getToken()}`,
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json',
       },
     });
@@ -1089,10 +1089,10 @@ export const hrAdminAPI = {
 
   // Get user credentials and access information
   getUserCredentials: async (userId) => {
-    const response = await fetch(`/api/hr-admin/company/users/${userId}/credentials`, {
+    const response = await fetch(buildApiUrl(`/api/hr-admin/company/users/${userId}/credentials`), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${getToken()}`,
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json',
       },
     });
@@ -1110,10 +1110,10 @@ export const hrAdminAPI = {
     if (filters.categoryFilter) params.append('category_filter', filters.categoryFilter);
     if (filters.folderFilter) params.append('folder_filter', filters.folderFilter);
     
-    const response = await fetch(`/api/hr-admin/company/users/${userId}/files?${params}`, {
+    const response = await fetch(buildApiUrl(`/api/hr-admin/company/users/${userId}/files?${params}`), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${getToken()}`,
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json',
       },
     });
@@ -1127,10 +1127,10 @@ export const hrAdminAPI = {
 
   // Get company-wide analytics
   getCompanyAnalytics: async (dateRange = 30) => {
-    const response = await fetch(`/api/hr-admin/company/analytics?date_range=${dateRange}`, {
+    const response = await fetch(buildApiUrl(`/api/hr-admin/company/analytics?date_range=${dateRange}`), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${getToken()}`,
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json',
       },
     });
@@ -1144,10 +1144,10 @@ export const hrAdminAPI = {
 
   // Reset user password
   resetUserPassword: async (userId) => {
-    const response = await fetch(`/api/hr-admin/company/users/${userId}/reset-password`, {
+    const response = await fetch(buildApiUrl(`/api/hr-admin/company/users/${userId}/reset-password`), {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${getToken()}`,
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json',
       },
     });
@@ -1161,10 +1161,10 @@ export const hrAdminAPI = {
 
   // Lock or unlock user account
   lockUserAccount: async (userId, lockData) => {
-    const response = await fetch(`/api/hr-admin/company/users/${userId}/lock-account`, {
+    const response = await fetch(buildApiUrl(`/api/hr-admin/company/users/${userId}/lock-account`), {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${getToken()}`,
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(lockData),
@@ -1179,10 +1179,10 @@ export const hrAdminAPI = {
 
   // Get detailed user activity
   getUserActivity: async (userId, days = 30) => {
-    const response = await fetch(`/api/hr-admin/company/users/${userId}/activity?days=${days}`, {
+    const response = await fetch(buildApiUrl(`/api/hr-admin/company/users/${userId}/activity?days=${days}`), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${getToken()}`,
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json',
       },
     });
