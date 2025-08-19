@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -534,7 +535,14 @@ async def list_document_categories(
                 print(f"Error accessing company {company.id}: {str(e)}")
                 continue
         
-        return all_categories
+        # Create response with explicit CORS headers
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=all_categories)
+        response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
     else:
         # For company users, show only their company's categories
         company_db_gen = get_company_db(str(current_user.company_id), str(current_user.company.database_url))
@@ -545,7 +553,15 @@ async def list_document_categories(
                 DocumentCategory.company_id == current_user.company_id,
                 DocumentCategory.is_active == True
             ).order_by(DocumentCategory.sort_order).all()
-            return categories
+            
+            # Create response with explicit CORS headers
+            from fastapi.responses import JSONResponse
+            response = JSONResponse(content=categories)
+            response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
         finally:
             company_db.close()
 
@@ -686,7 +702,9 @@ async def list_enhanced_documents(
         # Calculate pagination info
         total_pages = (total_count + page_size - 1) // page_size
         
-        return schemas.DocumentManagementResponse(
+        # Create response with explicit CORS headers
+        from fastapi.responses import JSONResponse
+        response_data = schemas.DocumentManagementResponse(
             documents=paginated_documents,
             categories=all_categories,
             folders=all_folders,
@@ -694,6 +712,12 @@ async def list_enhanced_documents(
             current_page=page,
             total_pages=total_pages
         )
+        response = JSONResponse(content=response_data.dict())
+        response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
     else:
         # Company users can only see their company's documents
         company_db_gen = get_company_db(str(current_user.company_id), str(current_user.company.database_url))
@@ -791,7 +815,9 @@ async def list_enhanced_documents(
             # Calculate pagination info
             total_pages = (total_count + page_size - 1) // page_size
             
-            return schemas.DocumentManagementResponse(
+            # Create response with explicit CORS headers
+            from fastapi.responses import JSONResponse
+            response_data = schemas.DocumentManagementResponse(
                 documents=documents,
                 categories=categories,
                 folders=folders,
@@ -799,6 +825,12 @@ async def list_enhanced_documents(
                 current_page=page,
                 total_pages=total_pages
             )
+            response = JSONResponse(content=response_data.dict())
+            response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
         finally:
             company_db.close()
 
