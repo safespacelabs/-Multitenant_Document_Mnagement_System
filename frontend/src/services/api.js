@@ -1063,6 +1063,138 @@ const esignatureAPI = {
   }
 };
 
+// HR Admin API Service
+export const hrAdminAPI = {
+  // Get all company users with comprehensive data
+  getCompanyUsers: async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.includeInactive) params.append('include_inactive', 'true');
+    if (filters.roleFilter) params.append('role_filter', filters.roleFilter);
+    if (filters.search) params.append('search', filters.search);
+    
+    const response = await fetch(`/api/hr-admin/company/users?${params}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
+  // Get user credentials and access information
+  getUserCredentials: async (userId) => {
+    const response = await fetch(`/api/hr-admin/company/users/${userId}/credentials`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
+  // Get user's files and documents
+  getUserFiles: async (userId, filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.categoryFilter) params.append('category_filter', filters.categoryFilter);
+    if (filters.folderFilter) params.append('folder_filter', filters.folderFilter);
+    
+    const response = await fetch(`/api/hr-admin/company/users/${userId}/files?${params}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
+  // Get company-wide analytics
+  getCompanyAnalytics: async (dateRange = 30) => {
+    const response = await fetch(`/api/hr-admin/company/analytics?date_range=${dateRange}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
+  // Reset user password
+  resetUserPassword: async (userId) => {
+    const response = await fetch(`/api/hr-admin/company/users/${userId}/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
+  // Lock or unlock user account
+  lockUserAccount: async (userId, lockData) => {
+    const response = await fetch(`/api/hr-admin/company/users/${userId}/lock-account`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(lockData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
+  // Get detailed user activity
+  getUserActivity: async (userId, days = 30) => {
+    const response = await fetch(`/api/hr-admin/company/users/${userId}/activity?days=${days}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+};
+
 export { 
   authAPI, 
   documentsAPI, 

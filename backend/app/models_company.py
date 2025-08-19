@@ -229,4 +229,54 @@ class DocumentAuditLog(CompanyBase):
     
     # Relationships
     document = relationship("Document")
-    user = relationship("User") 
+    user = relationship("User")
+
+# New models for HR admin monitoring and access control
+class UserLoginHistory(CompanyBase):
+    __tablename__ = "user_login_history"
+    
+    id = Column(String, primary_key=True, default=lambda: f"login_{uuid.uuid4().hex[:8]}")
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    login_timestamp = Column(DateTime, default=datetime.utcnow)
+    logout_timestamp = Column(DateTime, nullable=True)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    success = Column(Boolean, default=True)
+    failure_reason = Column(String, nullable=True)
+    company_id = Column(String, nullable=True)
+    
+    # Relationships
+    user = relationship("User", backref="login_history")
+
+class UserCredentials(CompanyBase):
+    __tablename__ = "user_credentials"
+    
+    id = Column(String, primary_key=True, default=lambda: f"cred_{uuid.uuid4().hex[:8]}")
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, unique=True)
+    hashed_password = Column(String, nullable=False)
+    password_set_at = Column(DateTime, default=datetime.utcnow)
+    password_expires_at = Column(DateTime, nullable=True)
+    last_password_change = Column(DateTime, default=datetime.utcnow)
+    login_attempts = Column(Integer, default=0)
+    account_locked = Column(Boolean, default=False)
+    lock_reason = Column(String, nullable=True)
+    lock_timestamp = Column(DateTime, nullable=True)
+    company_id = Column(String, nullable=True)
+    
+    # Relationships
+    user = relationship("User", backref="credentials")
+
+class UserActivity(CompanyBase):
+    __tablename__ = "user_activity"
+    
+    id = Column(String, primary_key=True, default=lambda: f"activity_{uuid.uuid4().hex[:8]}")
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    activity_type = Column(String, nullable=False)  # login, logout, document_view, document_upload, etc.
+    activity_details = Column(JSON, nullable=True)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    company_id = Column(String, nullable=True)
+    
+    # Relationships
+    user = relationship("User", backref="activities") 

@@ -197,6 +197,10 @@ app.include_router(chatbot.router, prefix="/api/chat", tags=["Chatbot"])
 app.include_router(user_management.router, prefix="/api/user-management", tags=["User Management"])
 app.include_router(esignature.router, prefix="/api", tags=["E-Signature"])
 
+# Import and include HR admin router
+from app.routers import hr_admin
+app.include_router(hr_admin.router, prefix="/api/hr-admin", tags=["HR Admin"])
+
 @app.get("/")
 async def root():
     return {

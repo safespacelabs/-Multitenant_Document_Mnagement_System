@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from enum import Enum
 
 class UserRole(str, Enum):
@@ -72,6 +72,83 @@ class CompanyUserResponse(BaseModel):
     password_set: bool
     created_at: datetime
     is_active: bool
+
+    class Config:
+        from_attributes = True
+
+# New comprehensive schemas for HR admin access
+class CompanyUserDetailResponse(BaseModel):
+    """Comprehensive user data accessible by HR admins"""
+    id: str
+    username: str
+    email: str
+    full_name: str
+    role: str
+    s3_folder: str
+    password_set: bool
+    created_at: datetime
+    is_active: bool
+    company_id: Optional[str] = None
+    unique_id: Optional[str] = None
+    created_by: Optional[str] = None
+    hashed_password: Optional[str] = None  # For password management
+    last_login: Optional[datetime] = None
+    login_count: Optional[int] = 0
+    documents_count: Optional[int] = 0
+    total_documents_size: Optional[int] = 0
+
+    class Config:
+        from_attributes = True
+
+class CompanyUserCredentialsResponse(BaseModel):
+    """User credentials and access information for HR admins"""
+    id: str
+    username: str
+    email: str
+    full_name: str
+    role: str
+    hashed_password: str
+    password_set: bool
+    last_password_change: Optional[datetime] = None
+    password_expires_at: Optional[datetime] = None
+    login_attempts: Optional[int] = 0
+    account_locked: Optional[bool] = False
+    lock_reason: Optional[str] = None
+    created_at: datetime
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+class CompanyUserFilesResponse(BaseModel):
+    """User's files and documents for HR admin access"""
+    id: str
+    username: str
+    email: str
+    full_name: str
+    role: str
+    documents: List[dict] = []
+    total_documents: int = 0
+    total_size: int = 0
+    categories: List[str] = []
+    folders: List[str] = []
+    last_activity: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class CompanyAnalyticsResponse(BaseModel):
+    """Company-wide analytics for HR admins"""
+    total_users: int
+    active_users: int
+    inactive_users: int
+    users_by_role: Dict[str, int]
+    total_documents: int
+    total_storage_used: int
+    recent_activity: List[dict]
+    user_growth: List[dict]
+    document_categories: List[dict]
+    storage_by_category: List[dict]
 
     class Config:
         from_attributes = True
