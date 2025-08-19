@@ -22,7 +22,8 @@ import {
   CompanyManagement,
   ChatInterface,
   Analytics,
-  Settings
+  Settings,
+  HRAdminDashboard
 } from './components/Features';
 import { EnhancedDocumentManager } from './components/Documents';
 import './App.css';
@@ -100,6 +101,12 @@ function App() {
             <Route path="/users" element={
               <ProtectedRoute allowedRoles={['hr_admin', 'hr_manager']}>
                 <UserManagement />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/hr-admin-dashboard" element={
+              <ProtectedRoute allowedRoles={['hr_admin', 'system_admin']}>
+                <HRAdminDashboard />
               </ProtectedRoute>
             } />
             

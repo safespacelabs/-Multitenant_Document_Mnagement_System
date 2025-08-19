@@ -116,6 +116,59 @@ const CompanyDashboard = () => {
           </p>
         </div>
 
+        {/* HR Admin Navigation Section */}
+        {(userData.role === 'hr_admin' || userData.role === 'system_admin') && (
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">HR Admin Tools</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <button
+                onClick={() => navigate('/hr-admin-dashboard')}
+                className="bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition-colors text-left"
+              >
+                <div className="flex items-center space-x-3">
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <div>
+                    <div className="font-medium">HR Admin Dashboard</div>
+                    <div className="text-sm text-indigo-200">Manage company members, files & analytics</div>
+                  </div>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => navigate('/users')}
+                className="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors text-left"
+              >
+                <div className="flex items-center space-x-3">
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
+                  <div>
+                    <div className="font-medium">User Management</div>
+                    <div className="text-sm text-green-200">Manage user accounts & permissions</div>
+                  </div>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => navigate('/analytics')}
+                className="bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 transition-colors text-left"
+              >
+                <div className="flex items-center space-x-3">
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  <div>
+                    <div className="font-medium">Analytics</div>
+                    <div className="text-sm text-purple-200">View company performance metrics</div>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Document Management Section */}
         <div className="bg-white rounded-lg shadow-sm">
           <div className="px-6 py-4 border-b border-gray-200">

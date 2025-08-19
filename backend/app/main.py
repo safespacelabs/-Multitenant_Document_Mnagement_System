@@ -222,6 +222,21 @@ async def debug_cors():
         "cors_enabled": True
     }
 
+@app.get("/test-hr-admin")
+async def test_hr_admin():
+    """Test endpoint to verify HR admin router is working"""
+    return {
+        "message": "HR Admin router is working!",
+        "endpoints": [
+            "/api/hr-admin/company/users",
+            "/api/hr-admin/company/analytics",
+            "/api/hr-admin/company/users/{user_id}/credentials",
+            "/api/hr-admin/company/users/{user_id}/files",
+            "/api/hr-admin/company/users/{user_id}/activity"
+        ],
+        "status": "active"
+    }
+
 @app.options("/{full_path:path}")
 async def options_handler(full_path: str):
     """Handle OPTIONS requests for CORS preflight"""
