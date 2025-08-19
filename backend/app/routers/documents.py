@@ -495,176 +495,7 @@ async def list_documents(
     finally:
         company_db.close()
 
-@router.get("/{document_id}", response_model=schemas.DocumentResponse)
-async def get_document(
-    document_id: str,
-    current_user: CompanyUser = Depends(auth.get_current_company_user),
-    management_db: Session = Depends(get_management_db)
-):
-    # Get company information
-    company_id = getattr(current_user, 'company_id', None)
-    if not company_id:
-        raise HTTPException(status_code=400, detail="User not associated with a company")
-    
-    company = management_db.query(models.Company).filter(
-        models.Company.id == company_id
-    ).first()
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-    
-    # Get company database connection
-    company_db_gen = get_company_db(str(company.id), str(company.database_url))
-    company_db = next(company_db_gen)
-    
-    try:
-        query = company_db.query(CompanyDocument).filter(
-            CompanyDocument.id == document_id,
-            CompanyDocument.company_id == company_id
-        )
-        
-        # Apply user-based filtering
-        if current_user.role not in ["hr_admin", "hr_manager"]:
-            # Regular users can only see their own documents
-            query = query.filter(CompanyDocument.user_id == current_user.id)
-        
-        document = query.first()
-        
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
-        
-        # Convert SQLAlchemy object to dictionary to avoid DetachedInstanceError
-        document_data = {
-            "id": document.id,
-            "filename": document.filename,
-            "original_filename": document.original_filename,
-            "file_path": document.file_path,
-            "file_size": document.file_size,
-            "file_type": document.file_type,
-            "s3_key": document.s3_key,
-            "folder_name": document.folder_name,
-            "user_id": document.user_id,
-            "company_id": document.company_id,
-            "processed": document.processed,
-            "metadata_json": document.metadata_json,
-            "created_at": document.created_at
-        }
-        
-        return document_data
-        
-    finally:
-        company_db.close()
-
-@router.delete("/{document_id}")
-async def delete_document(
-    document_id: str,
-    current_user: CompanyUser = Depends(auth.get_current_company_user),
-    management_db: Session = Depends(get_management_db)
-):
-    # Get company information
-    company_id = getattr(current_user, 'company_id', None)
-    if not company_id:
-        raise HTTPException(status_code=400, detail="User not associated with a company")
-    
-    company = management_db.query(models.Company).filter(
-        models.Company.id == company_id
-    ).first()
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-    
-    # Get company database connection
-    company_db_gen = get_company_db(str(company.id), str(company.database_url))
-    company_db = next(company_db_gen)
-    
-    try:
-        query = company_db.query(CompanyDocument).filter(
-            CompanyDocument.id == document_id,
-            CompanyDocument.company_id == company_id
-        )
-        
-        # Apply user-based filtering
-        if current_user.role not in ["hr_admin", "hr_manager"]:
-            # Regular users can only delete their own documents
-            query = query.filter(CompanyDocument.user_id == current_user.id)
-        
-        document = query.first()
-        
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
-        
-        try:
-            # Delete from S3
-            await aws_service.delete_file_from_s3(company.s3_bucket_name, document.s3_key)
-            
-            # Delete from database
-            company_db.delete(document)
-            company_db.commit()
-            
-            print(f"✅ Company document deleted successfully: {document_id}")
-            return {"message": "Document deleted successfully"}
-            
-        except Exception as e:
-            company_db.rollback()
-            print(f"Failed to delete company document {document_id}: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
-            
-    finally:
-        company_db.close()
-
-@router.get("/{document_id}/download")
-async def download_document(
-    document_id: str,
-    current_user: CompanyUser = Depends(auth.get_current_company_user),
-    management_db: Session = Depends(get_management_db)
-):
-    # Get company information
-    company_id = getattr(current_user, 'company_id', None)
-    if not company_id:
-        raise HTTPException(status_code=400, detail="User not associated with a company")
-    
-    company = management_db.query(models.Company).filter(
-        models.Company.id == company_id
-    ).first()
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-    
-    # Get company database connection
-    company_db_gen = get_company_db(str(company.id), str(company.database_url))
-    company_db = next(company_db_gen)
-    
-    try:
-        query = company_db.query(CompanyDocument).filter(
-            CompanyDocument.id == document_id,
-            CompanyDocument.company_id == company_id
-        )
-        
-        # Apply user-based filtering
-        if current_user.role not in ["hr_admin", "hr_manager"]:
-            # Regular users can only download their own documents
-            query = query.filter(CompanyDocument.user_id == current_user.id)
-        
-        document = query.first()
-        
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
-        
-        try:
-            # Get download URL from S3
-            download_url = await aws_service.get_download_url(company.s3_bucket_name, document.s3_key)
-            
-            return {
-                "download_url": download_url,
-                "filename": document.original_filename,
-                "file_size": document.file_size
-            }
-            
-        except Exception as e:
-            print(f"Failed to get download URL for company document {document_id}: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to get download URL: {str(e)}")
-            
-    finally:
-        company_db.close()
-
-# Enhanced Document Management Endpoints
+# Enhanced Document Management Endpoints - MUST come BEFORE wildcard routes
 @router.options("/categories")
 async def options_categories():
     """Handle CORS preflight for categories endpoint"""
@@ -717,104 +548,6 @@ async def list_document_categories(
             return categories
         finally:
             company_db.close()
-
-@router.post("/categories", response_model=schemas.DocumentCategoryResponse)
-async def create_document_category(
-    category: schemas.DocumentCategoryCreate,
-    current_user: CompanyUser = Depends(auth.get_current_user),
-    company_db: Session = Depends(get_company_db)
-):
-    """Create a new document category"""
-    if current_user.role not in ['hr_admin', 'hr_manager']:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-    
-    db_category = DocumentCategory(
-        **category.dict(),
-        company_id=current_user.company_id
-    )
-    company_db.add(db_category)
-    company_db.commit()
-    company_db.refresh(db_category)
-    return db_category
-
-@router.get("/folders", response_model=List[schemas.DocumentFolderResponse])
-async def list_document_folders(
-    category_id: Optional[str] = None,
-    current_user = Depends(auth.get_current_user_or_system_user),
-    management_db: Session = Depends(get_management_db)
-):
-    """List document folders, optionally filtered by category"""
-    # For system admins, show folders from all companies
-    if hasattr(current_user, 'role') and current_user.role == 'system_admin':
-        # System admins need to query all company databases to get folders
-        all_folders = []
-        companies = management_db.query(models.Company).filter(
-            models.Company.is_active == True
-        ).all()
-        
-        for company in companies:
-            try:
-                company_db_gen = get_company_db(str(company.id), str(company.database_url))
-                company_db = next(company_db_gen)
-                
-                query = company_db.query(DocumentFolder).filter(
-                    DocumentFolder.is_active == True
-                )
-                
-                if category_id:
-                    query = query.filter(DocumentFolder.category_id == category_id)
-                
-                folders = query.order_by(DocumentFolder.sort_order).all()
-                
-                # Add company context to folders
-                for folder in folders:
-                    folder.company_name = company.name  # type: ignore
-                
-                all_folders.extend(folders)
-                company_db.close()
-            except Exception as e:
-                print(f"Error accessing company {company.id}: {str(e)}")
-                continue
-        
-        return all_folders
-    else:
-        # For company users, show only their company's folders
-        company_db_gen = get_company_db(str(current_user.company_id), str(current_user.company.database_url))
-        company_db = next(company_db_gen)
-        
-        try:
-            query = company_db.query(DocumentFolder).filter(
-                DocumentFolder.company_id == current_user.company_id,
-                DocumentFolder.is_active == True
-            )
-            
-            if category_id:
-                query = query.filter(DocumentFolder.category_id == category_id)
-            
-            folders = query.order_by(DocumentFolder.sort_order).all()
-            return folders
-        finally:
-            company_db.close()
-
-@router.post("/folders", response_model=schemas.DocumentFolderResponse)
-async def create_document_folder(
-    folder: schemas.DocumentFolderCreate,
-    current_user: CompanyUser = Depends(auth.get_current_user),
-    company_db: Session = Depends(get_company_db)
-):
-    """Create a new document folder"""
-    if current_user.role not in ['hr_admin', 'hr_manager']:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-    
-    db_folder = DocumentFolder(
-        **folder.dict(),
-        company_id=current_user.company_id,
-        created_by_user_id=current_user.id
-    )
-    company_db.add(db_folder)
-    company_db.commit()
-    company_db.refresh(db_folder)
-    return db_folder
 
 @router.options("/enhanced")
 async def options_enhanced():
@@ -1068,16 +801,265 @@ async def list_enhanced_documents(
             )
         finally:
             company_db.close()
-            
-            return schemas.DocumentManagementResponse(
-                documents=documents,
-                categories=categories,
-                folders=folders,
-                total_count=total_count,
-                current_page=page,
-                total_pages=total_pages
-            )
 
+@router.get("/{document_id}", response_model=schemas.DocumentResponse)
+async def get_document(
+    document_id: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        query = company_db.query(CompanyDocument).filter(
+            CompanyDocument.id == document_id,
+            CompanyDocument.company_id == company_id
+        )
+        
+        # Apply user-based filtering
+        if current_user.role not in ["hr_admin", "hr_manager"]:
+            # Regular users can only see their own documents
+            query = query.filter(CompanyDocument.user_id == current_user.id)
+        
+        document = query.first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Convert SQLAlchemy object to dictionary to avoid DetachedInstanceError
+        document_data = {
+            "id": document.id,
+            "filename": document.filename,
+            "original_filename": document.original_filename,
+            "file_path": document.file_path,
+            "file_size": document.file_size,
+            "file_type": document.file_type,
+            "s3_key": document.s3_key,
+            "folder_name": document.folder_name,
+            "user_id": document.user_id,
+            "company_id": document.company_id,
+            "processed": document.processed,
+            "metadata_json": document.metadata_json,
+            "created_at": document.created_at
+        }
+        
+        return document_data
+        
+    finally:
+        company_db.close()
+
+@router.delete("/{document_id}")
+async def delete_document(
+    document_id: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        query = company_db.query(CompanyDocument).filter(
+            CompanyDocument.id == document_id,
+            CompanyDocument.company_id == company_id
+        )
+        
+        # Apply user-based filtering
+        if current_user.role not in ["hr_admin", "hr_manager"]:
+            # Regular users can only delete their own documents
+            query = query.filter(CompanyDocument.user_id == current_user.id)
+        
+        document = query.first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        try:
+            # Delete from S3
+            await aws_service.delete_file_from_s3(company.s3_bucket_name, document.s3_key)
+            
+            # Delete from database
+            company_db.delete(document)
+            company_db.commit()
+            
+            print(f"✅ Company document deleted successfully: {document_id}")
+            return {"message": "Document deleted successfully"}
+            
+        except Exception as e:
+            company_db.rollback()
+            print(f"Failed to delete company document {document_id}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
+            
+    finally:
+        company_db.close()
+
+@router.get("/{document_id}/download")
+async def download_document(
+    document_id: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        query = company_db.query(CompanyDocument).filter(
+            CompanyDocument.id == document_id,
+            CompanyDocument.company_id == company_id
+        )
+        
+        # Apply user-based filtering
+        if current_user.role not in ["hr_admin", "hr_manager"]:
+            # Regular users can only download their own documents
+            query = query.filter(CompanyDocument.user_id == current_user.id)
+        
+        document = query.first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        try:
+            # Get download URL from S3
+            download_url = await aws_service.get_download_url(company.s3_bucket_name, document.s3_key)
+            
+            return {
+                "download_url": download_url,
+                "filename": document.original_filename,
+                "file_size": document.file_size
+            }
+            
+        except Exception as e:
+            print(f"Failed to get download URL for company document {document_id}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to get download URL: {str(e)}")
+            
+    finally:
+        company_db.close()
+
+# Enhanced Document Management Endpoints
+@router.options("/folders")
+async def options_folders():
+    """Handle CORS preflight for folders endpoint"""
+    return {"message": "OK"}
+
+@router.get("/folders", response_model=List[schemas.DocumentFolderResponse])
+async def list_document_folders(
+    category_id: Optional[str] = None,
+    current_user = Depends(auth.get_current_user_or_system_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """List document folders, optionally filtered by category"""
+    # For system admins, show folders from all companies
+    if hasattr(current_user, 'role') and current_user.role == 'system_admin':
+        # System admins need to query all company databases to get folders
+        all_folders = []
+        companies = management_db.query(models.Company).filter(
+            models.Company.is_active == True
+        ).all()
+        
+        for company in companies:
+            try:
+                company_db_gen = get_company_db(str(company.id), str(company.database_url))
+                company_db = next(company_db_gen)
+                
+                query = company_db.query(DocumentFolder).filter(
+                    DocumentFolder.is_active == True
+                )
+                
+                if category_id:
+                    query = query.filter(DocumentFolder.category_id == category_id)
+                
+                folders = query.order_by(DocumentFolder.sort_order).all()
+                
+                # Add company context to folders
+                for folder in folders:
+                    folder.company_name = company.name  # type: ignore
+                
+                all_folders.extend(folders)
+                company_db.close()
+            except Exception as e:
+                print(f"Error accessing company {company.id}: {str(e)}")
+                continue
+        
+        return all_folders
+    else:
+        # For company users, show only their company's folders
+        company_db_gen = get_company_db(str(current_user.company_id), str(current_user.company.database_url))
+        company_db = next(company_db_gen)
+        
+        try:
+            query = company_db.query(DocumentFolder).filter(
+                DocumentFolder.company_id == current_user.company_id,
+                DocumentFolder.is_active == True
+            )
+            
+            if category_id:
+                query = query.filter(DocumentFolder.category_id == category_id)
+            
+            folders = query.order_by(DocumentFolder.sort_order).all()
+            return folders
+        finally:
+            company_db.close()
+
+@router.post("/folders", response_model=schemas.DocumentFolderResponse)
+async def create_document_folder(
+    folder: schemas.DocumentFolderCreate,
+    current_user: CompanyUser = Depends(auth.get_current_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Create a new document folder"""
+    if current_user.role not in ['hr_admin', 'hr_manager']:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    
+    db_folder = DocumentFolder(
+        **folder.dict(),
+        company_id=current_user.company_id,
+        created_by_user_id=current_user.id
+    )
+    company_db.add(db_folder)
+    company_db.commit()
+    company_db.refresh(db_folder)
+    return db_folder
+
+@router.options("/bulk-operation")
+async def options_bulk_operation():
+    """Handle CORS preflight for bulk-operation endpoint"""
+    return {"message": "OK"}
 
 @router.post("/bulk-operation")
 async def bulk_document_operation(
