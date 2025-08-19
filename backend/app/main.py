@@ -121,9 +121,22 @@ async def test_auth():
 # Test login endpoint for debugging
 @app.post("/test-login")
 async def test_login():
-    """Test login endpoint - returns mock authentication data for testing"""
+    """Test login endpoint - returns real JWT authentication data for testing"""
+    from app.auth import create_access_token
+    
+    # Create a real JWT token for testing
+    test_user_data = {
+        "sub": "testuser",
+        "username": "testuser",
+        "role": "hr_admin",
+        "company_id": "test-company-456"
+    }
+    
+    # Create real access token
+    access_token = create_access_token(data=test_user_data)
+    
     return {
-        "access_token": "test-token-12345",
+        "access_token": access_token,
         "token_type": "bearer",
         "user": {
             "id": "test-user-123",
