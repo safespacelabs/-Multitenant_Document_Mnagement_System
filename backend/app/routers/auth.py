@@ -389,9 +389,14 @@ async def company_login(
         company_response = schemas.CompanyResponse(
             id=company.id,
             name=company.name,
-            domain=company.domain,
+            email=company.email,
+            database_name=company.database_name,
+            database_url=company.database_url,
+            database_host=company.database_host,
+            database_port=company.database_port,
+            created_at=company.created_at,
             is_active=company.is_active,
-            created_at=company.created_at
+            s3_bucket_name=company.s3_bucket_name
         )
         
         return {
