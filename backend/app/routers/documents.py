@@ -664,6 +664,11 @@ async def download_document(
         company_db.close()
 
 # Enhanced Document Management Endpoints
+@router.options("/categories")
+async def options_categories():
+    """Handle CORS preflight for categories endpoint"""
+    return {"message": "OK"}
+
 @router.get("/categories", response_model=List[schemas.DocumentCategoryResponse])
 async def list_document_categories(
     current_user = Depends(auth.get_current_user_or_system_user),
@@ -809,6 +814,11 @@ async def create_document_folder(
     company_db.commit()
     company_db.refresh(db_folder)
     return db_folder
+
+@router.options("/enhanced")
+async def options_enhanced():
+    """Handle CORS preflight for enhanced endpoint"""
+    return {"message": "OK"}
 
 @router.get("/enhanced", response_model=schemas.DocumentManagementResponse)
 async def list_enhanced_documents(

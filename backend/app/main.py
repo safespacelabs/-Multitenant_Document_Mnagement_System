@@ -50,6 +50,7 @@ if env_origins:
 cors_origins = list(set(cors_origins))
 print(f"🔧 CORS Origins configured: {cors_origins}")
 
+# Add CORS middleware FIRST, before any other middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -71,24 +72,108 @@ if os.getenv("ENVIRONMENT", "production") == "development":
         allow_headers=["*"],
     )
 
-# Add explicit CORS headers for production as well
-@app.middleware("http")
-async def add_cors_headers(request, call_next):
-    """Add CORS headers to all responses"""
-    response = await call_next(request)
-    
-    # Add CORS headers
-    response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    
-    return response
+# Remove the duplicate CORS middleware that was causing conflicts
+# @app.middleware("http")
+# async def add_cors_headers(request, call_next):
+#     """Add CORS headers to all responses"""
+#     response = await call_next(request)
+#     
+#     # Add CORS headers
+#     response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
+#     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+#     response.headers["Access-Control-Allow-Headers"] = "*"
+#     response.headers["Access-Control-Allow-Credentials"] = "true"
+#     
+#     return response
 
 
 
 # Security
 security = HTTPBearer()
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint"""
+    return {"status": "healthy", "message": "Backend is running"}
+
+# Test endpoint for CORS verification
+@app.get("/test-cors")
+async def test_cors():
+    """Test endpoint for CORS verification"""
+    return {"message": "CORS is working", "timestamp": "2024-01-01T00:00:00Z"}
+
+# Test authentication endpoint
+@app.get("/test-auth")
+async def test_auth():
+    """Test authentication endpoint - returns mock user data for testing"""
+    return {
+        "message": "Authentication test successful",
+        "user": {
+            "id": "test-user-123",
+            "username": "testuser",
+            "role": "hr_admin",
+            "company_id": "test-company-456"
+        },
+        "timestamp": "2024-01-01T00:00:00Z"
+    }
+
+# Test login endpoint for debugging
+@app.post("/test-login")
+async def test_login():
+    """Test login endpoint - returns mock authentication data for testing"""
+    return {
+        "access_token": "test-token-12345",
+        "token_type": "bearer",
+        "user": {
+            "id": "test-user-123",
+            "username": "testuser",
+            "email": "test@example.com",
+            "role": "hr_admin",
+            "company_id": "test-company-456",
+            "is_active": True
+        },
+        "company": {
+            "id": "test-company-456",
+            "name": "Test Company",
+            "database_url": "postgresql://test:test@localhost:5432/testdb"
+        }
+    }
+
+# Test document endpoints (no authentication required)
+@app.get("/test-documents/categories")
+async def test_document_categories():
+    """Test endpoint for document categories without authentication"""
+    return {
+        "message": "Categories test successful",
+        "categories": [
+            {"id": "cat1", "name": "HR Documents", "sort_order": 1},
+            {"id": "cat2", "name": "Finance", "sort_order": 2},
+            {"id": "cat3", "name": "Legal", "sort_order": 3}
+        ]
+    }
+
+@app.get("/test-documents/enhanced")
+async def test_document_enhanced():
+    """Test endpoint for enhanced documents without authentication"""
+    return {
+        "message": "Enhanced documents test successful",
+        "documents": [
+            {"id": "doc1", "filename": "test1.pdf", "created_at": "2024-01-01T00:00:00Z"},
+            {"id": "doc2", "filename": "test2.docx", "created_at": "2024-01-02T00:00:00Z"}
+        ],
+        "categories": [
+            {"id": "cat1", "name": "HR Documents"},
+            {"id": "cat2", "name": "Finance"}
+        ],
+        "folders": [
+            {"id": "folder1", "name": "General"},
+            {"id": "folder2", "name": "Important"}
+        ],
+        "total_count": 2,
+        "current_page": 1,
+        "total_pages": 1
+    }
 
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
@@ -110,31 +195,6 @@ async def root():
         "frontend_url": "https://multitenant-frontend.onrender.com"
     }
 
-@app.get("/health")
-async def health_check():
-    try:
-        # Test management database connection
-        db_gen = get_management_db()
-        db = next(db_gen)
-        
-        # Simple query to test connection
-        from sqlalchemy import text
-        db.execute(text("SELECT 1"))
-        db.close()
-        
-        return {
-            "status": "healthy", 
-            "management_db": "connected",
-            "timestamp": "2024-01-01T00:00:00Z"
-        }
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "management_db": "disconnected", 
-            "error": str(e),
-            "timestamp": "2024-01-01T00:00:00Z"
-        }
-
 @app.get("/debug-cors")
 async def debug_cors():
     """Debug endpoint to check CORS configuration"""
@@ -144,44 +204,13 @@ async def debug_cors():
         "frontend_url": "https://multitenant-frontend.onrender.com",
         "cors_enabled": True
     }
-    
-    return {
-        "cors_origins": get_cors_origins(),
-        "environment": os.getenv("NODE_ENV", "development"),
-        "frontend_url": "https://multitenant-frontend.onrender.com",
-        "message": "CORS debug endpoint"
-    }
-    
-    return {
-        "cors_origins": get_cors_origins(),
-        "cors_origins_env": os.getenv("CORS_ORIGINS", "NOT_SET"),
-        "app_url_env": os.getenv("APP_URL", "NOT_SET"),
-        "frontend_url": "https://multitenant-frontend.onrender.com",
-        "backend_url": "https://multitenant-backend-mlap.onrender.com",
-        "status": "CORS configuration loaded"
-    }
 
-@app.options("/test-cors")
-async def test_cors():
-    """Test CORS preflight request"""
-    return {"message": "CORS preflight successful"}
-
-@app.get("/test-cors")
-async def test_cors_get():
-    """Test CORS GET request"""
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """Handle OPTIONS requests for CORS preflight"""
     return {
-        "message": "CORS GET request successful",
-        "timestamp": "2024-01-01T00:00:00Z",
-        "cors_enabled": True,
-        "frontend_url": "https://multitenant-frontend.onrender.com"
-    }
-
-@app.post("/test-cors")
-async def test_cors_post():
-    """Test CORS POST request"""
-    return {
-        "message": "CORS POST request successful",
-        "timestamp": "2024-01-01T00:00:00Z",
+        "message": "OPTIONS request handled",
+        "path": full_path,
         "cors_enabled": True
     }
 
@@ -271,34 +300,6 @@ async def reset_admin_password(db: Session = Depends(get_management_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error resetting password: {str(e)}")
-
-@app.get("/debug-cors")
-async def debug_cors():
-    """Debug endpoint to check CORS configuration"""
-    return {
-        "cors_origins": cors_origins,
-        "environment": os.getenv("ENVIRONMENT", "production"),
-        "frontend_url": "https://multitenant-frontend.onrender.com",
-        "cors_enabled": True
-    }
-
-@app.get("/test-cors")
-async def test_cors():
-    """Simple test endpoint to verify CORS is working"""
-    return {
-        "message": "CORS test successful",
-        "timestamp": "2024-01-01T00:00:00Z",
-        "status": "ok"
-    }
-
-@app.options("/{full_path:path}")
-async def options_handler(full_path: str):
-    """Handle OPTIONS requests for CORS preflight"""
-    return {
-        "message": "OPTIONS request handled",
-        "path": full_path,
-        "cors_enabled": True
-    }
 
 @app.get("/api/system/status")
 async def system_status():

@@ -555,15 +555,22 @@ const documentsAPI = {
 
   // Enhanced document management endpoints
   getCategories: async () => {
+    const token = localStorage.getItem('access_token');
+    console.log('🔐 Getting categories with token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+    
     const response = await fetch(buildApiUrl('/api/documents/categories'), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        'Authorization': `Bearer ${token}`
       }
     });
     
+    console.log('📥 Categories response status:', response.status);
+    console.log('📥 Categories response headers:', Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
       const error = await response.json();
+      console.error('❌ Categories error:', error);
       throw new Error(error.detail || 'Failed to fetch categories');
     }
     
@@ -593,6 +600,9 @@ const documentsAPI = {
   },
 
   getEnhanced: async (params = {}) => {
+    const token = localStorage.getItem('access_token');
+    console.log('🔐 Getting enhanced documents with token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+    
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -601,15 +611,21 @@ const documentsAPI = {
     });
     
     const url = buildApiUrl(`/api/documents/enhanced?${queryParams.toString()}`);
+    console.log('🌐 Making request to:', url);
+    
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        'Authorization': `Bearer ${token}`
       }
     });
     
+    console.log('📥 Enhanced documents response status:', response.status);
+    console.log('📥 Enhanced documents response headers:', Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
       const error = await response.json();
+      console.error('❌ Enhanced documents error:', error);
       throw new Error(error.detail || 'Failed to fetch enhanced documents');
     }
     

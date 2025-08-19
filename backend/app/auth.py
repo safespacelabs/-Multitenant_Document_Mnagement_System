@@ -166,69 +166,95 @@ async def get_current_user_or_system_user(
     management_db: Session = Depends(get_management_db)
 ) -> Union[models.SystemUser, CompanyUser]:
     """Get current authenticated user (system user or company user) for document management"""
-    token = credentials.credentials
-    payload = verify_token(token)
-    username = payload.get("sub")
-    
-    if not username:
+    try:
+        token = credentials.credentials
+        print(f"🔐 Processing token: {token[:20]}...")
+        
+        payload = verify_token(token)
+        username = payload.get("sub")
+        
+        if not username:
+            print("❌ No username found in token payload")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        print(f"🔍 Looking for user: {username}")
+        
+        # First check if this is a system user
+        system_user = management_db.query(models.SystemUser).filter(
+            models.SystemUser.username == username
+        ).first()
+        
+        if system_user:
+            print(f"✅ Found system user: {system_user.username}")
+            if not bool(system_user.is_active):
+                print(f"❌ System user {system_user.username} is inactive")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Inactive system user"
+                )
+            return system_user
+        
+        print(f"🔍 User {username} not found as system user, checking company databases...")
+        
+        # If not a system user, check company databases
+        companies = management_db.query(models.Company).filter(
+            models.Company.is_active == True
+        ).all()
+        
+        print(f"🔍 Checking {len(companies)} active companies")
+        
+        for company in companies:
+            try:
+                from app.database import get_company_db
+                company_db_gen = get_company_db(str(company.id), str(company.database_url))
+                company_db = next(company_db_gen)
+                
+                user = company_db.query(CompanyUser).filter(
+                    CompanyUser.username == username
+                ).first()
+                
+                if user:
+                    print(f"✅ Found company user: {user.username} in company: {company.name}")
+                    if not bool(user.is_active):
+                        company_db.close()
+                        print(f"❌ Company user {user.username} is inactive")
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Inactive user"
+                        )
+                    
+                    # Add company information to user object for compatibility
+                    user.company_id = company.id  # type: ignore
+                    user.company = company  # type: ignore
+                    company_db.close()
+                    return user
+                
+                company_db.close()
+                
+            except Exception as e:
+                print(f"⚠️ Error accessing company {company.id}: {str(e)}")
+                continue
+        
+        print(f"❌ User {username} not found in any company database")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
+            detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # First check if this is a system user
-    system_user = management_db.query(models.SystemUser).filter(
-        models.SystemUser.username == username
-    ).first()
-    
-    if system_user:
-        if not bool(system_user.is_active):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Inactive system user"
-            )
-        return system_user
-    
-    # If not a system user, check company databases
-    companies = management_db.query(models.Company).filter(
-        models.Company.is_active == True
-    ).all()
-    
-    for company in companies:
-        try:
-            from app.database import get_company_db
-            company_db_gen = get_company_db(str(company.id), str(company.database_url))
-            company_db = next(company_db_gen)
-            
-            user = company_db.query(CompanyUser).filter(
-                CompanyUser.username == username
-            ).first()
-            
-            if user:
-                if not bool(user.is_active):
-                    company_db.close()
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Inactive user"
-                    )
-                
-                # Add company information to user object for compatibility
-                user.company_id = company.id  # type: ignore
-                user.company = company  # type: ignore
-                company_db.close()
-                return user
-            
-            company_db.close()
-            
-        except Exception:
-            continue
-    
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="User not found",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error in get_current_user_or_system_user: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during authentication"
+        )
 
 async def get_current_company_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
