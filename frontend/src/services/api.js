@@ -558,23 +558,38 @@ const documentsAPI = {
     const token = localStorage.getItem('access_token');
     console.log('🔐 Getting categories with token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
     
-    const response = await fetch(buildApiUrl('/api/documents/categories'), {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`
+    try {
+      const response = await fetch(buildApiUrl('/api/documents/categories'), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      console.log('📥 Categories response status:', response.status);
+      console.log('📥 Categories response headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to fetch categories';
+        try {
+          const error = await response.json();
+          console.error('❌ Categories error:', error);
+          errorMessage = error.detail || errorMessage;
+        } catch (jsonError) {
+          console.error('❌ Could not parse error response:', jsonError);
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
-    });
-    
-    console.log('📥 Categories response status:', response.status);
-    console.log('📥 Categories response headers:', Object.fromEntries(response.headers.entries()));
-    
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('❌ Categories error:', error);
-      throw new Error(error.detail || 'Failed to fetch categories');
+      
+      return response.json();
+    } catch (error) {
+      if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+        console.error('❌ Network error - unable to reach server');
+        throw new Error('Network error: Unable to connect to server. Please check if the backend is running.');
+      }
+      throw error;
     }
-    
-    return response.json();
   },
 
   getFolders: async (categoryId = null) => {
@@ -613,23 +628,38 @@ const documentsAPI = {
     const url = buildApiUrl(`/api/documents/enhanced?${queryParams.toString()}`);
     console.log('🌐 Making request to:', url);
     
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      console.log('📥 Enhanced documents response status:', response.status);
+      console.log('📥 Enhanced documents response headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to fetch enhanced documents';
+        try {
+          const error = await response.json();
+          console.error('❌ Enhanced documents error:', error);
+          errorMessage = error.detail || errorMessage;
+        } catch (jsonError) {
+          console.error('❌ Could not parse error response:', jsonError);
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
-    });
-    
-    console.log('📥 Enhanced documents response status:', response.status);
-    console.log('📥 Enhanced documents response headers:', Object.fromEntries(response.headers.entries()));
-    
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('❌ Enhanced documents error:', error);
-      throw new Error(error.detail || 'Failed to fetch enhanced documents');
+      
+      return response.json();
+    } catch (error) {
+      if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+        console.error('❌ Network error - unable to reach server');
+        throw new Error('Network error: Unable to connect to server. Please check if the backend is running.');
+      }
+      throw error;
     }
-    
-    return response.json();
   },
 
   bulkOperation: async (operation) => {
