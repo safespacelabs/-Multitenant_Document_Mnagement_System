@@ -561,6 +561,16 @@ async def list_document_categories(
         return response
     else:
         # For company users, show only their company's categories
+        # Validate company information exists
+        if not hasattr(current_user, 'company_id') or not current_user.company_id:
+            raise HTTPException(status_code=400, detail="User does not have a company_id")
+        
+        if not hasattr(current_user, 'company') or not current_user.company:
+            raise HTTPException(status_code=400, detail="User does not have company information")
+        
+        if not hasattr(current_user.company, 'database_url') or not current_user.company.database_url:
+            raise HTTPException(status_code=400, detail="Company does not have a database URL")
+        
         company_db_gen = get_company_db(str(current_user.company_id), str(current_user.company.database_url))
         company_db = next(company_db_gen)
         
@@ -570,9 +580,24 @@ async def list_document_categories(
                 DocumentCategory.is_active == True
             ).order_by(DocumentCategory.sort_order).all()
             
+            # Convert SQLAlchemy objects to dictionaries for JSON serialization
+            categories_dict = []
+            for category in categories:
+                category_dict = {
+                    "id": str(category.id),
+                    "name": category.name,
+                    "description": category.description,
+                    "sort_order": category.sort_order,
+                    "is_active": category.is_active,
+                    "company_id": str(category.company_id),
+                    "created_at": category.created_at.isoformat() if category.created_at else None,
+                    "updated_at": category.updated_at.isoformat() if category.updated_at else None
+                }
+                categories_dict.append(category_dict)
+            
             # Create response with explicit CORS headers
             from fastapi.responses import JSONResponse
-            response = JSONResponse(content=categories)
+            response = JSONResponse(content=categories_dict)
             response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
             response.headers["Access-Control-Allow-Headers"] = "*"
