@@ -183,3 +183,8 @@ temp/
 # Local configuration files that shouldn't be shared
 config.local.py
 settings.local.py 
+# Test files
+test-cors.html
+simple-test.html
+CORS_TEST_INSTRUCTIONS.md
+backend/requirements-minimal.txt
