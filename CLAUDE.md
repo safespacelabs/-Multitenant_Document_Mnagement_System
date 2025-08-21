@@ -11,14 +11,42 @@ Multi-tenant document management system with AI-powered features, e-signature ca
 ### Backend Development
 ```bash
 cd backend
+python3 -m venv venv  # Create virtual environment if needed
 source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r requirements.txt  # Install dependencies
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Frontend Development
 ```bash
 cd frontend
+npm install  # Install dependencies
 npm start
+```
+
+### Local Development Setup
+```bash
+# Prerequisites: PostgreSQL (Docker or local), Node.js, Python 3.8+
+
+# 1. Start PostgreSQL (if using Docker)
+docker run -d -p 5432:5432 \
+  -e POSTGRES_USER=pgadmin \
+  -e POSTGRES_PASSWORD=pgadminappdb \
+  -e POSTGRES_DB=document_management \
+  postgres:14
+
+# 2. Backend setup
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # Edit with your database credentials
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# 3. Frontend setup (new terminal)
+cd frontend
+npm install
+npm start  # Runs on http://localhost:3000
 ```
 
 ### Docker Development
@@ -117,18 +145,54 @@ docker-compose -f docker-compose.prod.yml up --build
 
 ### Backend (.env)
 ```
-DATABASE_URL=postgresql://...  # Management database
-NEON_API_KEY=...
-SECRET_KEY=...
+# Database Configuration
+DATABASE_URL=postgresql://user:password@localhost:5432/document_management
+MANAGEMENT_DATABASE_URL=postgresql://user:password@localhost:5432/document_management
+
+# Security
+SECRET_KEY=your-secret-key-change-this-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Environment (development/production)
+ENVIRONMENT=development
+
+# AWS Configuration (Optional for local development)
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=...
+AWS_REGION=us-east-1
+
+# AI Services (Optional for local development)
 GROQ_API_KEY=...
+NEON_API_KEY=...
 ```
 
 ### Frontend (.env)
 ```
 REACT_APP_API_URL=http://localhost:8000
+```
+
+## CORS Configuration
+
+### Environment-Based CORS
+The application uses environment-aware CORS configuration:
+
+- **Development Mode** (`ENVIRONMENT=development`):
+  - Allows `http://localhost:3000`, `3001`, `8080` and `127.0.0.1` variants
+  - Permits any localhost port for flexibility
+  - Supports file:// protocol for testing
+
+- **Production Mode** (`ENVIRONMENT=production`):
+  - Only allows `https://multitenant-frontend.onrender.com`
+  - Strict origin validation for security
+
+### Testing CORS
+```bash
+# Test CORS configuration
+curl -X OPTIONS "http://localhost:8000/api/documents/categories" \
+  -H "Origin: http://localhost:3000" \
+  -H "Access-Control-Request-Method: GET" \
+  -v
 ```
 
 ## Common Workflows
@@ -167,6 +231,25 @@ REACT_APP_API_URL=http://localhost:8000
 - Verify AWS credentials and bucket permissions
 - Check S3 bucket naming convention
 - Ensure file size limits in both frontend and backend
+
+### CORS Issues
+- Check `ENVIRONMENT` variable in backend/.env (development/production)
+- Verify frontend URL is in allowed origins list
+- For local development, use http://localhost:3000 (not file://)
+- Test with: `curl -X OPTIONS http://localhost:8000/api/endpoint -H "Origin: http://localhost:3000" -v`
+
+## Dependencies & Compatibility
+
+### Python Dependencies
+- Python 3.8+ required (3.11+ recommended)
+- Key packages: FastAPI, SQLAlchemy, Pydantic, psycopg2, boto3, spacy
+- For spacy: Run `python -m spacy download en_core_web_sm` after installation
+- If issues with psycopg2-binary, install PostgreSQL locally first
+
+### Frontend Dependencies
+- Node.js 16+ and npm 8+
+- React 18 with TypeScript
+- Key packages: React Router v6, Axios, Material-UI
 
 ## Testing Approach
 
