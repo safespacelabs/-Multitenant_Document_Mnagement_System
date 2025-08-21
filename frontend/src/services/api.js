@@ -1,7 +1,11 @@
-// API base URL - use full URL in production, relative in development
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://multitenant-backend-mlap.onrender.com'
-  : '';
+// API base URL - always use production backend for now
+const API_BASE_URL = 'https://multitenant-backend-mlap.onrender.com';
+
+// Debug logging
+console.log('🔧 API Configuration Debug:');
+console.log('  NODE_ENV:', process.env.NODE_ENV);
+console.log('  API_BASE_URL:', API_BASE_URL);
+console.log('  Current location:', window.location.href);
 
 // Helper function to build API URLs
 const buildApiUrl = (endpoint) => {
@@ -104,19 +108,50 @@ const authAPI = {
   },
 
   getCompany: async (companyId) => {
-    const response = await fetch(buildApiUrl(`/api/companies/${companyId}/public`), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
+    console.log('🔍 Fetching company:', companyId);
+    const fullUrl = buildApiUrl(`/api/companies/${companyId}/public`);
+    console.log('🌐 API URL:', fullUrl);
+    console.log('🌐 Full URL being called:', fullUrl);
+    
+    try {
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+      console.log('📥 Response URL:', response.url);
+      
+      if (!response.ok) {
+        // Try to parse error as JSON, fallback to text if it's HTML
+        let errorMessage = 'Failed to fetch company';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch (parseError) {
+          // If JSON parsing fails, it might be HTML
+          const errorText = await response.text();
+          console.error('❌ Non-JSON response received:', errorText.substring(0, 200));
+          if (errorText.includes('<!DOCTYPE') || errorText.includes('<html')) {
+            errorMessage = 'Server returned HTML instead of JSON. This usually means the endpoint is not found or there is a server error.';
+          } else {
+            errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          }
+        }
+        throw new Error(errorMessage);
       }
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to fetch company');
+      
+      const data = await response.json();
+      console.log('✅ Company data received:', data);
+      return data;
+      
+    } catch (error) {
+      console.error('❌ Company fetch error:', error);
+      throw error;
     }
-    
-    return response.json();
   },
 
   loginCompany: async (username, password, companyId, databaseUrl) => {

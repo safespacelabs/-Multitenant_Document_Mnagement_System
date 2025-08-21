@@ -53,14 +53,27 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 IS_PRODUCTION = ENVIRONMENT == "production"
 IS_DEVELOPMENT = ENVIRONMENT == "development"
 
+# Debug environment detection
+print(f"🔍 Environment detection: ENVIRONMENT={ENVIRONMENT}, IS_PRODUCTION={IS_PRODUCTION}, IS_DEVELOPMENT={IS_DEVELOPMENT}")
+
 # CORS origins function
 def get_cors_origins():
     """Get CORS origins from environment variable"""
-    # Environment-specific origins
+    # Get from environment variable first (highest priority)
+    origins_str = os.getenv("CORS_ORIGINS", "")
+    
+    if origins_str:
+        # Parse environment variable
+        custom_origins = [origin.strip() for origin in origins_str.split(",")]
+        print(f"🔧 CORS Origins from environment variable: {custom_origins}")
+        return custom_origins
+    
+    # Environment-specific origins (fallback)
     if IS_PRODUCTION:
         default_origins = [
             "https://multitenant-frontend.onrender.com"
         ]
+        print(f"🔧 Using production CORS origins: {default_origins}")
     else:
         # Development/local origins
         default_origins = [
@@ -71,20 +84,9 @@ def get_cors_origins():
             "http://localhost:8080",  # Test server
             "http://127.0.0.1:8080"
         ]
+        print(f"🔧 Using development CORS origins: {default_origins}")
     
-    # Get from environment variable to allow overrides
-    origins_str = os.getenv("CORS_ORIGINS", "")
-    
-    if origins_str:
-        # Parse environment variable
-        custom_origins = [origin.strip() for origin in origins_str.split(",")]
-        # Merge with defaults
-        origins = list(set(default_origins + custom_origins))
-    else:
-        origins = default_origins
-    
-    print(f"🔧 CORS Origins configured for {ENVIRONMENT}: {origins}")
-    return origins
+    return default_origins
 
 # Settings class for new structured approach (optional)
 class Settings:

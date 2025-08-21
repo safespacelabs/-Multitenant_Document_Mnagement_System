@@ -32,15 +32,24 @@ async def list_companies_public(db: Session = Depends(get_management_db)):
 @router.get("/{company_id}/public", response_model=schemas.CompanyResponse)
 async def get_company_public(company_id: str, db: Session = Depends(get_management_db)):
     """Public endpoint to get company information for company access page"""
-    company = db.query(models.Company).filter(
-        models.Company.id == company_id,
-        models.Company.is_active == True
-    ).first()
+    logger.info(f"🔍 Company verification request for company_id: {company_id}")
     
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-    
-    return company
+    try:
+        company = db.query(models.Company).filter(
+            models.Company.id == company_id,
+            models.Company.is_active == True
+        ).first()
+        
+        if not company:
+            logger.warning(f"❌ Company not found: {company_id}")
+            raise HTTPException(status_code=404, detail="Company not found")
+        
+        logger.info(f"✅ Company found: {company.name} (ID: {company.id})")
+        return company
+        
+    except Exception as e:
+        logger.error(f"❌ Error in company verification: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.get("/", response_model=List[schemas.CompanyResponse])
 async def list_companies(db: Session = Depends(get_management_db)):

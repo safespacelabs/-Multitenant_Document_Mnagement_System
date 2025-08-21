@@ -53,20 +53,32 @@ async def ensure_cors_headers(request, call_next):
     """Ensure CORS headers are present in all responses"""
     origin = request.headers.get("origin", "")
     
+    print(f"🔍 CORS Middleware - Origin: {origin}, Environment: {ENVIRONMENT}, IS_PRODUCTION: {IS_PRODUCTION}")
+    print(f"🔍 Allowed CORS origins: {cors_origins}")
+    
     # Handle preflight requests
     if request.method == "OPTIONS":
         # Check if origin is allowed
-        if not origin and IS_DEVELOPMENT:
-            # Handle file:// protocol or missing origin in development
-            allowed_origin = "*"
-        elif origin in cors_origins:
+        if origin in cors_origins:
             allowed_origin = origin
+            print(f"✅ Origin {origin} is in allowed CORS origins")
         elif IS_DEVELOPMENT and origin and origin.startswith("http://localhost:"):
             # In development, allow any localhost port
             allowed_origin = origin
+            print(f"✅ Development mode: allowing localhost origin {origin}")
+        elif not origin and IS_DEVELOPMENT:
+            # Handle file:// protocol or missing origin in development
+            allowed_origin = "*"
+            print("✅ Development mode: allowing missing origin with *")
         else:
-            # Default to the first allowed origin
-            allowed_origin = cors_origins[0] if cors_origins else "*"
+            # In production, only allow exact matches
+            if IS_PRODUCTION:
+                print(f"❌ Production mode: origin {origin} not in allowed origins")
+                allowed_origin = cors_origins[0] if cors_origins else "https://multitenant-frontend.onrender.com"
+            else:
+                # Development fallback
+                allowed_origin = cors_origins[0] if cors_origins else "*"
+                print(f"⚠️ Development fallback: using {allowed_origin}")
             
         headers = {
             "Access-Control-Allow-Origin": allowed_origin,
@@ -80,17 +92,26 @@ async def ensure_cors_headers(request, call_next):
     response = await call_next(request)
     
     # Ensure CORS headers are present for actual requests
-    if not origin and IS_DEVELOPMENT:
-        # Handle file:// protocol or missing origin in development
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Credentials"] = "false"
-    elif origin in cors_origins:
+    if origin in cors_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
+        print(f"✅ Added CORS headers for origin {origin}")
     elif IS_DEVELOPMENT and origin and origin.startswith("http://localhost:"):
         # In development, allow any localhost port
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
+        print(f"✅ Development mode: added CORS headers for localhost origin {origin}")
+    elif not origin and IS_DEVELOPMENT:
+        # Handle file:// protocol or missing origin in development
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "false"
+        print("✅ Development mode: added CORS headers for missing origin")
+    else:
+        # In production, only set headers for exact matches
+        if IS_PRODUCTION:
+            print(f"❌ Production mode: not setting CORS headers for origin {origin}")
+        else:
+            print(f"⚠️ Development mode: not setting CORS headers for origin {origin}")
     
     return response
 
@@ -109,7 +130,13 @@ async def health_check():
 @app.get("/test-cors")
 async def test_cors():
     """Test endpoint for CORS verification"""
-    return {"message": "CORS is working", "timestamp": "2024-01-01T00:00:00Z"}
+    return {
+        "message": "CORS is working", 
+        "timestamp": "2024-01-01T00:00:00Z",
+        "environment": ENVIRONMENT,
+        "is_production": IS_PRODUCTION,
+        "cors_origins": cors_origins
+    }
 
 # Test authentication endpoint
 @app.get("/test-auth")
@@ -197,17 +224,27 @@ async def test_document_enhanced():
     }
 
 # Include routers
+print("🔧 Including API routers...")
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+print("✅ Auth router included")
 app.include_router(companies.router, prefix="/api/companies", tags=["Companies"])
+print("✅ Companies router included")
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
+print("✅ Users router included")
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
+print("✅ Documents router included")
 app.include_router(chatbot.router, prefix="/api/chat", tags=["Chatbot"])
+print("✅ Chatbot router included")
 app.include_router(user_management.router, prefix="/api/user-management", tags=["User Management"])
+print("✅ User Management router included")
 app.include_router(esignature.router, prefix="/api", tags=["E-Signature"])
+print("✅ E-Signature router included")
 
 # Import and include HR admin router
 from app.routers import hr_admin
 app.include_router(hr_admin.router, prefix="/api/hr-admin", tags=["HR Admin"])
+print("✅ HR Admin router included")
+print("🔧 All routers included successfully!")
 
 @app.get("/")
 async def root():
@@ -245,14 +282,28 @@ async def test_hr_admin():
         "status": "active"
     }
 
-@app.options("/{full_path:path}")
-async def options_handler(full_path: str):
-    """Handle OPTIONS requests for CORS preflight"""
+@app.get("/test-companies-router")
+async def test_companies_router():
+    """Test endpoint to verify companies router is working"""
     return {
-        "message": "OPTIONS request handled",
-        "path": full_path,
-        "cors_enabled": True
+        "message": "Companies router is working!",
+        "endpoints": [
+            "/api/companies/",
+            "/api/companies/public",
+            "/api/companies/{company_id}/public"
+        ],
+        "status": "active"
     }
+
+# Remove this conflicting route - it's interfering with API routing
+# @app.options("/{full_path:path}")
+# async def options_handler(full_path: str):
+#     """Handle OPTIONS requests for CORS preflight"""
+#     return {
+#         "message": "OPTIONS request handled",
+#         "path": full_path,
+#         "cors_enabled": True
+#     }
 
 @app.post("/init-admin")
 async def initialize_first_admin(db: Session = Depends(get_management_db)):
