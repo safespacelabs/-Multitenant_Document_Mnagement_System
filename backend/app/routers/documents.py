@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
-from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -497,10 +496,11 @@ async def list_documents(
         company_db.close()
 
 # Enhanced Document Management Endpoints - MUST come BEFORE wildcard routes
-@router.options("/categories")
-async def options_categories():
-    """Handle CORS preflight for categories endpoint"""
-    return {"message": "OK"}
+# Remove this - global CORS middleware handles OPTIONS requests
+# @router.options("/categories")
+# async def options_categories():
+#     """Handle CORS preflight for categories endpoint"""
+#     return {"message": "OK"}
 
 @router.get("/categories", response_model=List[schemas.DocumentCategoryResponse])
 async def list_document_categories(
@@ -535,8 +535,6 @@ async def list_document_categories(
                 print(f"Error accessing company {company.id}: {str(e)}")
                 continue
         
-        # Create response with explicit CORS headers
-        from fastapi.responses import JSONResponse
         # Convert SQLAlchemy objects to dictionaries for JSON serialization
         all_categories_dict = []
         for category in all_categories:
@@ -553,12 +551,7 @@ async def list_document_categories(
             }
             all_categories_dict.append(category_dict)
         
-        response = JSONResponse(content=all_categories_dict)
-        response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        return response
+        return all_categories_dict
     else:
         # For company users, show only their company's categories
         # Validate company information exists
@@ -595,21 +588,15 @@ async def list_document_categories(
                 }
                 categories_dict.append(category_dict)
             
-            # Create response with explicit CORS headers
-            from fastapi.responses import JSONResponse
-            response = JSONResponse(content=categories_dict)
-            response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-            response.headers["Access-Control-Allow-Headers"] = "*"
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            return response
+            return categories_dict
         finally:
             company_db.close()
 
-@router.options("/enhanced")
-async def options_enhanced():
-    """Handle CORS preflight for enhanced endpoint"""
-    return {"message": "OK"}
+# Remove this - global CORS middleware handles OPTIONS requests
+# @router.options("/enhanced")
+# async def options_enhanced():
+#     """Handle CORS preflight for enhanced endpoint"""
+#     return {"message": "OK"}
 
 @router.get("/enhanced", response_model=schemas.DocumentManagementResponse)
 async def list_enhanced_documents(
@@ -743,8 +730,7 @@ async def list_enhanced_documents(
         # Calculate pagination info
         total_pages = (total_count + page_size - 1) // page_size
         
-        # Create response with explicit CORS headers
-        from fastapi.responses import JSONResponse
+        # Create response data
         response_data = schemas.DocumentManagementResponse(
             documents=paginated_documents,
             categories=all_categories,
@@ -762,12 +748,7 @@ async def list_enhanced_documents(
             if hasattr(doc, 'updated_at') and doc.updated_at:
                 doc.updated_at = doc.updated_at.isoformat()
         
-        response = JSONResponse(content=response_dict)
-        response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        return response
+        return response_dict
     else:
         # Company users can only see their company's documents
         company_db_gen = get_company_db(str(current_user.company_id), str(current_user.company.database_url))
@@ -865,8 +846,7 @@ async def list_enhanced_documents(
             # Calculate pagination info
             total_pages = (total_count + page_size - 1) // page_size
             
-            # Create response with explicit CORS headers
-            from fastapi.responses import JSONResponse
+            # Create response data
             response_data = schemas.DocumentManagementResponse(
                 documents=documents,
                 categories=categories,
@@ -884,12 +864,7 @@ async def list_enhanced_documents(
                 if hasattr(doc, 'updated_at') and doc.updated_at:
                     doc.updated_at = doc.updated_at.isoformat()
             
-            response = JSONResponse(content=response_dict)
-            response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-            response.headers["Access-Control-Allow-Headers"] = "*"
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            return response
+            return response_dict
         finally:
             company_db.close()
 
