@@ -10,7 +10,7 @@ from app.database import get_management_db
 from app.services.database_manager import db_manager
 from app import models
 from app.routers import auth, companies, users, documents, chatbot, user_management, esignature
-from app.config import get_cors_origins, ENVIRONMENT, IS_DEVELOPMENT
+from app.config import get_cors_origins, ENVIRONMENT, IS_DEVELOPMENT, IS_PRODUCTION
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -135,7 +135,12 @@ async def test_cors():
         "timestamp": "2024-01-01T00:00:00Z",
         "environment": ENVIRONMENT,
         "is_production": IS_PRODUCTION,
-        "cors_origins": cors_origins
+        "cors_origins": cors_origins,
+        "env_vars": {
+            "ENVIRONMENT": os.getenv("ENVIRONMENT", "NOT_SET"),
+            "CORS_ORIGINS": os.getenv("CORS_ORIGINS", "NOT_SET"),
+            "NODE_ENV": os.getenv("NODE_ENV", "NOT_SET")
+        }
     }
 
 # Test authentication endpoint
@@ -292,7 +297,9 @@ async def test_companies_router():
             "/api/companies/public",
             "/api/companies/{company_id}/public"
         ],
-        "status": "active"
+        "status": "active",
+        "environment": ENVIRONMENT,
+        "cors_origins": cors_origins
     }
 
 # Remove this conflicting route - it's interfering with API routing

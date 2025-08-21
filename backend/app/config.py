@@ -63,8 +63,16 @@ def get_cors_origins():
     origins_str = os.getenv("CORS_ORIGINS", "")
     
     if origins_str:
-        # Parse environment variable
-        custom_origins = [origin.strip() for origin in origins_str.split(",")]
+        # Parse environment variable and clean up origins
+        custom_origins = []
+        for origin in origins_str.split(","):
+            cleaned_origin = origin.strip()
+            # Remove trailing slash if present
+            if cleaned_origin.endswith('/'):
+                cleaned_origin = cleaned_origin.rstrip('/')
+            if cleaned_origin:  # Only add non-empty origins
+                custom_origins.append(cleaned_origin)
+        
         print(f"🔧 CORS Origins from environment variable: {custom_origins}")
         return custom_origins
     
