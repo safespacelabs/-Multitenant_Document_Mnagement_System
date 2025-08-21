@@ -541,13 +541,13 @@ async def list_document_categories(
             category_dict = {
                 "id": category.id,
                 "name": category.name,
-                "description": category.description,
-                "sort_order": category.sort_order,
-                "is_active": category.is_active,
+                "description": getattr(category, 'description', None),
+                "sort_order": getattr(category, 'sort_order', 0),
+                "is_active": getattr(category, 'is_active', True),
                 "company_id": category.company_id,
                 "company_name": getattr(category, 'company_name', None),
-                "created_at": category.created_at.isoformat() if category.created_at else None,
-                "updated_at": category.updated_at.isoformat() if category.updated_at else None
+                "created_at": category.created_at.isoformat() if hasattr(category, 'created_at') and category.created_at else None,
+                "updated_at": category.updated_at.isoformat() if hasattr(category, 'updated_at') and category.updated_at else None
             }
             all_categories_dict.append(category_dict)
         
@@ -576,17 +576,17 @@ async def list_document_categories(
             # Convert SQLAlchemy objects to dictionaries for JSON serialization
             categories_dict = []
             for category in categories:
-                category_dict = {
-                    "id": str(category.id),
-                    "name": category.name,
-                    "description": category.description,
-                    "sort_order": category.sort_order,
-                    "is_active": category.is_active,
-                    "company_id": str(category.company_id),
-                    "created_at": category.created_at.isoformat() if category.created_at else None,
-                    "updated_at": category.updated_at.isoformat() if category.updated_at else None
-                }
-                categories_dict.append(category_dict)
+                            category_dict = {
+                "id": str(category.id),
+                "name": category.name,
+                "description": getattr(category, 'description', None),
+                "sort_order": getattr(category, 'sort_order', 0),
+                "is_active": getattr(category, 'is_active', True),
+                "company_id": str(category.company_id),
+                "created_at": category.created_at.isoformat() if hasattr(category, 'created_at') and category.created_at else None,
+                "updated_at": category.updated_at.isoformat() if hasattr(category, 'updated_at') and category.updated_at else None
+            }
+            categories_dict.append(category_dict)
             
             return categories_dict
         finally:
@@ -730,25 +730,81 @@ async def list_enhanced_documents(
         # Calculate pagination info
         total_pages = (total_count + page_size - 1) // page_size
         
-        # Create response data
-        response_data = schemas.DocumentManagementResponse(
-            documents=paginated_documents,
-            categories=all_categories,
-            folders=all_folders,
-            total_count=total_count,
-            current_page=page,
-            total_pages=total_pages
-        )
-        # Convert to dict and handle datetime serialization
-        response_dict = response_data.dict()
-        # Convert datetime objects to ISO strings
-        for doc in response_dict.get('documents', []):
-            if hasattr(doc, 'created_at') and doc.created_at:
-                doc.created_at = doc.created_at.isoformat()
-            if hasattr(doc, 'updated_at') and doc.updated_at:
-                doc.updated_at = doc.updated_at.isoformat()
+        # Convert SQLAlchemy objects to dictionaries for proper serialization
+        documents_dict = []
+        for doc in paginated_documents:
+            doc_dict = {
+                "id": doc.id,
+                "filename": doc.filename,
+                "original_filename": doc.original_filename,
+                "file_path": doc.file_path,
+                "file_size": doc.file_size,
+                "file_type": doc.file_type,
+                "s3_key": doc.s3_key,
+                "folder_name": doc.folder_name,
+                "user_id": doc.user_id,
+                "company_id": doc.company_id,
+                "processed": doc.processed,
+                "metadata_json": doc.metadata_json,
+                "created_at": doc.created_at.isoformat() if doc.created_at else None,
+                "document_category": getattr(doc, 'document_category', None),
+                "document_subcategory": getattr(doc, 'document_subcategory', None),
+                "tags": getattr(doc, 'tags', []),
+                "description": getattr(doc, 'description', None),
+                "is_public": getattr(doc, 'is_public', False),
+                "access_level": getattr(doc, 'access_level', 'private'),
+                "expiry_date": doc.expiry_date.isoformat() if hasattr(doc, 'expiry_date') and doc.expiry_date else None,
+                "version": getattr(doc, 'version', '1.0'),
+                "status": getattr(doc, 'status', 'active'),
+                "category_info": None,  # Will be populated if needed
+                "folder_info": None     # Will be populated if needed
+            }
+            documents_dict.append(doc_dict)
         
-        return response_dict
+        # Convert categories to proper format
+        categories_dict = []
+        for category in all_categories:
+            cat_dict = {
+                "id": category.id,
+                "name": category.name,
+                "display_name": getattr(category, 'display_name', category.name),
+                "description": getattr(category, 'description', None),
+                "icon": getattr(category, 'icon', None),
+                "color": getattr(category, 'color', None),
+                "parent_category_id": getattr(category, 'parent_category_id', None),
+                "company_id": category.company_id,
+                "is_active": getattr(category, 'is_active', True),
+                "sort_order": getattr(category, 'sort_order', 0),
+                "created_at": category.created_at.isoformat() if category.created_at else None
+            }
+            categories_dict.append(cat_dict)
+        
+        # Convert folders to proper format
+        folders_dict = []
+        for folder in all_folders:
+            folder_dict = {
+                "id": folder.id,
+                "name": folder.name,
+                "display_name": getattr(folder, 'display_name', folder.name),
+                "description": getattr(folder, 'description', None),
+                "category_id": getattr(folder, 'category_id', None),
+                "parent_folder_id": getattr(folder, 'parent_folder_id', None),
+                "company_id": folder.company_id,
+                "created_by_user_id": getattr(folder, 'created_by_user_id', None),
+                "is_active": getattr(folder, 'is_active', True),
+                "sort_order": getattr(folder, 'sort_order', 0),
+                "created_at": folder.created_at.isoformat() if folder.created_at else None
+            }
+            folders_dict.append(folder_dict)
+        
+        return {
+            "documents": documents_dict,
+            "categories": categories_dict,
+            "folders": folders_dict,
+            "total_count": total_count,
+            "current_page": page,
+            "total_pages": total_pages
+        }
     else:
         # Company users can only see their company's documents
         company_db_gen = get_company_db(str(current_user.company_id), str(current_user.company.database_url))
@@ -846,25 +902,81 @@ async def list_enhanced_documents(
             # Calculate pagination info
             total_pages = (total_count + page_size - 1) // page_size
             
-            # Create response data
-            response_data = schemas.DocumentManagementResponse(
-                documents=documents,
-                categories=categories,
-                folders=folders,
-                total_count=total_count,
-                current_page=page,
-                total_pages=total_pages
-            )
-            # Convert to dict and handle datetime serialization
-            response_dict = response_data.dict()
-            # Convert datetime objects to ISO strings
-            for doc in response_dict.get('documents', []):
-                if hasattr(doc, 'created_at') and doc.created_at:
-                    doc.created_at = doc.created_at.isoformat()
-                if hasattr(doc, 'updated_at') and doc.updated_at:
-                    doc.updated_at = doc.updated_at.isoformat()
+            # Convert SQLAlchemy objects to dictionaries for proper serialization
+            documents_dict = []
+            for doc in documents:
+                doc_dict = {
+                    "id": doc.id,
+                    "filename": doc.filename,
+                    "original_filename": doc.original_filename,
+                    "file_path": doc.file_path,
+                    "file_size": doc.file_size,
+                    "file_type": doc.file_type,
+                    "s3_key": doc.s3_key,
+                    "folder_name": doc.folder_name,
+                    "user_id": doc.user_id,
+                    "company_id": doc.company_id,
+                    "processed": doc.processed,
+                    "metadata_json": doc.metadata_json,
+                    "created_at": doc.created_at.isoformat() if doc.created_at else None,
+                    "document_category": getattr(doc, 'document_category', None),
+                    "document_subcategory": getattr(doc, 'document_subcategory', None),
+                    "tags": getattr(doc, 'tags', []),
+                    "description": getattr(doc, 'description', None),
+                    "is_public": getattr(doc, 'is_public', False),
+                    "access_level": getattr(doc, 'access_level', 'private'),
+                    "expiry_date": doc.expiry_date.isoformat() if hasattr(doc, 'expiry_date') and doc.expiry_date else None,
+                    "version": getattr(doc, 'version', '1.0'),
+                    "status": getattr(doc, 'status', 'active'),
+                    "category_info": None,  # Will be populated if needed
+                    "folder_info": None     # Will be populated if needed
+                }
+                documents_dict.append(doc_dict)
             
-            return response_dict
+            # Convert categories to proper format
+            categories_dict = []
+            for category in categories:
+                cat_dict = {
+                    "id": category.id,
+                    "name": category.name,
+                    "display_name": getattr(category, 'display_name', category.name),
+                    "description": getattr(category, 'description', None),
+                    "icon": getattr(category, 'icon', None),
+                    "color": getattr(category, 'color', None),
+                    "parent_category_id": getattr(category, 'parent_category_id', None),
+                    "company_id": category.company_id,
+                    "is_active": getattr(category, 'is_active', True),
+                    "sort_order": getattr(category, 'sort_order', 0),
+                    "created_at": category.created_at.isoformat() if category.created_at else None
+                }
+                categories_dict.append(cat_dict)
+            
+            # Convert folders to proper format
+            folders_dict = []
+            for folder in folders:
+                folder_dict = {
+                    "id": folder.id,
+                    "name": folder.name,
+                    "display_name": getattr(folder, 'display_name', folder.name),
+                    "description": getattr(folder, 'description', None),
+                    "category_id": getattr(folder, 'category_id', None),
+                    "parent_folder_id": getattr(folder, 'parent_folder_id', None),
+                    "company_id": folder.company_id,
+                    "created_by_user_id": getattr(folder, 'created_by_user_id', None),
+                    "is_active": getattr(folder, 'is_active', True),
+                    "sort_order": getattr(folder, 'sort_order', 0),
+                    "created_at": folder.created_at.isoformat() if folder.created_at else None
+                }
+                folders_dict.append(folder_dict)
+            
+            return {
+                "documents": documents_dict,
+                "categories": categories_dict,
+                "folders": folders_dict,
+                "total_count": total_count,
+                "current_page": page,
+                "total_pages": total_pages
+            }
         finally:
             company_db.close()
 
