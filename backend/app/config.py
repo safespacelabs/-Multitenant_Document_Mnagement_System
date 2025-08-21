@@ -48,32 +48,42 @@ ENABLE_EMAIL_NOTIFICATIONS = os.getenv("ENABLE_EMAIL_NOTIFICATIONS", "true").low
 ENABLE_DOCUMENT_NOTIFICATIONS = os.getenv("ENABLE_DOCUMENT_NOTIFICATIONS", "true").lower() == "true"
 ENABLE_ESIGNATURE_NOTIFICATIONS = os.getenv("ENABLE_ESIGNATURE_NOTIFICATIONS", "true").lower() == "true"
 
+# Environment detection
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+IS_PRODUCTION = ENVIRONMENT == "production"
+IS_DEVELOPMENT = ENVIRONMENT == "development"
+
 # CORS origins function
 def get_cors_origins():
     """Get CORS origins from environment variable"""
-    # Default origins including the deployed frontend
-    default_origins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000", 
-        "https://multitenant-frontend.onrender.com",
-        "https://multitenant-frontend.onrender.com/",
-        "https://multitenant-frontend.onrender.com/*"
-    ]
+    # Environment-specific origins
+    if IS_PRODUCTION:
+        default_origins = [
+            "https://multitenant-frontend.onrender.com"
+        ]
+    else:
+        # Development/local origins
+        default_origins = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3001",  # Alternative port
+            "http://127.0.0.1:3001",
+            "http://localhost:8080",  # Test server
+            "http://127.0.0.1:8080"
+        ]
     
-    # Get from environment variable
+    # Get from environment variable to allow overrides
     origins_str = os.getenv("CORS_ORIGINS", "")
     
     if origins_str:
         # Parse environment variable
-        origins = [origin.strip() for origin in origins_str.split(",")]
-        # Add default origins if not already present
-        for default_origin in default_origins:
-            if default_origin not in origins:
-                origins.append(default_origin)
+        custom_origins = [origin.strip() for origin in origins_str.split(",")]
+        # Merge with defaults
+        origins = list(set(default_origins + custom_origins))
     else:
         origins = default_origins
     
-    print(f"🔧 CORS Origins configured: {origins}")
+    print(f"🔧 CORS Origins configured for {ENVIRONMENT}: {origins}")
     return origins
 
 # Settings class for new structured approach (optional)

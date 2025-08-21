@@ -10,7 +10,7 @@ from app.database import get_management_db
 from app.services.database_manager import db_manager
 from app import models
 from app.routers import auth, companies, users, documents, chatbot, user_management, esignature
-from app.config import get_cors_origins
+from app.config import get_cors_origins, ENVIRONMENT, IS_DEVELOPMENT
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,21 +32,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware - explicit configuration for production
-cors_origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://multitenant-frontend.onrender.com"
-]
-
-# Also get from environment if available
-env_origins = get_cors_origins()
-if env_origins:
-    for origin in env_origins:
-        if origin and origin not in cors_origins:
-            cors_origins.append(origin)
-
-print(f"🔧 CORS Origins configured: {cors_origins}")
+# CORS middleware - environment-aware configuration
+cors_origins = get_cors_origins()
+print(f"🚀 Running in {ENVIRONMENT} mode")
 
 # Add CORS middleware with explicit configuration
 app.add_middleware(
@@ -63,10 +51,25 @@ app.add_middleware(
 @app.middleware("http")
 async def ensure_cors_headers(request, call_next):
     """Ensure CORS headers are present in all responses"""
+    origin = request.headers.get("origin", "")
+    
     # Handle preflight requests
     if request.method == "OPTIONS":
+        # Check if origin is allowed
+        if not origin and IS_DEVELOPMENT:
+            # Handle file:// protocol or missing origin in development
+            allowed_origin = "*"
+        elif origin in cors_origins:
+            allowed_origin = origin
+        elif IS_DEVELOPMENT and origin and origin.startswith("http://localhost:"):
+            # In development, allow any localhost port
+            allowed_origin = origin
+        else:
+            # Default to the first allowed origin
+            allowed_origin = cors_origins[0] if cors_origins else "*"
+            
         headers = {
-            "Access-Control-Allow-Origin": "https://multitenant-frontend.onrender.com",
+            "Access-Control-Allow-Origin": allowed_origin,
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
             "Access-Control-Allow-Headers": "*",
             "Access-Control-Allow-Credentials": "true",
@@ -76,9 +79,16 @@ async def ensure_cors_headers(request, call_next):
     
     response = await call_next(request)
     
-    # Ensure CORS headers are present
-    origin = request.headers.get("origin")
-    if origin in cors_origins:
+    # Ensure CORS headers are present for actual requests
+    if not origin and IS_DEVELOPMENT:
+        # Handle file:// protocol or missing origin in development
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "false"
+    elif origin in cors_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    elif IS_DEVELOPMENT and origin and origin.startswith("http://localhost:"):
+        # In development, allow any localhost port
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
     
