@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 import uvicorn
@@ -36,55 +36,53 @@ app = FastAPI(
 cors_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://multitenant-frontend.onrender.com",
-    "https://multitenant-frontend.onrender.com/",
-    "https://multitenant-frontend.onrender.com/*"
+    "https://multitenant-frontend.onrender.com"
 ]
 
 # Also get from environment if available
 env_origins = get_cors_origins()
 if env_origins:
-    cors_origins.extend(env_origins)
+    for origin in env_origins:
+        if origin and origin not in cors_origins:
+            cors_origins.append(origin)
 
-# Remove duplicates
-cors_origins = list(set(cors_origins))
 print(f"🔧 CORS Origins configured: {cors_origins}")
 
-# Add CORS middleware FIRST, before any other middleware
+# Add CORS middleware with explicit configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=["*"],
     expose_headers=["*"],
     max_age=3600
 )
 
-# Add a more permissive CORS configuration as fallback for development
-if os.getenv("ENVIRONMENT", "production") == "development":
-    print("🔧 Development mode: Adding permissive CORS")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-# Remove the duplicate CORS middleware that was causing conflicts
-# @app.middleware("http")
-# async def add_cors_headers(request, call_next):
-#     """Add CORS headers to all responses"""
-#     response = await call_next(request)
-#     
-#     # Add CORS headers
-#     response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
-#     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-#     response.headers["Access-Control-Allow-Headers"] = "*"
-#     response.headers["Access-Control-Allow-Credentials"] = "true"
-#     
-#     return response
+# Add custom middleware to ensure CORS headers are always present
+@app.middleware("http")
+async def ensure_cors_headers(request, call_next):
+    """Ensure CORS headers are present in all responses"""
+    # Handle preflight requests
+    if request.method == "OPTIONS":
+        headers = {
+            "Access-Control-Allow-Origin": "https://multitenant-frontend.onrender.com",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600"
+        }
+        return Response(content="", status_code=200, headers=headers)
+    
+    response = await call_next(request)
+    
+    # Ensure CORS headers are present
+    origin = request.headers.get("origin")
+    if origin in cors_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    
+    return response
 
 
 
