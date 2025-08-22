@@ -806,12 +806,14 @@ async def list_enhanced_documents(
             folders_dict.append(folder_dict)
         
         return {
-            "documents": documents_dict,
-            "categories": categories_dict,
-            "folders": folders_dict,
-            "total_count": total_count,
-            "current_page": page,
-            "total_pages": total_pages
+            "data": {
+                "documents": documents_dict,
+                "categories": categories_dict,
+                "folders": folders_dict,
+                "total_count": total_count,
+                "current_page": page,
+                "total_pages": total_pages
+            }
         }
     else:
         # Company users can only see their company's documents
@@ -978,12 +980,14 @@ async def list_enhanced_documents(
                 folders_dict.append(folder_dict)
             
             return {
-                "documents": documents_dict,
-                "categories": categories_dict,
-                "folders": folders_dict,
-                "total_count": total_count,
-                "current_page": page,
-                "total_pages": total_pages
+                "data": {
+                    "documents": documents_dict,
+                    "categories": categories_dict,
+                    "folders": folders_dict,
+                    "total_count": total_count,
+                    "current_page": page,
+                    "total_pages": total_pages
+                }
             }
         finally:
             company_db.close()
