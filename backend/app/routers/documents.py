@@ -534,7 +534,7 @@ async def list_document_categories(
             except Exception as e:
                 print(f"Error accessing company {company.id}: {str(e)}")
                 continue
-
+        
         # Convert SQLAlchemy objects to dictionaries for JSON serialization
         all_categories_dict = []
         for category in all_categories:
@@ -554,7 +554,7 @@ async def list_document_categories(
                 "subcategories": []  # Initialize empty subcategories list
             }
             all_categories_dict.append(category_dict)
-
+        
         return all_categories_dict
     else:
         # For company users, show only their company's categories
@@ -806,14 +806,12 @@ async def list_enhanced_documents(
             folders_dict.append(folder_dict)
         
         return {
-            "data": {
-                "documents": documents_dict,
-                "categories": categories_dict,
-                "folders": folders_dict,
-                "total_count": total_count,
-                "current_page": page,
-                "total_pages": total_pages
-            }
+            "documents": documents_dict,
+            "categories": categories_dict,
+            "folders": folders_dict,
+            "total_count": total_count,
+            "current_page": page,
+            "total_pages": total_pages
         }
     else:
         # Company users can only see their company's documents
@@ -980,14 +978,12 @@ async def list_enhanced_documents(
                 folders_dict.append(folder_dict)
             
             return {
-                "data": {
-                    "documents": documents_dict,
-                    "categories": categories_dict,
-                    "folders": folders_dict,
-                    "total_count": total_count,
-                    "current_page": page,
-                    "total_pages": total_pages
-                }
+                "documents": documents_dict,
+                "categories": categories_dict,
+                "folders": folders_dict,
+                "total_count": total_count,
+                "current_page": page,
+                "total_pages": total_pages
             }
         finally:
             company_db.close()

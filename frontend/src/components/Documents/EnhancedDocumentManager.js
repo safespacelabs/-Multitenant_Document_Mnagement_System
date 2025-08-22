@@ -67,10 +67,10 @@ const EnhancedDocumentManager = () => {
       const documentsData = await documentsAPI.getEnhanced({ page: currentPage, page_size: 20 });
       console.log('✅ Enhanced documents loaded:', documentsData);
       
-      setDocuments(documentsData.data.documents || []);
-      setFolders(documentsData.data.folders || []);
-      setTotalCount(documentsData.data.total_count || 0);
-      setTotalPages(documentsData.data.total_pages || 1);
+      setDocuments(documentsData.documents || []);
+      setFolders(documentsData.folders || []);
+      setTotalCount(documentsData.total_count || 0);
+      setTotalPages(documentsData.total_pages || 1);
       
     } catch (error) {
       console.error('❌ Failed to load initial data:', error);
@@ -105,9 +105,9 @@ const EnhancedDocumentManager = () => {
       };
       
       const response = await documentsAPI.getEnhanced(params);
-      setDocuments(response.data.documents || []);
-      setTotalPages(response.data.total_pages || 1);
-      setTotalCount(response.data.total_count || 0);
+      setDocuments(response.documents || []);
+      setTotalPages(response.total_pages || 1);
+      setTotalCount(response.total_count || 0);
       
     } catch (error) {
       console.error('Failed to load documents:', error);
