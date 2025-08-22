@@ -534,23 +534,27 @@ async def list_document_categories(
             except Exception as e:
                 print(f"Error accessing company {company.id}: {str(e)}")
                 continue
-        
+
         # Convert SQLAlchemy objects to dictionaries for JSON serialization
         all_categories_dict = []
         for category in all_categories:
             category_dict = {
                 "id": category.id,
                 "name": category.name,
+                "display_name": getattr(category, 'display_name', category.name),  # Use name as fallback if display_name is missing
                 "description": getattr(category, 'description', None),
+                "icon": getattr(category, 'icon', None),
+                "color": getattr(category, 'color', None),
+                "parent_category_id": getattr(category, 'parent_category_id', None),
                 "sort_order": getattr(category, 'sort_order', 0),
                 "is_active": getattr(category, 'is_active', True),
                 "company_id": category.company_id,
                 "company_name": getattr(category, 'company_name', None),
                 "created_at": category.created_at.isoformat() if hasattr(category, 'created_at') and category.created_at else None,
-                "updated_at": category.updated_at.isoformat() if hasattr(category, 'updated_at') and category.updated_at else None
+                "subcategories": []  # Initialize empty subcategories list
             }
             all_categories_dict.append(category_dict)
-        
+
         return all_categories_dict
     else:
         # For company users, show only their company's categories
@@ -576,17 +580,21 @@ async def list_document_categories(
             # Convert SQLAlchemy objects to dictionaries for JSON serialization
             categories_dict = []
             for category in categories:
-                            category_dict = {
-                "id": str(category.id),
-                "name": category.name,
-                "description": getattr(category, 'description', None),
-                "sort_order": getattr(category, 'sort_order', 0),
-                "is_active": getattr(category, 'is_active', True),
-                "company_id": str(category.company_id),
-                "created_at": category.created_at.isoformat() if hasattr(category, 'created_at') and category.created_at else None,
-                "updated_at": category.updated_at.isoformat() if hasattr(category, 'updated_at') and category.updated_at else None
-            }
-            categories_dict.append(category_dict)
+                category_dict = {
+                    "id": str(category.id),
+                    "name": category.name,
+                    "display_name": getattr(category, 'display_name', category.name),  # Use name as fallback if display_name is missing
+                    "description": getattr(category, 'description', None),
+                    "icon": getattr(category, 'icon', None),
+                    "color": getattr(category, 'color', None),
+                    "parent_category_id": getattr(category, 'parent_category_id', None),
+                    "sort_order": getattr(category, 'sort_order', 0),
+                    "is_active": getattr(category, 'is_active', True),
+                    "company_id": str(category.company_id),
+                    "created_at": category.created_at.isoformat() if hasattr(category, 'created_at') and category.created_at else None,
+                    "subcategories": []  # Initialize empty subcategories list
+                }
+                categories_dict.append(category_dict)
             
             return categories_dict
         finally:
