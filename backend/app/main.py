@@ -61,10 +61,14 @@ async def ensure_cors_headers(request, call_next):
         # Check if origin is allowed
         if origin in cors_origins:
             allowed_origin = origin
-            print(f"✅ Origin {origin} is in allowed CORS origins")
+            print(f"✅ Preflight: Origin {origin} is in allowed CORS origins")
+        elif not origin and IS_PRODUCTION:
+            # No origin header in production - allow frontend
+            allowed_origin = "https://multitenant-frontend.onrender.com"
+            print(f"✅ Preflight: Production mode - allowing frontend (no origin header)")
         else:
-            # In production, only allow exact matches
-            print(f"❌ Production mode: origin {origin} not in allowed origins")
+            # Origin not allowed
+            print(f"❌ Preflight: Origin {origin} not in allowed origins")
             allowed_origin = cors_origins[0] if cors_origins else "https://multitenant-frontend.onrender.com"
             
         headers = {
@@ -80,12 +84,18 @@ async def ensure_cors_headers(request, call_next):
     
     # Ensure CORS headers are present for actual requests
     if origin in cors_origins:
+        # Origin is explicitly allowed
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         print(f"✅ Added CORS headers for origin {origin}")
+    elif not origin and IS_PRODUCTION:
+        # No origin header in production - set default CORS headers for frontend
+        response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        print(f"✅ Production mode: set default CORS headers for frontend (no origin header)")
     else:
-        # In production, only set headers for exact matches
-        print(f"❌ Production mode: not setting CORS headers for origin {origin}")
+        # Origin not allowed or development mode
+        print(f"❌ Not setting CORS headers for origin: '{origin}'")
     
     return response
 
