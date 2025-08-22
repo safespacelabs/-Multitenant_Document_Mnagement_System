@@ -48,17 +48,26 @@ ENABLE_EMAIL_NOTIFICATIONS = os.getenv("ENABLE_EMAIL_NOTIFICATIONS", "true").low
 ENABLE_DOCUMENT_NOTIFICATIONS = os.getenv("ENABLE_DOCUMENT_NOTIFICATIONS", "true").lower() == "true"
 ENABLE_ESIGNATURE_NOTIFICATIONS = os.getenv("ENABLE_ESIGNATURE_NOTIFICATIONS", "true").lower() == "true"
 
-# Environment detection
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+# Environment detection - Force production for Render deployment
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production")  # Default to production
 IS_PRODUCTION = ENVIRONMENT == "production"
 IS_DEVELOPMENT = ENVIRONMENT == "development"
 
 # Debug environment detection
 print(f"🔍 Environment detection: ENVIRONMENT={ENVIRONMENT}, IS_PRODUCTION={IS_PRODUCTION}, IS_DEVELOPMENT={IS_DEVELOPMENT}")
 
-# CORS origins function
+# Force production mode for Render deployment
+if not IS_PRODUCTION:
+    print("⚠️  WARNING: Not in production mode, forcing production configuration for Render deployment")
+    IS_PRODUCTION = True
+    IS_DEVELOPMENT = False
+    ENVIRONMENT = "production"
+
+print("🚀 Running in PRODUCTION mode for Render deployment")
+
+# CORS origins function - Production only for Render
 def get_cors_origins():
-    """Get CORS origins from environment variable"""
+    """Get CORS origins - Production only for Render deployment"""
     # Get from environment variable first (highest priority)
     origins_str = os.getenv("CORS_ORIGINS", "")
     
@@ -76,25 +85,12 @@ def get_cors_origins():
         print(f"🔧 CORS Origins from environment variable: {custom_origins}")
         return custom_origins
     
-    # Environment-specific origins (fallback)
-    if IS_PRODUCTION:
-        default_origins = [
-            "https://multitenant-frontend.onrender.com"
-        ]
-        print(f"🔧 Using production CORS origins: {default_origins}")
-    else:
-        # Development/local origins
-        default_origins = [
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:3001",  # Alternative port
-            "http://127.0.0.1:3001",
-            "http://localhost:8080",  # Test server
-            "http://127.0.0.1:8080"
-        ]
-        print(f"🔧 Using development CORS origins: {default_origins}")
-    
-    return default_origins
+    # Production-only origins for Render deployment
+    production_origins = [
+        "https://multitenant-frontend.onrender.com"
+    ]
+    print(f"🔧 Using production-only CORS origins for Render: {production_origins}")
+    return production_origins
 
 # Settings class for new structured approach (optional)
 class Settings:

@@ -50,7 +50,7 @@ app.add_middleware(
 # Add custom middleware to ensure CORS headers are always present
 @app.middleware("http")
 async def ensure_cors_headers(request, call_next):
-    """Ensure CORS headers are present in all responses"""
+    """Ensure CORS headers are present in all responses - Production only for Render"""
     origin = request.headers.get("origin", "")
     
     print(f"🔍 CORS Middleware - Origin: {origin}, Environment: {ENVIRONMENT}, IS_PRODUCTION: {IS_PRODUCTION}")
@@ -62,23 +62,10 @@ async def ensure_cors_headers(request, call_next):
         if origin in cors_origins:
             allowed_origin = origin
             print(f"✅ Origin {origin} is in allowed CORS origins")
-        elif IS_DEVELOPMENT and origin and origin.startswith("http://localhost:"):
-            # In development, allow any localhost port
-            allowed_origin = origin
-            print(f"✅ Development mode: allowing localhost origin {origin}")
-        elif not origin and IS_DEVELOPMENT:
-            # Handle file:// protocol or missing origin in development
-            allowed_origin = "*"
-            print("✅ Development mode: allowing missing origin with *")
         else:
             # In production, only allow exact matches
-            if IS_PRODUCTION:
-                print(f"❌ Production mode: origin {origin} not in allowed origins")
-                allowed_origin = cors_origins[0] if cors_origins else "https://multitenant-frontend.onrender.com"
-            else:
-                # Development fallback
-                allowed_origin = cors_origins[0] if cors_origins else "*"
-                print(f"⚠️ Development fallback: using {allowed_origin}")
+            print(f"❌ Production mode: origin {origin} not in allowed origins")
+            allowed_origin = cors_origins[0] if cors_origins else "https://multitenant-frontend.onrender.com"
             
         headers = {
             "Access-Control-Allow-Origin": allowed_origin,
@@ -96,22 +83,9 @@ async def ensure_cors_headers(request, call_next):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         print(f"✅ Added CORS headers for origin {origin}")
-    elif IS_DEVELOPMENT and origin and origin.startswith("http://localhost:"):
-        # In development, allow any localhost port
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        print(f"✅ Development mode: added CORS headers for localhost origin {origin}")
-    elif not origin and IS_DEVELOPMENT:
-        # Handle file:// protocol or missing origin in development
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Credentials"] = "false"
-        print("✅ Development mode: added CORS headers for missing origin")
     else:
         # In production, only set headers for exact matches
-        if IS_PRODUCTION:
-            print(f"❌ Production mode: not setting CORS headers for origin {origin}")
-        else:
-            print(f"⚠️ Development mode: not setting CORS headers for origin {origin}")
+        print(f"❌ Production mode: not setting CORS headers for origin {origin}")
     
     return response
 

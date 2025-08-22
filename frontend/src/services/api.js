@@ -1,11 +1,12 @@
-// API base URL - always use production backend for now
+// API base URL - Production backend for Render deployment
 const API_BASE_URL = 'https://multitenant-backend-mlap.onrender.com';
 
-// Debug logging
-console.log('🔧 API Configuration Debug:');
+// Production configuration logging
+console.log('🚀 Production API Configuration:');
 console.log('  NODE_ENV:', process.env.NODE_ENV);
 console.log('  API_BASE_URL:', API_BASE_URL);
-console.log('  Current location:', window.location.href);
+console.log('  Frontend URL:', window.location.href);
+console.log('  Environment: Production (Render)');
 
 // Helper function to build API URLs
 const buildApiUrl = (endpoint) => {
