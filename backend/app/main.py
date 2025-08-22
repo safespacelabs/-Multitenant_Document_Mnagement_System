@@ -64,18 +64,30 @@ async def ensure_cors_headers(request, call_next):
         elif IS_DEVELOPMENT and origin and origin.startswith("http://localhost:"):
             # In development, allow any localhost port
             allowed_origin = origin
+        elif IS_DEVELOPMENT and origin and origin.startswith("http://127.0.0.1:"):
+            # In development, allow any 127.0.0.1 port
+            allowed_origin = origin
         else:
-            # Default to the first allowed origin
-            allowed_origin = cors_origins[0] if cors_origins else "*"
+            # In production, don't set a default origin that doesn't match
+            # This prevents mismatched CORS headers
+            if IS_PRODUCTION:
+                allowed_origin = None
+            else:
+                allowed_origin = cors_origins[0] if cors_origins else "*"
             
-        headers = {
-            "Access-Control-Allow-Origin": allowed_origin,
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600"
-        }
-        return Response(content="", status_code=200, headers=headers)
+        # Only set CORS headers if we have a valid allowed origin
+        if allowed_origin:
+            headers = {
+                "Access-Control-Allow-Origin": allowed_origin,
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "3600"
+            }
+            return Response(content="", status_code=200, headers=headers)
+        else:
+            # If no valid origin, return 403 Forbidden
+            return Response(content="CORS origin not allowed", status_code=403)
     
     response = await call_next(request)
     
@@ -89,6 +101,10 @@ async def ensure_cors_headers(request, call_next):
         response.headers["Access-Control-Allow-Credentials"] = "true"
     elif IS_DEVELOPMENT and origin and origin.startswith("http://localhost:"):
         # In development, allow any localhost port
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    elif IS_DEVELOPMENT and origin and origin.startswith("http://127.0.0.1:"):
+        # In development, allow any 127.0.0.1 port
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
     
