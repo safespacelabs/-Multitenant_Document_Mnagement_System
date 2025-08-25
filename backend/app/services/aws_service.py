@@ -322,6 +322,38 @@ class AWSService:
         except ClientError as e:
             raise Exception(f"Failed to upload file: {str(e)}")
     
+    async def upload_file_to_s3(
+        self, 
+        bucket_name: str, 
+        file_content: bytes, 
+        s3_key: str,
+        content_type: str = None
+    ) -> str:
+        """Upload file content to S3 (used by document upload endpoint)"""
+        if self.use_mock:
+            # For mock service, just return success
+            return f"s3://{bucket_name}/{s3_key}"
+            
+        try:
+            # Convert bytes to file-like object
+            from io import BytesIO
+            file_data = BytesIO(file_content)
+            
+            # Upload to S3
+            self.s3_client.upload_fileobj(
+                file_data,
+                bucket_name,
+                s3_key,
+                ExtraArgs={
+                    'ContentType': content_type or 'application/octet-stream'
+                }
+            )
+            return f"s3://{bucket_name}/{s3_key}"
+        except ClientError as e:
+            raise Exception(f"Failed to upload file to S3: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Failed to upload file to S3: {str(e)}")
+    
     async def download_file(self, bucket_name: str, file_key: str) -> bytes:
         """Download file from S3"""
         if self.use_mock:

@@ -32,6 +32,7 @@ function UserManagement({ companyId, onClose }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [permissions, setPermissions] = useState([]);
@@ -42,6 +43,16 @@ function UserManagement({ companyId, onClose }) {
     email: '',
     full_name: '',
     role: 'customer'
+  });
+
+  // Create user form state
+  const [createUserForm, setCreateUserForm] = useState({
+    username: '',
+    email: '',
+    full_name: '',
+    role: 'customer',
+    password: '',
+    confirmPassword: ''
   });
 
   // Edit form state
@@ -122,12 +133,59 @@ function UserManagement({ companyId, onClose }) {
   const handleInviteUser = async (e) => {
     e.preventDefault();
     try {
-      await userManagementAPI.inviteUser(inviteForm, companyId);
-      setShowInviteModal(false);
+      setError('');
+      await userManagementAPI.inviteUser({
+        ...inviteForm,
+        company_id: companyId
+      });
+      
       setInviteForm({ email: '', full_name: '', role: 'customer' });
-      await fetchData();
+      setShowInviteModal(false);
+      fetchData(); // Refresh the data
     } catch (err) {
       setError(err.message || 'Failed to invite user');
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    
+    // Validate passwords match
+    if (createUserForm.password !== createUserForm.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    
+    // Validate password length
+    if (createUserForm.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+    
+    try {
+      setError('');
+      await usersAPI.create({
+        username: createUserForm.username,
+        email: createUserForm.email,
+        full_name: createUserForm.full_name,
+        role: createUserForm.role,
+        password: createUserForm.password,
+        company_id: companyId
+      });
+      
+      // Reset form and close modal
+      setCreateUserForm({
+        username: '',
+        email: '',
+        full_name: '',
+        role: 'customer',
+        password: '',
+        confirmPassword: ''
+      });
+      setShowCreateUserModal(false);
+      fetchData(); // Refresh the data
+    } catch (err) {
+      setError(err.message || 'Failed to create user');
     }
   };
 
@@ -221,7 +279,7 @@ function UserManagement({ companyId, onClose }) {
         <div className="flex items-center justify-between mb-6 pb-4 border-b">
           <div className="flex items-center space-x-3">
             <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
-              <Users className="w-6 h-6 text-blue-600" />
+              <Users className="w-6 w-6 text-blue-600" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
@@ -230,13 +288,22 @@ function UserManagement({ companyId, onClose }) {
           </div>
           <div className="flex items-center space-x-3">
             {availableRoles.length > 0 && (
-              <button
-                onClick={() => setShowInviteModal(true)}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Invite User
-              </button>
+              <>
+                <button
+                  onClick={() => setShowCreateUserModal(true)}
+                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Create User
+                </button>
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Mail className="w-4 h-4 mr-2" />
+                  Invite User
+                </button>
+              </>
             )}
             <button
               onClick={onClose}
@@ -614,6 +681,136 @@ function UserManagement({ companyId, onClose }) {
                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                     >
                       Send Invitation
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create User Modal */}
+        {showCreateUserModal && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-60">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-lg bg-white">
+              <div className="mt-3">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                  <UserPlus className="h-6 w-6 text-green-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mt-4 text-center">Create New User</h3>
+                
+                <form onSubmit={handleCreateUser} className="mt-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Username *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={createUserForm.username}
+                      onChange={(e) => setCreateUserForm({...createUserForm, username: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter username"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={createUserForm.email}
+                      onChange={(e) => setCreateUserForm({...createUserForm, email: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="user@example.com"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={createUserForm.full_name}
+                      onChange={(e) => setCreateUserForm({...createUserForm, full_name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter full name"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Role *
+                    </label>
+                    <select
+                      required
+                      value={createUserForm.role}
+                      onChange={(e) => setCreateUserForm({...createUserForm, role: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {availableRoles.map(role => (
+                        <option key={role} value={role}>
+                          {roleConfig[role].label} - {roleConfig[role].description}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Password *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={createUserForm.password}
+                      onChange={(e) => setCreateUserForm({...createUserForm, password: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter password"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Confirm Password *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={createUserForm.confirmPassword}
+                      onChange={(e) => setCreateUserForm({...createUserForm, confirmPassword: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Confirm password"
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateUserModal(false);
+                        setCreateUserForm({
+                          username: '',
+                          email: '',
+                          full_name: '',
+                          role: 'customer',
+                          password: '',
+                          confirmPassword: ''
+                        });
+                      }}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                    >
+                      Create User
                     </button>
                   </div>
                 </form>

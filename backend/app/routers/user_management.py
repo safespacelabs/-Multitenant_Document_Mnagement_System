@@ -102,58 +102,127 @@ async def invite_user(
             email=invite_data.email,
             full_name=invite_data.full_name,
             role=invite_data.role.value,
-            company_id=company.id,
+            company_id=company_id,
             created_by=current_user.id,
-            expires_at=datetime.utcnow() + timedelta(days=7),  # 7 days to set password
-            unique_id=secrets.token_urlsafe(16)
+            expires_at=datetime.utcnow() + timedelta(days=7)
         )
         
         company_db.add(invitation)
         company_db.commit()
         company_db.refresh(invitation)
         
-        # Send invitation email automatically
+        # Send invitation email
         try:
-            invited_by_user = company_db.query(CompanyUser).filter(
-                CompanyUser.id == current_user.id
-            ).first()
-            invited_by_name = invited_by_user.full_name if invited_by_user else "Administrator"
-            
-            # Use extended email service for company-specific emails
-            company_email_service = get_extended_email_service(company.name)
-            email_sent = await company_email_service.send_invitation_email(
-                recipient_email=invitation.email,
-                recipient_name=invitation.full_name,
+            await email_service.send_user_invitation(
+                to_email=invite_data.email,
                 company_name=company.name,
-                role=invitation.role,
-                unique_id=invitation.unique_id,
-                expires_at=invitation.expires_at,
-                invited_by=invited_by_name
+                inviter_name=current_user.full_name,
+                role=invite_data.role.value,
+                invitation_link=f"https://multitenant-frontend.onrender.com/company-login?invitation={invitation.id}"
             )
-            
-            if email_sent:
-                print(f"✅ Invitation email sent successfully to {invitation.email}")
-            else:
-                print(f"⚠️ Invitation created but email failed to send to {invitation.email}")
-                
         except Exception as e:
-            print(f"⚠️ Invitation created but email service error: {str(e)}")
+            print(f"Warning: Failed to send invitation email: {str(e)}")
         
-        # Convert to response format
-        response = schemas.UserInviteResponse(
-            id=invitation.id,
-            unique_id=invitation.unique_id,
-            email=invitation.email,
-            full_name=invitation.full_name,
-            role=invitation.role,
-            created_by=invitation.created_by,
-            expires_at=invitation.expires_at,
-            is_used=invitation.is_used,
-            created_at=invitation.created_at
+        return {
+            "id": str(invitation.id),
+            "email": invitation.email,
+            "full_name": invitation.full_name,
+            "role": invitation.role,
+            "company_id": str(invitation.company_id),
+            "created_at": invitation.created_at,
+            "expires_at": invitation.expires_at
+        }
+        
+    except Exception as e:
+        company_db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create invitation: {str(e)}")
+    finally:
+        company_db.close()
+
+@router.post("/create", response_model=schemas.CompanyUserResponse)
+async def create_user(
+    user_data: schemas.UserCreate,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """HR admins and managers can create new users directly in their company"""
+    
+    # Check if current user can manage the target role
+    current_role = str(current_user.role)
+    target_role = str(user_data.role.value)
+    manageable_roles = get_manageable_roles(current_role)
+    if target_role not in manageable_roles and current_role != "system_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You don't have permission to create users with role: {target_role}"
+        )
+    
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id,
+        models.Company.is_active == True
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Check if username already exists in company
+        if company_db.query(CompanyUser).filter(CompanyUser.username == user_data.username).first():
+            raise HTTPException(status_code=400, detail="Username already registered")
+        
+        # Check if email already exists in company
+        if company_db.query(CompanyUser).filter(CompanyUser.email == user_data.email).first():
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create user in company database
+        from app import auth_utils
+        hashed_password = auth_utils.get_password_hash(user_data.password)
+        db_user = CompanyUser(
+            username=user_data.username,
+            email=user_data.email,
+            hashed_password=hashed_password,
+            full_name=user_data.full_name,
+            role=user_data.role.value,
+            s3_folder=f"users/{user_data.username}/",
+            company_id=company_id,
+            password_set=True,
+            is_active=True
         )
         
-        return response
+        company_db.add(db_user)
+        company_db.commit()
+        company_db.refresh(db_user)
         
+        # Create user folder in S3
+        try:
+            await aws_service.create_user_folder(str(company.s3_bucket_name), str(db_user.id))
+        except Exception as e:
+            print(f"Warning: Failed to create S3 folder for user {db_user.id}: {str(e)}")
+        
+        # Convert to response format
+        return schemas.CompanyUserResponse(
+            id=str(db_user.id),
+            username=str(db_user.username),
+            email=str(db_user.email),
+            full_name=str(db_user.full_name),
+            role=str(db_user.role),
+            s3_folder=str(db_user.s3_folder),
+            password_set=bool(db_user.password_set),
+            created_at=db_user.created_at,
+            is_active=bool(db_user.is_active)
+        )
+        
+    except Exception as e:
+        company_db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
     finally:
         company_db.close()
 

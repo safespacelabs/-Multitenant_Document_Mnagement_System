@@ -154,6 +154,34 @@ class MockAWSService:
         
         return f"s3://{bucket_name}/{file_key}"
     
+    async def upload_file_to_s3(
+        self, 
+        bucket_name: str, 
+        file_content: bytes, 
+        s3_key: str,
+        content_type: str = None
+    ) -> str:
+        """Mock file upload to S3 (used by document upload endpoint)"""
+        if bucket_name not in self.created_buckets:
+            raise Exception(f"Bucket {bucket_name} does not exist")
+        
+        # Simulate file upload
+        if bucket_name not in self.uploaded_files:
+            self.uploaded_files[bucket_name] = set()
+        
+        if bucket_name not in self.file_contents:
+            self.file_contents[bucket_name] = {}
+        
+        self.uploaded_files[bucket_name].add(s3_key)
+        
+        # Store the actual file content
+        file_size = len(file_content)
+        self.file_contents[bucket_name][s3_key] = file_content
+        
+        logger.info(f"Mock: Uploaded file '{s3_key}' ({file_size} bytes) to bucket '{bucket_name}'")
+        
+        return f"s3://{bucket_name}/{s3_key}"
+    
     async def download_file(self, bucket_name: str, file_key: str) -> bytes:
         """Mock file download from S3"""
         if bucket_name not in self.created_buckets:

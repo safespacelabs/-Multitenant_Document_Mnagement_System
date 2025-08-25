@@ -323,11 +323,12 @@ const usersAPI = {
   },
 
   create: async (userData, companyId) => {
-    const response = await fetch(buildApiUrl('/api/user-management/invite'), {
+    const response = await fetch(buildApiUrl('/api/user-management/create'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'X-Company-ID': companyId
       },
       body: JSON.stringify(userData)
     });

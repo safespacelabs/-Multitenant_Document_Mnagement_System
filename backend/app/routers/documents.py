@@ -374,6 +374,19 @@ async def upload_document(
     
     print(f"🏢 Company found: {company.name}, S3 bucket: {company.s3_bucket_name}")
     
+    # Check if company has S3 bucket, create one if not
+    if not company.s3_bucket_name:
+        print(f"⚠️ Company {company.name} has no S3 bucket, creating one...")
+        try:
+            bucket_name = await aws_service.create_company_bucket(company_id)
+            # Update company record with bucket name
+            company.s3_bucket_name = bucket_name
+            management_db.commit()
+            print(f"✅ Created S3 bucket: {bucket_name}")
+        except Exception as e:
+            print(f"❌ Failed to create S3 bucket: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to create S3 bucket: {str(e)}")
+    
     # Get company database connection
     company_db_gen = get_company_db(str(company.id), str(company.database_url))
     company_db = next(company_db_gen)
