@@ -256,6 +256,16 @@ function UserManagement({ companyId, onClose }) {
 
   const availableRoles = Object.keys(roleConfig).filter(role => canInviteRole(role));
 
+  // Debug logging
+  console.log('🔍 Debug - Current user role:', currentUser?.role);
+  console.log('🔍 Debug - Available roles:', availableRoles);
+  console.log('🔍 Debug - Can invite roles:', Object.keys(roleConfig).map(role => ({ role, canInvite: canInviteRole(role) })));
+  console.log('🔍 Debug - Can create users:', canCreateUsers);
+  console.log('🔍 Debug - Current user object:', currentUser);
+
+  // Check if user can create users (HR admins, HR managers, and system admins)
+  const canCreateUsers = ['hr_admin', 'hr_manager', 'system_admin'].includes(currentUser?.role);
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -287,23 +297,31 @@ function UserManagement({ companyId, onClose }) {
             </div>
           </div>
           <div className="flex items-center space-x-3">
+            {canCreateUsers && (
+              <button
+                onClick={() => setShowCreateUserModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Create User
+              </button>
+            )}
+            {/* Temporary debug button - always visible */}
+            <button
+              onClick={() => setShowCreateUserModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Create User (Debug)
+            </button>
             {availableRoles.length > 0 && (
-              <>
-                <button
-                  onClick={() => setShowCreateUserModal(true)}
-                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Create User
-                </button>
-                <button
-                  onClick={() => setShowInviteModal(true)}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Mail className="w-4 h-4 mr-2" />
-                  Invite User
-                </button>
-              </>
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Invite User
+              </button>
             )}
             <button
               onClick={onClose}
