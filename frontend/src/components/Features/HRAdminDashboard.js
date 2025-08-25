@@ -41,7 +41,9 @@ import {
   Award,
   Clock1,
   UserCheck,
-  FileSignature
+  FileSignature,
+  User,
+  Folder
 } from 'lucide-react';
 
 const HRAdminDashboard = () => {
@@ -170,7 +172,7 @@ const HRAdminDashboard = () => {
 
       {/* Tab Content */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {activeTab === 'overview' && <OverviewTab stats={stats} />}
+        {activeTab === 'overview' && <OverviewTab stats={stats} navigate={navigate} />}
         {activeTab === 'employees' && <EmployeesTab employees={employees} navigate={navigate} />}
         {activeTab === 'documents' && <DocumentsTab documents={documents} navigate={navigate} />}
         {activeTab === 'workflows' && <WorkflowsTab workflows={workflows} navigate={navigate} />}
@@ -182,7 +184,7 @@ const HRAdminDashboard = () => {
 };
 
 // Overview Tab Component
-const OverviewTab = ({ stats }) => (
+const OverviewTab = ({ stats, navigate }) => (
   <div className="p-6 space-y-6">
     <h2 className="text-2xl font-bold text-gray-900">Dashboard Overview</h2>
     
