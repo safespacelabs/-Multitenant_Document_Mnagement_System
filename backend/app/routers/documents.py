@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -335,8 +336,13 @@ async def upload_document(
     current_user: CompanyUser = Depends(auth.get_current_company_user),
     management_db: Session = Depends(get_management_db)
 ):
+    print(f"🚀 Upload request received for user: {current_user.username}")
+    print(f"📁 Folder name: {folder_name}")
+    print(f"📄 File: {file.filename}, Size: {file.size}, Type: {file.content_type}")
+    
     # Read file content first
     file_content = await file.read()
+    print(f"📊 File content read, size: {len(file_content)} bytes")
     
     # Check file size (max 50MB)
     if len(file_content) > 50 * 1024 * 1024:
@@ -366,6 +372,8 @@ async def upload_document(
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     
+    print(f"🏢 Company found: {company.name}, S3 bucket: {company.s3_bucket_name}")
+    
     # Get company database connection
     company_db_gen = get_company_db(str(company.id), str(company.database_url))
     company_db = next(company_db_gen)
@@ -380,6 +388,8 @@ async def upload_document(
         folder_path = f"{folder_name}/" if folder_name else ""
         s3_key = f"company-documents/{company_id}/{folder_path}{filename}"
         
+        print(f"🔑 S3 key: {s3_key}")
+        
         # Upload to S3
         await aws_service.upload_file_to_s3(
             bucket_name=company.s3_bucket_name,
@@ -387,6 +397,8 @@ async def upload_document(
             s3_key=s3_key,
             content_type=file.content_type
         )
+        
+        print(f"☁️ File uploaded to S3 successfully")
         
         # Create document record
         document = CompanyDocument(
@@ -422,9 +434,9 @@ async def upload_document(
         return document
         
     except Exception as e:
+        print(f"❌ Upload failed with error: {str(e)}")
         company_db.rollback()
-        print(f"Failed to process company document {document.id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to upload company document: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
     finally:
         company_db.close()
 
@@ -2001,4 +2013,18 @@ async def get_hr_compliance_violations(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get compliance violations: {str(e)}")
+
+# Add CORS preflight handler for upload endpoint
+@router.options("/upload")
+async def upload_options():
+    """Handle CORS preflight for upload endpoint"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "3600"
+        }
+    )
 

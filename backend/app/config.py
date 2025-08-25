@@ -87,7 +87,11 @@ def get_cors_origins():
     
     # Production-only origins for Render deployment
     production_origins = [
-        "https://multitenant-frontend.onrender.com"
+        "https://multitenant-frontend.onrender.com",
+        "http://localhost:3000",  # Allow local development
+        "http://localhost:3001",  # Allow local development
+        "http://127.0.0.1:3000",  # Allow local development
+        "http://127.0.0.1:3001"   # Allow local development
     ]
     print(f"🔧 Using production-only CORS origins for Render: {production_origins}")
     return production_origins

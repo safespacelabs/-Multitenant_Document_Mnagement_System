@@ -525,20 +525,42 @@ const documentsAPI = {
       formData.append('folder_name', folderName);
     }
     
-    const response = await fetch(buildApiUrl('/api/documents/upload'), {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-      },
-      body: formData
-    });
+    console.log('📤 Uploading file:', file.name, 'to folder:', folderName);
+    console.log('🔗 Upload URL:', buildApiUrl('/api/documents/upload'));
     
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to upload document');
+    try {
+      const response = await fetch(buildApiUrl('/api/documents/upload'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          // Note: Don't set Content-Type for FormData - browser sets it automatically
+        },
+        body: formData,
+        credentials: 'include' // Include credentials for CORS
+      });
+      
+      console.log('📥 Upload response status:', response.status);
+      console.log('📥 Upload response headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to upload document';
+        try {
+          const error = await response.json();
+          console.error('❌ Upload error:', error);
+          errorMessage = error.detail || errorMessage;
+        } catch (jsonError) {
+          console.error('❌ Failed to parse error response:', jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const result = await response.json();
+      console.log('✅ Upload successful:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Upload failed:', error);
+      throw error;
     }
-    
-    return response.json();
   },
 
   delete: async (documentId) => {

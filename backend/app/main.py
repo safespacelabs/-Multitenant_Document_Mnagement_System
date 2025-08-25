@@ -52,24 +52,29 @@ app.add_middleware(
 async def ensure_cors_headers(request, call_next):
     """Ensure CORS headers are present in all responses - Production only for Render"""
     origin = request.headers.get("origin", "")
+    method = request.method
+    path = request.url.path
     
+    print(f"🔍 CORS Middleware - Method: {method}, Path: {path}")
     print(f"🔍 CORS Middleware - Origin: {origin}, Environment: {ENVIRONMENT}, IS_PRODUCTION: {IS_PRODUCTION}")
     print(f"🔍 Allowed CORS origins: {cors_origins}")
     
     # Handle preflight requests
-    if request.method == "OPTIONS":
-        # Check if origin is allowed
-        if origin in cors_origins:
-            allowed_origin = origin
-            print(f"✅ Preflight: Origin {origin} is in allowed CORS origins")
-        elif not origin and IS_PRODUCTION:
-            # No origin header in production - allow frontend
-            allowed_origin = "https://multitenant-frontend.onrender.com"
-            print(f"✅ Preflight: Production mode - allowing frontend (no origin header)")
+    if method == "OPTIONS":
+        print(f"🚀 Handling OPTIONS preflight request for path: {path}")
+        # Always allow preflight for production
+        if IS_PRODUCTION:
+            allowed_origin = origin if origin in cors_origins else "https://multitenant-frontend.onrender.com"
+            print(f"✅ Preflight: Production mode - allowing origin {allowed_origin}")
         else:
-            # Origin not allowed
-            print(f"❌ Preflight: Origin {origin} not in allowed origins")
-            allowed_origin = cors_origins[0] if cors_origins else "https://multitenant-frontend.onrender.com"
+            # Check if origin is allowed
+            if origin in cors_origins:
+                allowed_origin = origin
+                print(f"✅ Preflight: Origin {origin} is in allowed CORS origins")
+            else:
+                # Origin not allowed
+                print(f"❌ Preflight: Origin {origin} not in allowed origins")
+                allowed_origin = cors_origins[0] if cors_origins else "https://multitenant-frontend.onrender.com"
             
         headers = {
             "Access-Control-Allow-Origin": allowed_origin,
@@ -78,28 +83,37 @@ async def ensure_cors_headers(request, call_next):
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Max-Age": "3600"
         }
+        print(f"📤 Sending preflight response with headers: {headers}")
         return Response(content="", status_code=200, headers=headers)
     
     response = await call_next(request)
     
     # Ensure CORS headers are present for actual requests
-    if origin in cors_origins:
+    if IS_PRODUCTION:
+        # Production mode - always set CORS headers
+        if origin in cors_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+        else:
+            response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        print(f"✅ Production mode: set CORS headers for origin {origin}")
+    elif origin in cors_origins:
         # Origin is explicitly allowed
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         print(f"✅ Added CORS headers for origin {origin}")
-    elif not origin and IS_PRODUCTION:
-        # No origin header in production - set default CORS headers for frontend
-        response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        print(f"✅ Production mode: set default CORS headers for frontend (no origin header)")
     else:
         # Origin not allowed or development mode
         print(f"❌ Not setting CORS headers for origin: '{origin}'")
     
+    print(f"📤 Final response headers: {dict(response.headers)}")
     return response
 
-
+# Test endpoint to verify CORS is working
+@app.get("/api/test-cors")
+async def test_cors():
+    """Test endpoint to verify CORS is working"""
+    return {"message": "CORS test successful", "timestamp": "2024-01-01T00:00:00Z"}
 
 # Security
 security = HTTPBearer()
