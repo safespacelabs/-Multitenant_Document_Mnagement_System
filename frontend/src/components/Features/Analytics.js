@@ -1,379 +1,422 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../utils/auth';
-import { documentsAPI, usersAPI, companiesAPI, chatAPI } from '../../services/api';
+import { 
+  TrendingUp,
+  TrendingDown,
+  Users,
+  FileText,
+  Download,
+  Upload,
+  Eye,
+  Clock,
+  Calendar,
+  BarChart3,
+  PieChart,
+  Activity,
+  Target,
+  CheckCircle,
+  AlertCircle,
+  X,
+  ChevronDown,
+  Filter,
+  RefreshCw,
+  Download as DownloadIcon,
+  Share2,
+  MoreVertical
+} from 'lucide-react';
 
 const Analytics = () => {
-  const { user, company } = useAuth();
-  const [analytics, setAnalytics] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [timeRange, setTimeRange] = useState('week'); // week, month, quarter, year
+  const [timeRange, setTimeRange] = useState('month');
+  const [loading, setLoading] = useState(false);
+  const [metrics, setMetrics] = useState({
+    totalDocuments: 1247,
+    totalUsers: 89,
+    storageUsed: '2.4 GB',
+    activeUsers: 67,
+    documentsUploaded: 156,
+    documentsDownloaded: 89,
+    averageResponseTime: '2.3s',
+    completionRate: 94.2
+  });
+
+  const [chartData, setChartData] = useState({
+    uploadsByMonth: [45, 52, 38, 67, 89, 76, 54, 78, 91, 83, 67, 89],
+    downloadsByMonth: [32, 45, 28, 56, 78, 65, 43, 67, 82, 74, 58, 71],
+    userActivity: [67, 72, 68, 75, 82, 79, 73, 81, 88, 85, 78, 83],
+    categoryDistribution: [
+      { name: 'HR Documents', value: 35, color: 'bg-blue-500' },
+      { name: 'Legal Files', value: 25, color: 'bg-green-500' },
+      { name: 'Financial Reports', value: 20, color: 'bg-purple-500' },
+      { name: 'Marketing Materials', value: 15, color: 'bg-orange-500' },
+      { name: 'Other', value: 5, color: 'bg-gray-500' }
+    ]
+  });
+
+  const [recentActivity, setRecentActivity] = useState([
+    { id: 1, type: 'upload', user: 'John Doe', document: 'Q4 Report.pdf', time: '2 min ago', status: 'completed' },
+    { id: 2, type: 'download', user: 'Jane Smith', document: 'Employee Handbook.docx', time: '5 min ago', status: 'completed' },
+    { id: 3, type: 'share', user: 'HR Admin', document: 'Company Policy.pdf', time: '12 min ago', status: 'pending' },
+    { id: 4, type: 'sign', user: 'Manager', document: 'Contract Agreement.pdf', time: '1 hour ago', status: 'completed' },
+    { id: 5, type: 'upload', user: 'Marketing Team', document: 'Brand Guidelines.pdf', time: '2 hours ago', status: 'completed' }
+  ]);
 
   useEffect(() => {
     loadAnalytics();
   }, [timeRange]);
 
   const loadAnalytics = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const data = {};
-
-      // Load role-specific analytics
-      if (user.role === 'system_admin') {
-        // System-wide analytics
-        try {
-          const companiesResponse = await companiesAPI.list();
-          data.companies = companiesResponse.data;
-          data.totalCompanies = companiesResponse.data.length;
-          data.activeCompanies = companiesResponse.data.filter(c => c.is_active).length;
-        } catch (err) {
-          console.log('Companies data not available');
-        }
-      }
-
-      // Document analytics for company users only (not system admins)
-      if (user.role !== 'system_admin' && company) {
-        try {
-          const documentsResponse = await documentsAPI.list();
-          data.documents = documentsResponse.data;
-          data.totalDocuments = documentsResponse.data.length;
-          data.processedDocuments = documentsResponse.data.filter(d => d.processed).length;
-          data.documentsByType = getDocumentsByType(documentsResponse.data);
-          data.recentUploads = getRecentUploads(documentsResponse.data);
-        } catch (err) {
-          console.log('Documents data not available');
-        }
-      }
-
-      // User analytics for company management roles (not system admin)
-      if (['hr_admin', 'hr_manager'].includes(user.role) && company) {
-        try {
-          const usersResponse = await usersAPI.list();
-          data.users = usersResponse.data;
-          data.totalUsers = usersResponse.data.length;
-          data.activeUsers = usersResponse.data.filter(u => u.is_active).length;
-        } catch (err) {
-          console.log('Users data not available');
-        }
-      }
-
-      // Chat analytics for company users only (not system admins)
-      if (user.role !== 'system_admin' && company) {
-        try {
-          const chatResponse = await chatAPI.getHistory();
-          data.chatHistory = chatResponse.data;
-          data.totalChats = chatResponse.data.length;
-          data.recentChats = chatResponse.data.slice(0, 5);
-        } catch (err) {
-          console.log('Chat data not available');
-        }
-      }
-
-      setAnalytics(data);
-      setError(null);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Update metrics based on time range
+      const timeMultiplier = timeRange === 'week' ? 0.25 : timeRange === 'month' ? 1 : timeRange === 'quarter' ? 3 : 12;
+      
+      setMetrics(prev => ({
+        ...prev,
+        totalDocuments: Math.floor(1247 * timeMultiplier),
+        documentsUploaded: Math.floor(156 * timeMultiplier),
+        documentsDownloaded: Math.floor(89 * timeMultiplier)
+      }));
+      
     } catch (error) {
       console.error('Failed to load analytics:', error);
-      setError('Failed to load analytics data');
     } finally {
       setLoading(false);
     }
   };
 
-  const getDocumentsByType = (documents) => {
-    const types = {};
-    documents.forEach(doc => {
-      const extension = doc.original_filename.split('.').pop().toLowerCase();
-      types[extension] = (types[extension] || 0) + 1;
-    });
-    return Object.entries(types).map(([type, count]) => ({ type, count }))
-      .sort((a, b) => b.count - a.count);
+  const getActivityIcon = (type) => {
+    switch (type) {
+      case 'upload':
+        return <Upload className="h-4 w-4 text-blue-600" />;
+      case 'download':
+        return <Download className="h-4 w-4 text-green-600" />;
+      case 'share':
+        return <Share2 className="h-4 w-4 text-purple-600" />;
+      case 'sign':
+        return <CheckCircle className="h-4 w-4 text-orange-600" />;
+      default:
+        return <Activity className="h-4 w-4 text-gray-600" />;
+    }
   };
 
-  const getRecentUploads = (documents) => {
-    return documents
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, 7)
-      .map(doc => ({
-        date: new Date(doc.created_at).toLocaleDateString(),
-        count: 1
-      }))
-      .reduce((acc, item) => {
-        const existing = acc.find(a => a.date === item.date);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          acc.push(item);
-        }
-        return acc;
-      }, []);
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed':
+        return 'text-green-600 bg-green-100';
+      case 'pending':
+        return 'text-yellow-600 bg-yellow-100';
+      case 'failed':
+        return 'text-red-600 bg-red-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
+    }
   };
 
-  const getOverviewCards = () => {
-    const cards = [];
-
-    if (user.role === 'system_admin') {
-      cards.push(
-        {
-          title: 'Total Companies',
-          value: analytics.totalCompanies || 0,
-          subtitle: `${analytics.activeCompanies || 0} active`,
-          color: 'bg-purple-500',
-          icon: '🏢'
-        },
-        {
-          title: 'System Health',
-          value: 'Excellent',
-          subtitle: 'All systems operational',
-          color: 'bg-green-500',
-          icon: '💚'
-        }
-      );
-    }
-
-    if (['hr_admin', 'hr_manager'].includes(user.role) && company) {
-      cards.push({
-        title: 'Total Users',
-        value: analytics.totalUsers || 0,
-        subtitle: `${analytics.activeUsers || 0} active`,
-        color: 'bg-blue-500',
-        icon: '👥'
-      });
-    }
-
-    // Only show document and chat cards for company users
-    if (user.role !== 'system_admin' && company) {
-      cards.push(
-        {
-          title: 'Documents',
-          value: analytics.totalDocuments || 0,
-          subtitle: `${analytics.processedDocuments || 0} processed`,
-          color: 'bg-indigo-500',
-          icon: '📄'
-        },
-        {
-          title: 'AI Conversations',
-          value: analytics.totalChats || 0,
-          subtitle: 'Total interactions',
-          color: 'bg-orange-500',
-          icon: '🤖'
-        }
-      );
-    }
-
-    return cards;
+  const formatNumber = (num) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
   };
-
-  const getRoleSpecificMetrics = () => {
-    if (user.role === 'system_admin') {
-      return [
-        { label: 'Database Connections', value: analytics.totalCompanies || 0 },
-        { label: 'Storage Usage', value: '2.4 GB' },
-        { label: 'API Requests', value: '15.2K' },
-        { label: 'Uptime', value: '99.9%' }
-      ];
-    }
-
-    if (user.role === 'hr_admin') {
-      return [
-        { label: 'Pending Invitations', value: '3' },
-        { label: 'Document Approvals', value: '7' },
-        { label: 'Team Productivity', value: '92%' },
-        { label: 'Compliance Score', value: '98%' }
-      ];
-    }
-
-    if (user.role === 'hr_manager') {
-      return [
-        { label: 'Team Members', value: analytics.totalUsers || 0 },
-        { label: 'Documents Reviewed', value: analytics.processedDocuments || 0 },
-        { label: 'Task Completion', value: '87%' },
-        { label: 'Team Satisfaction', value: '94%' }
-      ];
-    }
-
-    return [
-      { label: 'My Documents', value: analytics.totalDocuments || 0 },
-      { label: 'AI Interactions', value: analytics.totalChats || 0 },
-      { label: 'Tasks Completed', value: '12' },
-      { label: 'Goals Achieved', value: '85%' }
-    ];
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading analytics...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
-          <p className="text-gray-600 mt-2">
-            Insights and metrics for {user.role.replace('_', ' ').toLowerCase()} operations
-          </p>
-          {company && (
-            <p className="text-sm text-gray-500 mt-1">Company: {company.name}</p>
-          )}
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h2>
+          <p className="text-gray-600">Monitor your document management system performance</p>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="week">Last Week</option>
+            <option value="month">Last Month</option>
+            <option value="quarter">Last Quarter</option>
+            <option value="year">Last Year</option>
+          </select>
+          
+          <button
+            onClick={loadAnalytics}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Documents</p>
+              <p className="text-2xl font-bold text-gray-900">{formatNumber(metrics.totalDocuments)}</p>
+            </div>
+            <div className="p-3 bg-blue-100 rounded-xl">
+              <FileText className="h-6 w-6 text-blue-600" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-sm">
+            <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
+            <span className="text-green-600">+12.5%</span>
+            <span className="text-gray-500 ml-1">from last period</span>
+          </div>
         </div>
 
-        {/* Time Range Selector */}
-        <div className="mb-6 flex space-x-2">
-          {['week', 'month', 'quarter', 'year'].map((range) => (
-            <button
-              key={range}
-              onClick={() => setTimeRange(range)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                timeRange === range
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {range.charAt(0).toUpperCase() + range.slice(1)}
-            </button>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Active Users</p>
+              <p className="text-2xl font-bold text-gray-900">{metrics.activeUsers}</p>
+            </div>
+            <div className="p-3 bg-green-100 rounded-xl">
+              <Users className="h-6 w-6 text-green-600" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-sm">
+            <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
+            <span className="text-green-600">+8.2%</span>
+            <span className="text-gray-500 ml-1">from last period</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Storage Used</p>
+              <p className="text-2xl font-bold text-gray-900">{metrics.storageUsed}</p>
+            </div>
+            <div className="p-3 bg-purple-100 rounded-xl">
+              <Download className="h-6 w-6 text-purple-600" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-sm">
+            <TrendingDown className="h-4 w-4 text-red-500 mr-1" />
+            <span className="text-red-600">-2.1%</span>
+            <span className="text-gray-500 ml-1">from last period</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Completion Rate</p>
+              <p className="text-2xl font-bold text-gray-900">{metrics.completionRate}%</p>
+            </div>
+            <div className="p-3 bg-orange-100 rounded-xl">
+              <Target className="h-6 w-6 text-orange-600" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-sm">
+            <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
+            <span className="text-green-600">+3.2%</span>
+            <span className="text-gray-500 ml-1">from last period</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Uploads vs Downloads Chart */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">Document Activity</h3>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <span className="text-sm text-gray-600">Uploads</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="text-sm text-gray-600">Downloads</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="h-64 flex items-end justify-between space-x-2">
+            {chartData.uploadsByMonth.map((value, index) => (
+              <div key={index} className="flex-1 flex flex-col items-center space-y-2">
+                <div className="w-full bg-gray-200 rounded-t">
+                  <div 
+                    className="bg-blue-500 rounded-t transition-all duration-500"
+                    style={{ height: `${(value / 100) * 200}px` }}
+                  ></div>
+                </div>
+                <div className="w-full bg-gray-200 rounded-t">
+                  <div 
+                    className="bg-green-500 rounded-t transition-all duration-500"
+                    style={{ height: `${(chartData.downloadsByMonth[index] / 100) * 200}px` }}
+                  ></div>
+                </div>
+                <span className="text-xs text-gray-500">{['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][index]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Category Distribution */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Document Categories</h3>
+          
+          <div className="space-y-4">
+            {chartData.categoryDistribution.map((category, index) => (
+              <div key={index} className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-4 h-4 rounded-full ${category.color}`}></div>
+                  <span className="text-sm text-gray-700">{category.name}</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-24 bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full ${category.color.replace('bg-', 'bg-')}`}
+                      style={{ width: `${category.value}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900 w-8 text-right">{category.value}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Performance Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Upload Performance</h3>
+            <Upload className="h-6 w-6 text-blue-600" />
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Documents Uploaded</span>
+              <span className="text-lg font-semibold text-gray-900">{metrics.documentsUploaded}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Success Rate</span>
+              <span className="text-lg font-semibold text-green-600">98.5%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Average Size</span>
+              <span className="text-lg font-semibold text-gray-900">2.3 MB</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">User Engagement</h3>
+            <Users className="h-6 w-6 text-green-600" />
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Active Users</span>
+              <span className="text-lg font-semibold text-gray-900">{metrics.activeUsers}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Session Duration</span>
+              <span className="text-lg font-semibold text-gray-900">24 min</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Return Rate</span>
+              <span className="text-lg font-semibold text-green-600">87.3%</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">System Performance</h3>
+            <Activity className="h-6 w-6 text-purple-600" />
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Response Time</span>
+              <span className="text-lg font-semibold text-gray-900">{metrics.averageResponseTime}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Uptime</span>
+              <span className="text-lg font-semibold text-green-600">99.9%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Error Rate</span>
+              <span className="text-lg font-semibold text-red-600">0.1%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
+          <button className="text-sm text-blue-600 hover:text-blue-700">View All</button>
+        </div>
+        
+        <div className="space-y-4">
+          {recentActivity.map((activity) => (
+            <div key={activity.id} className="flex items-center space-x-4 p-3 rounded-lg hover:bg-gray-50">
+              <div className="flex-shrink-0">
+                {getActivityIcon(activity.type)}
+              </div>
+              
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900">
+                  {activity.user} {activity.type === 'upload' ? 'uploaded' : 
+                                  activity.type === 'download' ? 'downloaded' : 
+                                  activity.type === 'share' ? 'shared' : 'signed'} {activity.document}
+                </p>
+                <p className="text-sm text-gray-500">{activity.time}</p>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(activity.status)}`}>
+                  {activity.status}
+                </span>
+                <button className="p-1 text-gray-400 hover:text-gray-600">
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
           ))}
         </div>
+      </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
-
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {getOverviewCards().map((card, index) => (
-            <div key={index} className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="flex-1">
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
-                    {card.title}
-                  </h3>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{card.value}</p>
-                  <p className="text-sm text-gray-600 mt-1">{card.subtitle}</p>
-                </div>
-                <div className="text-3xl">{card.icon}</div>
-              </div>
+      {/* Quick Actions */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            <DownloadIcon className="h-6 w-6 text-blue-600" />
+            <div className="text-left">
+              <p className="font-medium text-gray-900">Export Report</p>
+              <p className="text-sm text-gray-500">Download analytics data</p>
             </div>
-          ))}
-        </div>
-
-        {/* Main Analytics Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Document Types Chart */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Document Types</h3>
-            {analytics.documentsByType && analytics.documentsByType.length > 0 ? (
-              <div className="space-y-3">
-                {analytics.documentsByType.slice(0, 5).map((item, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                      <span className="text-sm font-medium text-gray-700 uppercase">
-                        {item.type}
-                      </span>
-                    </div>
-                    <span className="text-sm text-gray-600">{item.count}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">No document data available</p>
-            )}
-          </div>
-
-          {/* Activity Timeline */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-            {analytics.recentUploads && analytics.recentUploads.length > 0 ? (
-              <div className="space-y-3">
-                {analytics.recentUploads.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                    <span className="text-sm text-gray-700">{item.date}</span>
-                    <span className="text-sm font-medium text-blue-600">
-                      {item.count} upload{item.count !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">No activity data available</p>
-            )}
-          </div>
-
-          {/* Role-Specific Metrics */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Key Metrics</h3>
-            <div className="space-y-4">
-              {getRoleSpecificMetrics().map((metric, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">{metric.label}</span>
-                  <span className="text-sm font-semibold text-gray-900">{metric.value}</span>
-                </div>
-              ))}
+          </button>
+          
+          <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            <Share2 className="h-6 w-6 text-green-600" />
+            <div className="text-left">
+              <p className="font-medium text-gray-900">Share Dashboard</p>
+              <p className="text-sm text-gray-500">Send to team members</p>
             </div>
-          </div>
-        </div>
-
-        {/* Recent Conversations */}
-        <div className="mt-8 bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Recent AI Conversations</h3>
-          </div>
-          <div className="p-6">
-            {analytics.recentChats && analytics.recentChats.length > 0 ? (
-              <div className="space-y-4">
-                {analytics.recentChats.map((chat, index) => (
-                  <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {chat.question}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1 truncate">
-                      {chat.answer}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {new Date(chat.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">No recent conversations</p>
-            )}
-          </div>
-        </div>
-
-        {/* Performance Insights */}
-        <div className="mt-8 bg-blue-50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-4">📊 Insights</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Document Processing</h4>
-              <p className="text-sm text-gray-600">
-                {analytics.processedDocuments || 0} of {analytics.totalDocuments || 0} documents 
-                have been processed by AI. 
-                {analytics.totalDocuments > 0 && 
-                  ` Processing rate: ${Math.round((analytics.processedDocuments / analytics.totalDocuments) * 100)}%`
-                }
-              </p>
+          </button>
+          
+          <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            <Calendar className="h-6 w-6 text-purple-600" />
+            <div className="text-left">
+              <p className="font-medium text-gray-900">Schedule Report</p>
+              <p className="text-sm text-gray-500">Set up recurring reports</p>
             </div>
-            
-            <div className="bg-white rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">User Engagement</h4>
-              <p className="text-sm text-gray-600">
-                {analytics.totalChats || 0} AI conversations completed. 
-                Users are actively engaging with the AI assistant for document analysis and support.
-              </p>
-            </div>
-          </div>
+          </button>
         </div>
       </div>
     </div>
