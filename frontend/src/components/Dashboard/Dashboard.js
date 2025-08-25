@@ -1,47 +1,40 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
-import { useNavigate, Outlet, useLocation } from 'react-router-dom';
-import { authAPI, documentsAPI, usersAPI, companiesAPI, systemDocumentsAPI } from '../../services/api';
 import { EnhancedDocumentManager } from '../Documents';
-import ChatInterface from '../Features/ChatInterface';
-import Analytics from '../Features/Analytics';
-import Settings from '../Features/Settings';
-import SystemOverview from '../Features/SystemOverview';
-import TestingInterface from '../Testing/TestingInterface';
-import ESignatureManager from '../ESignature/ESignatureManager';
+import { HRAdminDashboard } from '../Features';
+import { Analytics } from '../Features';
+import { UserManagement } from '../Users';
+import Sidebar from '../Layout/Sidebar';
+import Header from '../Layout/Header';
 import { 
-  Search,
-  Bell,
-  MessageCircle,
-  Headphones,
-  Star,
-  ChevronDown,
+  Home, 
+  FileText, 
+  Users, 
+  BarChart3, 
+  MessageCircle, 
+  FileSignature,
+  Grid,
+  SettingsIcon,
+  Crown,
+  Building2,
   Menu,
   X,
-  Home,
-  FileText,
-  Users,
-  BarChart3,
-  Settings as SettingsIcon,
-  FileSignature,
-  Building2,
-  Crown,
   LogOut,
-  User,
-  Calendar,
-  Clock,
-  TrendingUp,
-  CheckCircle,
-  AlertCircle,
-  Plus,
-  Grid
+  Search,
+  Bell,
+  Headphones,
+  ChevronDown,
+  User
 } from 'lucide-react';
 
 const Dashboard = () => {
   const { user, company, logout } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [collapsed, setCollapsed] = useState(false);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -273,405 +266,105 @@ const Dashboard = () => {
   const isActivePage = (path) => {
     const basePath = user.role === 'system_admin' ? '/system-dashboard' : '/dashboard';
     
-    if (path === basePath && location.pathname === basePath) return true;
+    if (path === basePath) return true;
     if (path !== basePath && location.pathname.startsWith(path)) return true;
     return false;
   };
 
   const renderMainContent = () => {
-    const basePath = user.role === 'system_admin' ? '/system-dashboard' : '/dashboard';
-    const currentPath = location.pathname;
-
-    if (currentPath === basePath) {
-      return (
-        <div className="p-6">
-          <div className="max-w-7xl mx-auto">
-            {/* Hero Banner */}
-            <div className="relative bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-xl p-8 text-white mb-8 overflow-hidden">
-              <div className="absolute inset-0 bg-black opacity-10"></div>
-              <div className="relative z-10">
-                <h2 className="text-4xl font-bold mb-2">{getWelcomeMessage()}</h2>
-                <p className="text-xl text-blue-100 mb-4">
-                  Welcome back, {user.full_name || user.username}!
-                </p>
-                <p className="text-blue-100 text-lg">
-                  Manage your documents, collaborate with team members, and stay organized.
-                </p>
-                {company && (
-                  <p className="text-blue-100 mt-2 text-lg">
-                    Managing documents for <span className="font-semibold">{company.name}</span>
-                  </p>
-                )}
-              </div>
-              <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-white/10 to-transparent"></div>
-            </div>
-
-            {/* Quick Actions Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              {user.role === 'system_admin' ? (
-                <>
-                  <div
-                    onClick={() => navigate('/system-dashboard/companies')}
-                    className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105"
-                  >
-                    <div className="flex items-center">
-                      <div className="p-3 bg-blue-100 rounded-xl">
-                        <Building2 className="h-8 w-8 text-blue-600" />
-                      </div>
-                      <div className="ml-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Manage Companies</h3>
-                        <p className="text-gray-600">Create and configure companies</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => navigate('/system-dashboard/documents')}
-                    className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105"
-                  >
-                    <div className="flex items-center">
-                      <div className="p-3 bg-green-100 rounded-xl">
-                        <FileText className="h-8 w-8 text-green-600" />
-                      </div>
-                      <div className="ml-4">
-                        <h3 className="text-lg font-semibold text-gray-900">System Documents</h3>
-                        <p className="text-gray-600">Manage all system documents</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => navigate('/system-dashboard/chat')}
-                    className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105"
-                  >
-                    <div className="flex items-center">
-                      <div className="p-3 bg-purple-100 rounded-xl">
-                        <MessageCircle className="h-8 w-8 text-purple-600" />
-                      </div>
-                      <div className="ml-4">
-                        <h3 className="text-lg font-semibold text-gray-900">System Assistant</h3>
-                        <p className="text-gray-600">AI assistant for system management</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => navigate('/system-dashboard/testing')}
-                    className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105"
-                  >
-                    <div className="flex items-center">
-                      <div className="p-3 bg-purple-100 rounded-xl">
-                        <SettingsIcon className="h-8 w-8 text-purple-600" />
-                      </div>
-                      <div className="ml-4">
-                        <h3 className="text-lg font-semibold text-gray-900">System Testing</h3>
-                        <p className="text-gray-600">Comprehensive system testing</p>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div
-                    onClick={() => navigate('/dashboard/documents')}
-                    className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105"
-                  >
-                    <div className="flex items-center">
-                      <div className="p-3 bg-blue-100 rounded-xl">
-                        <FileText className="h-8 w-8 text-blue-600" />
-                      </div>
-                      <div className="ml-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Upload Documents</h3>
-                        <p className="text-gray-600">Add and process your files</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => navigate('/dashboard/chat')}
-                    className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105"
-                  >
-                    <div className="flex items-center">
-                      <div className="p-3 bg-green-100 rounded-xl">
-                        <MessageCircle className="h-8 w-8 text-green-600" />
-                      </div>
-                      <div className="ml-4">
-                        <h3 className="text-lg font-semibold text-gray-900">AI Assistant</h3>
-                        <p className="text-gray-600">Chat with AI about your documents</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => navigate('/dashboard/testing')}
-                    className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105"
-                  >
-                    <div className="flex items-center">
-                      <div className="p-3 bg-purple-100 rounded-xl">
-                        <SettingsIcon className="h-8 w-8 text-purple-600" />
-                      </div>
-                      <div className="ml-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Test Features</h3>
-                        <p className="text-gray-600">Comprehensive system testing</p>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-blue-100 rounded-xl">
-                    <FileText className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Documents</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.documentsCount || 0}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-green-100 rounded-xl">
-                    <Users className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Team Members</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.usersCount || 0}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-purple-100 rounded-xl">
-                    <Building2 className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Companies</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.companiesCount || 0}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Activity */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-sm text-gray-600">Document uploaded: Employee Handbook.pdf</span>
-                  <span className="text-xs text-gray-400">2 minutes ago</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  <span className="text-sm text-gray-600">New user registered: John Doe</span>
-                  <span className="text-xs text-gray-400">1 hour ago</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                  <span className="text-sm text-gray-600">Document signed: Company Policy.docx</span>
-                  <span className="text-xs text-gray-400">3 hours ago</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    console.log('🔍 Current path:', currentPath);
-    console.log('🔍 Base path:', basePath);
+    const path = location.pathname;
     
-    if (currentPath.includes('/system-admins')) {
-      console.log('📋 Rendering SystemAdminManagement');
-      return <SystemOverview />;
+    // HR Admin Dashboard
+    if (path === '/dashboard/hr-admin' && ['hr_admin', 'hr_manager'].includes(user?.role)) {
+      return <HRAdminDashboard />;
     }
-    if (currentPath.includes('/companies')) {
-      console.log('🏢 Rendering CompanyManagement');
-      return <SystemOverview />;
-    }
-    if (currentPath.includes('/users')) {
-      console.log('👥 Rendering UserManagement');
-      return <SystemOverview />;
-    }
-    if (currentPath.includes('/documents')) {
-      console.log('📄 Rendering EnhancedDocumentManager');
+    
+    // Document Management
+    if (path === '/dashboard/documents') {
       return <EnhancedDocumentManager />;
     }
-    if (currentPath.includes('/esignature')) {
-      return (
-        <div className="p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
-              <h3 className="text-lg font-semibold text-blue-900 mb-3">
-                📝 E-Signature Features for {user.role.replace('_', ' ').toUpperCase()}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {user.role === 'system_admin' && (
-                  <>
-                    <div className="bg-white rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-medium text-blue-800 mb-2">🔧 System-Wide Management</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• View all company signature requests</li>
-                        <li>• Create system-wide policy acknowledgments</li>
-                        <li>• Cancel any signature request</li>
-                        <li>• Download signed documents from all companies</li>
-                      </ul>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-medium text-blue-800 mb-2">📊 Monitoring & Analytics</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• Monitor platform-wide e-signature activity</li>
-                        <li>• Track completion rates across companies</li>
-                        <li>• Generate system reports</li>
-                        <li>• Manage cross-company agreements</li>
-                      </ul>
-                    </div>
-                  </>
-                )}
-                {user.role === 'hr_admin' && (
-                  <>
-                    <div className="bg-white rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-medium text-blue-800 mb-2">👥 HR Administration</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• Create policy acknowledgment requests</li>
-                        <li>• Send contract approval requests</li>
-                        <li>• Manage employee onboarding signatures</li>
-                        <li>• Create customer agreement templates</li>
-                      </ul>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-medium text-blue-800 mb-2">🔐 Administrative Controls</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• Cancel pending signature requests</li>
-                        <li>• Download completed signed documents</li>
-                        <li>• View all company signature activity</li>
-                        <li>• Set signature request templates</li>
-                      </ul>
-                    </div>
-                  </>
-                )}
-                {user.role === 'hr_manager' && (
-                  <>
-                    <div className="bg-white rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-medium text-blue-800 mb-2">📋 Management Functions</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• Create contract approval requests</li>
-                        <li>• Send budget approval requests</li>
-                        <li>• Create customer agreement requests</li>
-                        <li>• Manage team signature workflows</li>
-                      </ul>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-medium text-blue-800 mb-2">👀 Monitoring & Tracking</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• View signature request status</li>
-                        <li>• Track team signature completion</li>
-                        <li>• Download signed documents</li>
-                        <li>• Monitor workflow progress</li>
-                      </ul>
-                    </div>
-                  </>
-                )}
-                {user.role === 'employee' && (
-                  <>
-                    <div className="bg-white rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-medium text-blue-800 mb-2">💼 Employee Functions</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• Create budget approval requests</li>
-                        <li>• Send customer agreement requests</li>
-                        <li>• Request document signatures</li>
-                        <li>• View your signature requests</li>
-                      </ul>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-medium text-blue-800 mb-2">📄 Document Management</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• Sign received documents</li>
-                        <li>• Download signed copies</li>
-                        <li>• Track signature status</li>
-                        <li>• Manage personal signature requests</li>
-                      </ul>
-                    </div>
-                  </>
-                )}
-                {user.role === 'customer' && (
-                  <>
-                    <div className="bg-white rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-medium text-blue-800 mb-2">🤝 Customer Functions</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• Create customer agreement requests</li>
-                        <li>• Request document signatures</li>
-                        <li>• View your signature requests</li>
-                        <li>• Sign received documents</li>
-                      </ul>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-medium text-blue-800 mb-2">📱 Self-Service</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• Download signed documents</li>
-                        <li>• Track signature status</li>
-                        <li>• Manage personal requests</li>
-                        <li>• View signature history</li>
-                      </ul>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            
-            <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6">
-              <h3 className="text-lg font-semibold text-green-900 mb-3">🚀 How to Use E-Signature</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg p-4 border border-green-200">
-                  <div className="text-2xl mb-2">1️⃣</div>
-                  <h4 className="font-medium text-green-800 mb-2">Create Request</h4>
-                  <p className="text-sm text-green-700">Click "Create Request" or choose from role-specific templates to start a new signature request.</p>
-                </div>
-                <div className="bg-white rounded-lg p-4 border border-green-200">
-                  <div className="text-2xl mb-2">2️⃣</div>
-                  <h4 className="font-medium text-green-800 mb-2">Add Recipients</h4>
-                  <p className="text-sm text-green-700">Enter recipient details, upload documents, and set signature requirements.</p>
-                </div>
-                <div className="bg-white rounded-lg p-4 border border-green-200">
-                  <div className="text-2xl mb-2">3️⃣</div>
-                  <h4 className="font-medium text-green-800 mb-2">Track & Download</h4>
-                  <p className="text-sm text-green-700">Monitor signature status and download completed documents when ready.</p>
-                </div>
-              </div>
-            </div>
-            
-            <ESignatureManager userRole={user.role} userId={user.id} />
-          </div>
-        </div>
-      );
-    }
-    if (currentPath.includes('/chat')) {
-      return <ChatInterface />;
-    }
-    if (currentPath.includes('/analytics')) {
+    
+    // Analytics
+    if (path === '/dashboard/analytics') {
       return <Analytics />;
     }
-    if (currentPath.includes('/settings')) {
-      return <Settings />;
+    
+    // User Management
+    if (path === '/dashboard/users' && ['hr_admin', 'hr_manager', 'system_admin'].includes(user?.role)) {
+      return <UserManagement />;
     }
-    if (currentPath.includes('/testing')) {
-      return <TestingInterface />;
+    
+    // E-Signature
+    if (path === '/dashboard/esignature') {
+      return <div className="p-6"><h2 className="text-2xl font-bold mb-4">E-Signature Management</h2><p>E-Signature features coming soon...</p></div>;
     }
-
-    console.log('⚠️ No matching route found, showing fallback');
+    
+    // Chat/AI Assistant
+    if (path === '/dashboard/chat') {
+      return <div className="p-6"><h2 className="text-2xl font-bold mb-4">AI Assistant</h2><p>AI Assistant features coming soon...</p></div>;
+    }
+    
+    // Default Dashboard Overview
     return (
       <div className="p-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Page Not Found</h2>
-          <p className="text-gray-600">The requested page could not be found.</p>
-          <p className="text-sm text-gray-500 mt-2">Current path: {currentPath}</p>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user?.full_name || user?.username}!</h1>
+          <p className="text-gray-600">Here's what's happening with your documents today.</p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <QuickActionCard
+            title="Document Management"
+            description="Upload, organize, and manage your files"
+            icon={FileText}
+            color="blue"
+            onClick={() => navigate('/dashboard/documents')}
+          />
+          <QuickActionCard
+            title="User Management"
+            description="Manage team members and permissions"
+            icon={Users}
+            color="green"
+            onClick={() => navigate('/dashboard/users')}
+          />
+          <QuickActionCard
+            title="Analytics"
+            description="View insights and reports"
+            icon={BarChart3}
+            color="purple"
+            onClick={() => navigate('/dashboard/analytics')}
+          />
+          {['hr_admin', 'hr_manager'].includes(user?.role) && (
+            <QuickActionCard
+              title="HR Admin"
+              description="HR management dashboard"
+              icon={Users}
+              color="indigo"
+              onClick={() => navigate('/dashboard/hr-admin')}
+            />
+          )}
+        </div>
+
+        {/* Recent Activity */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+              <FileText className="h-5 w-5 text-blue-500" />
+              <div>
+                <p className="font-medium text-gray-900">Document uploaded</p>
+                <p className="text-sm text-gray-500">2 hours ago</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+              <Users className="h-5 w-5 text-green-500" />
+              <div>
+                <p className="font-medium text-gray-900">New team member added</p>
+                <p className="text-sm text-gray-500">1 day ago</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -684,6 +377,27 @@ const Dashboard = () => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  };
+
+  // Quick Action Card Component
+  const QuickActionCard = ({ title, description, icon: Icon, color, onClick }) => {
+    const colorClasses = {
+      blue: 'bg-blue-50 text-blue-600 hover:bg-blue-100',
+      green: 'bg-green-50 text-green-600 hover:bg-green-100',
+      purple: 'bg-purple-50 text-purple-600 hover:bg-purple-100',
+      indigo: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+    };
+
+    return (
+      <button
+        onClick={onClick}
+        className={`p-6 rounded-xl border border-gray-200 text-left transition-all duration-200 hover:shadow-md ${colorClasses[color]}`}
+      >
+        <Icon className="h-8 w-8 mb-3" />
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+        <p className="text-sm text-gray-600">{description}</p>
+      </button>
+    );
   };
 
   return (

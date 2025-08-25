@@ -100,6 +100,219 @@ class CompanyUserDetailResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# New schemas for HR admin features
+class DocumentAnalyticsResponse(BaseModel):
+    id: str
+    document_id: str
+    view_count: int
+    download_count: int
+    share_count: int
+    last_viewed_at: Optional[datetime]
+    last_downloaded_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ComplianceRuleResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    rule_type: str
+    category_id: Optional[str]
+    retention_period_days: Optional[int]
+    requires_approval: bool
+    requires_signature: bool
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ComplianceViolationResponse(BaseModel):
+    id: str
+    rule_id: str
+    document_id: Optional[str]
+    user_id: Optional[str]
+    violation_type: str
+    severity: str
+    description: Optional[str]
+    resolved: bool
+    resolved_by_user_id: Optional[str]
+    resolved_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class DocumentWorkflowResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    workflow_type: str
+    document_id: str
+    initiator_user_id: str
+    current_step: int
+    total_steps: int
+    status: str
+    priority: str
+    due_date: Optional[datetime]
+    created_at: datetime
+    completed_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+class WorkflowStepResponse(BaseModel):
+    id: str
+    workflow_id: str
+    step_number: int
+    step_type: str
+    assigned_user_id: Optional[str]
+    assigned_role: Optional[str]
+    title: str
+    description: Optional[str]
+    required: bool
+    completed: bool
+    completed_by_user_id: Optional[str]
+    completed_at: Optional[datetime]
+    due_date: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+class DocumentNotificationResponse(BaseModel):
+    id: str
+    user_id: str
+    document_id: Optional[str]
+    workflow_id: Optional[str]
+    notification_type: str
+    title: str
+    message: Optional[str]
+    read: bool
+    read_at: Optional[datetime]
+    action_required: bool
+    action_url: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class DocumentTagResponse(BaseModel):
+    id: str
+    name: str
+    color: Optional[str]
+    description: Optional[str]
+    created_by_user_id: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class DocumentVersionResponse(BaseModel):
+    id: str
+    document_id: str
+    version_number: str
+    filename: str
+    file_path: str
+    s3_key: str
+    file_size: int
+    change_description: Optional[str]
+    created_by_user_id: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# HR Admin Dashboard schemas
+class HRDashboardStatsResponse(BaseModel):
+    total_employees: int
+    active_employees: int
+    pending_approvals: int
+    compliance_alerts: int
+    total_documents: int
+    documents_this_month: int
+    storage_used_gb: float
+    storage_limit_gb: float
+
+class EmployeeSummaryResponse(BaseModel):
+    id: str
+    full_name: str
+    email: str
+    role: str
+    department: Optional[str]
+    status: str
+    documents_count: int
+    last_login: Optional[datetime]
+    created_at: datetime
+
+class DocumentSummaryResponse(BaseModel):
+    id: str
+    original_filename: str
+    document_category: Optional[str]
+    file_size: int
+    file_type: str
+    user_id: str
+    user_full_name: str
+    created_at: datetime
+    status: str
+
+class WorkflowSummaryResponse(BaseModel):
+    id: str
+    name: str
+    workflow_type: str
+    document_id: str
+    document_name: str
+    current_step: int
+    total_steps: int
+    status: str
+    priority: str
+    due_date: Optional[datetime]
+    initiator_full_name: str
+    created_at: datetime
+
+class ComplianceSummaryResponse(BaseModel):
+    id: str
+    rule_name: str
+    violation_type: str
+    severity: str
+    document_name: Optional[str]
+    user_name: Optional[str]
+    description: Optional[str]
+    resolved: bool
+    created_at: datetime
+
+# Document count schemas for sidebar
+class DocumentCountsResponse(BaseModel):
+    my_files_count: int
+    org_files_count: int
+    recent_files_count: int
+    starred_files_count: int
+    logs_count: int
+    uploads_count: int
+    category_counts: Dict[str, int]
+
+# Search schemas
+class SearchResultResponse(BaseModel):
+    employees: List[EmployeeSummaryResponse]
+    documents: List[DocumentSummaryResponse]
+    total_results: int
+    search_time_ms: float
+
+# Analytics schemas
+class DocumentAnalyticsSummaryResponse(BaseModel):
+    total_documents: int
+    total_views: int
+    total_downloads: int
+    total_shares: int
+    documents_by_category: Dict[str, int]
+    documents_by_type: Dict[str, int]
+    uploads_by_month: Dict[str, int]
+    top_viewed_documents: List[DocumentSummaryResponse]
+    recent_activity: List[Dict[str, Any]]
+
 class CompanyUserCredentialsResponse(BaseModel):
     """User credentials and access information for HR admins"""
     id: str

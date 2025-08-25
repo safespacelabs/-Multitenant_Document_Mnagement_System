@@ -72,7 +72,7 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
     },
     {
       id: 'documents',
-      label: 'Documents',
+      label: 'Document Management',
       icon: FileText,
       description: 'Upload and manage files',
       path: '/dashboard/documents'
@@ -121,6 +121,14 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
   }
   
   if (['hr_admin', 'hr_manager'].includes(user?.role)) {
+    menuItems.push({
+      id: 'hr-admin',  
+      label: 'HR Admin',
+      icon: Users,
+      description: 'HR management dashboard',
+      path: '/dashboard/hr-admin'
+    });
+    
     menuItems.push({
       id: 'users',  
       label: 'User Management',
@@ -224,7 +232,25 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
 
   const handleNavigationClick = (path) => {
     navigate(path);
-    setActiveTab('documents'); // Assuming 'documents' is the default active tab for document management
+    // Set active tab based on the path
+    if (path.includes('/documents')) {
+      setActiveTab('documents');
+    } else if (path.includes('/analytics')) {
+      setActiveTab('analytics');
+    } else if (path.includes('/users')) {
+      setActiveTab('users');
+    } else if (path.includes('/hr-admin')) {
+      setActiveTab('hr-admin');
+    } else {
+      setActiveTab('overview');
+    }
+  };
+
+  const handleMenuClick = (item) => {
+    setActiveTab(item.id);
+    if (item.path) {
+      navigate(item.path);
+    }
   };
 
   return (
@@ -342,7 +368,7 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
                   return (
                     <button
                       key={item.id}
-                      onClick={() => setActiveTab(item.id)}
+                      onClick={() => handleMenuClick(item)}
                       className={`w-full flex items-center space-x-3 px-3 py-3 rounded-xl text-left transition-all duration-200 ${
                         isActive
                           ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
@@ -378,7 +404,7 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => handleMenuClick(item)}
                     className={`w-full flex items-center justify-center p-3 rounded-xl transition-all duration-200 ${
                       isActive
                         ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'

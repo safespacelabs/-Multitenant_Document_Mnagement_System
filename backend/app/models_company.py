@@ -279,4 +279,176 @@ class UserActivity(CompanyBase):
     company_id = Column(String, nullable=True)
     
     # Relationships
-    user = relationship("User", backref="activities") 
+    user = relationship("User", backref="activities")
+
+# New models for HR admin analytics and compliance
+class DocumentAnalytics(CompanyBase):
+    __tablename__ = "document_analytics"
+    
+    id = Column(String, primary_key=True, default=lambda: f"analytics_{uuid.uuid4().hex[:8]}")
+    document_id = Column(String, ForeignKey("documents.id"), nullable=False)
+    view_count = Column(Integer, default=0)
+    download_count = Column(Integer, default=0)
+    share_count = Column(Integer, default=0)
+    last_viewed_at = Column(DateTime, nullable=True)
+    last_downloaded_at = Column(DateTime, nullable=True)
+    company_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    document = relationship("Document", backref="analytics")
+
+class ComplianceRule(CompanyBase):
+    __tablename__ = "compliance_rules"
+    
+    id = Column(String, primary_key=True, default=lambda: f"rule_{uuid.uuid4().hex[:8]}")
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    rule_type = Column(String, nullable=False)  # retention, access_control, audit, etc.
+    category_id = Column(String, ForeignKey("document_categories.id"), nullable=True)
+    retention_period_days = Column(Integer, nullable=True)
+    requires_approval = Column(Boolean, default=False)
+    requires_signature = Column(Boolean, default=False)
+    company_id = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    category = relationship("DocumentCategory")
+
+class ComplianceViolation(CompanyBase):
+    __tablename__ = "compliance_violations"
+    
+    id = Column(String, primary_key=True, default=lambda: f"violation_{uuid.uuid4().hex[:8]}")
+    rule_id = Column(String, ForeignKey("compliance_rules.id"), nullable=False)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    violation_type = Column(String, nullable=False)  # retention_expired, unauthorized_access, etc.
+    severity = Column(String, default="medium")  # low, medium, high, critical
+    description = Column(Text, nullable=True)
+    resolved = Column(Boolean, default=False)
+    resolved_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    company_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    rule = relationship("ComplianceRule")
+    document = relationship("Document")
+    user = relationship("User", foreign_keys=[user_id])
+    resolved_by = relationship("User", foreign_keys=[resolved_by_user_id])
+
+class DocumentWorkflow(CompanyBase):
+    __tablename__ = "document_workflows"
+    
+    id = Column(String, primary_key=True, default=lambda: f"workflow_{uuid.uuid4().hex[:8]}")
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    workflow_type = Column(String, nullable=False)  # approval, review, signature, etc.
+    document_id = Column(String, ForeignKey("documents.id"), nullable=False)
+    initiator_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    current_step = Column(Integer, default=1)
+    total_steps = Column(Integer, default=1)
+    status = Column(String, default="pending")  # pending, in_progress, completed, cancelled
+    priority = Column(String, default="normal")  # low, normal, high, urgent
+    due_date = Column(DateTime, nullable=True)
+    company_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    document = relationship("Document")
+    initiator = relationship("User")
+
+class WorkflowStep(CompanyBase):
+    __tablename__ = "workflow_steps"
+    
+    id = Column(String, primary_key=True, default=lambda: f"step_{uuid.uuid4().hex[:8]}")
+    workflow_id = Column(String, ForeignKey("document_workflows.id"), nullable=False)
+    step_number = Column(Integer, nullable=False)
+    step_type = Column(String, nullable=False)  # approval, review, signature, notification
+    assigned_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    assigned_role = Column(String, nullable=True)  # For role-based assignments
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    required = Column(Boolean, default=True)
+    completed = Column(Boolean, default=False)
+    completed_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    due_date = Column(DateTime, nullable=True)
+    company_id = Column(String, nullable=True)
+    
+    # Relationships
+    workflow = relationship("DocumentWorkflow", backref="steps")
+    assigned_user = relationship("User", foreign_keys=[assigned_user_id])
+    completed_by = relationship("User", foreign_keys=[completed_by_user_id])
+
+class DocumentNotification(CompanyBase):
+    __tablename__ = "document_notifications"
+    
+    id = Column(String, primary_key=True, default=lambda: f"notification_{uuid.uuid4().hex[:8]}")
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=True)
+    workflow_id = Column(String, ForeignKey("document_workflows.id"), nullable=True)
+    notification_type = Column(String, nullable=False)  # approval_required, document_shared, workflow_completed, etc.
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=True)
+    read = Column(Boolean, default=False)
+    read_at = Column(DateTime, nullable=True)
+    action_required = Column(Boolean, default=False)
+    action_url = Column(String, nullable=True)
+    company_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", backref="notifications")
+    document = relationship("Document")
+    workflow = relationship("DocumentWorkflow")
+
+class DocumentTag(CompanyBase):
+    __tablename__ = "document_tags"
+    
+    id = Column(String, primary_key=True, default=lambda: f"tag_{uuid.uuid4().hex[:8]}")
+    name = Column(String, nullable=False)
+    color = Column(String, nullable=True)  # Hex color code
+    description = Column(Text, nullable=True)
+    company_id = Column(String, nullable=True)
+    created_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    creator = relationship("User")
+
+class DocumentTagMapping(CompanyBase):
+    __tablename__ = "document_tag_mappings"
+    
+    id = Column(String, primary_key=True, default=lambda: f"tagmap_{uuid.uuid4().hex[:8]}")
+    document_id = Column(String, ForeignKey("documents.id"), nullable=False)
+    tag_id = Column(String, ForeignKey("document_tags.id"), nullable=False)
+    company_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    document = relationship("Document")
+    tag = relationship("DocumentTag")
+
+class DocumentVersion(CompanyBase):
+    __tablename__ = "document_versions"
+    
+    id = Column(String, primary_key=True, default=lambda: f"version_{uuid.uuid4().hex[:8]}")
+    document_id = Column(String, ForeignKey("documents.id"), nullable=False)
+    version_number = Column(String, nullable=False)  # 1.0, 1.1, 2.0, etc.
+    filename = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    s3_key = Column(String, nullable=False)
+    file_size = Column(Integer, nullable=False)
+    change_description = Column(Text, nullable=True)
+    created_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    company_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    document = relationship("Document", backref="versions")
+    creator = relationship("User") 

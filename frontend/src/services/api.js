@@ -730,6 +730,200 @@ const documentsAPI = {
     }
     
     return response.json();
+  },
+
+  // New HR Admin and Analytics APIs
+  getMyDocumentsCount: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/counts/my'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get my documents count');
+    }
+    
+    return response.json();
+  },
+
+  getOrgDocumentsCount: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/counts/org'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get organization documents count');
+    }
+    
+    return response.json();
+  },
+
+  getRecentDocumentsCount: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/counts/recent'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get recent documents count');
+    }
+    
+    return response.json();
+  },
+
+  getStarredDocumentsCount: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/counts/starred'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get starred documents count');
+    }
+    
+    return response.json();
+  },
+
+  getDocumentActivityLogsCount: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/counts/logs'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get document activity logs count');
+    }
+    
+    return response.json();
+  },
+
+  getUploadsCount: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/counts/uploads'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get uploads count');
+    }
+    
+    return response.json();
+  },
+
+  getDocumentAnalyticsSummary: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/analytics/summary'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get document analytics summary');
+    }
+    
+    return response.json();
+  },
+
+  searchDocumentsAndUsers: async (query) => {
+    const response = await fetch(buildApiUrl(`/api/documents/search?query=${encodeURIComponent(query)}`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Search failed');
+    }
+    
+    return response.json();
+  },
+
+  // HR Admin specific APIs
+  getHRDashboardStats: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/hr/stats'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get HR dashboard stats');
+    }
+    
+    return response.json();
+  },
+
+  getHREmployeesList: async (skip = 0, limit = 100) => {
+    const response = await fetch(buildApiUrl(`/api/documents/hr/employees?skip=${skip}&limit=${limit}`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get HR employees list');
+    }
+    
+    return response.json();
+  },
+
+  getHRWorkflowsList: async (skip = 0, limit = 100) => {
+    const response = await fetch(buildApiUrl(`/api/documents/hr/workflows?skip=${skip}&limit=${limit}`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get HR workflows list');
+    }
+    
+    return response.json();
+  },
+
+  getHRComplianceViolations: async (skip = 0, limit = 100) => {
+    const response = await fetch(buildApiUrl(`/api/documents/hr/compliance?skip=${skip}&limit=${limit}`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get HR compliance violations');
+    }
+    
+    return response.json();
   }
 };
 

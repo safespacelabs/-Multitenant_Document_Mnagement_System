@@ -1558,3 +1558,447 @@ async def get_document_statistics(
         finally:
             company_db.close()
 
+# New HR Admin and Analytics APIs
+@router.get("/counts/my", response_model=schemas.DocumentCountsResponse)
+async def get_my_documents_count(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Get count of user's personal documents"""
+    try:
+        # Count user's documents
+        my_count = company_db.query(CompanyDocument).filter(
+            CompanyDocument.user_id == current_user.id,
+            CompanyDocument.company_id == current_user.company_id
+        ).count()
+        
+        return schemas.DocumentCountsResponse(
+            my_files_count=my_count,
+            org_files_count=0,
+            recent_files_count=0,
+            starred_files_count=0,
+            logs_count=0,
+            uploads_count=0,
+            category_counts={}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get document counts: {str(e)}")
+
+@router.get("/counts/org", response_model=schemas.DocumentCountsResponse)
+async def get_org_documents_count(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Get count of organization documents"""
+    try:
+        # Count all company documents
+        org_count = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id
+        ).count()
+        
+        # Get category counts
+        category_counts = {}
+        categories = company_db.query(CompanyDocument.document_category).filter(
+            CompanyDocument.company_id == current_user.company_id,
+            CompanyDocument.document_category.isnot(None)
+        ).distinct().all()
+        
+        for cat in categories:
+            if cat[0]:
+                count = company_db.query(CompanyDocument).filter(
+                    CompanyDocument.company_id == current_user.company_id,
+                    CompanyDocument.document_category == cat[0]
+                ).count()
+                category_counts[cat[0]] = count
+        
+        return schemas.DocumentCountsResponse(
+            my_files_count=0,
+            org_files_count=org_count,
+            recent_files_count=0,
+            starred_files_count=0,
+            logs_count=0,
+            uploads_count=0,
+            category_counts=category_counts
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get organization document counts: {str(e)}")
+
+@router.get("/counts/recent", response_model=schemas.DocumentCountsResponse)
+async def get_recent_documents_count(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Get count of recently accessed documents"""
+    try:
+        # Count documents accessed in last 30 days
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        recent_count = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id,
+            CompanyDocument.created_at >= thirty_days_ago
+        ).count()
+        
+        return schemas.DocumentCountsResponse(
+            my_files_count=0,
+            org_files_count=0,
+            recent_files_count=recent_count,
+            starred_files_count=0,
+            logs_count=0,
+            uploads_count=0,
+            category_counts={}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get recent document counts: {str(e)}")
+
+@router.get("/counts/starred", response_model=schemas.DocumentCountsResponse)
+async def get_starred_documents_count(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Get count of starred documents"""
+    try:
+        # For now, return 0 as starred functionality needs to be implemented
+        # This would require a new table to track starred documents
+        return schemas.DocumentCountsResponse(
+            my_files_count=0,
+            org_files_count=0,
+            recent_files_count=0,
+            starred_files_count=0,
+            logs_count=0,
+            uploads_count=0,
+            category_counts={}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get starred document counts: {str(e)}")
+
+@router.get("/counts/logs", response_model=schemas.DocumentCountsResponse)
+async def get_document_activity_logs_count(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Get count of document activity logs"""
+    try:
+        # Count document audit logs
+        logs_count = company_db.query(DocumentAuditLog).filter(
+            DocumentAuditLog.company_id == current_user.company_id
+        ).count()
+        
+        return schemas.DocumentCountsResponse(
+            my_files_count=0,
+            org_files_count=0,
+            recent_files_count=0,
+            starred_files_count=0,
+            logs_count=logs_count,
+            uploads_count=0,
+            category_counts={}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get document logs count: {str(e)}")
+
+@router.get("/counts/uploads", response_model=schemas.DocumentCountsResponse)
+async def get_uploads_count(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Get count of uploads"""
+    try:
+        # Count documents uploaded by user
+        uploads_count = company_db.query(CompanyDocument).filter(
+            CompanyDocument.user_id == current_user.id,
+            CompanyDocument.company_id == current_user.company_id
+        ).count()
+        
+        return schemas.DocumentCountsResponse(
+            my_files_count=0,
+            org_files_count=0,
+            recent_files_count=0,
+            starred_files_count=0,
+            logs_count=0,
+            uploads_count=uploads_count,
+            category_counts={}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get uploads count: {str(e)}")
+
+@router.get("/analytics/summary", response_model=schemas.DocumentAnalyticsSummaryResponse)
+async def get_document_analytics_summary(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Get document analytics summary for HR admin dashboard"""
+    try:
+        if current_user.role not in ['hr_admin', 'hr_manager']:
+            raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+        
+        # Get total documents
+        total_documents = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id
+        ).count()
+        
+        # Get documents by category
+        categories = company_db.query(CompanyDocument.document_category).filter(
+            CompanyDocument.company_id == current_user.company_id,
+            CompanyDocument.document_category.isnot(None)
+        ).distinct().all()
+        
+        documents_by_category = {}
+        for cat in categories:
+            if cat[0]:
+                count = company_db.query(CompanyDocument).filter(
+                    CompanyDocument.company_id == current_user.company_id,
+                    CompanyDocument.document_category == cat[0]
+                ).count()
+                documents_by_category[cat[0]] = count
+        
+        # Get documents by type
+        file_types = company_db.query(CompanyDocument.file_type).filter(
+            CompanyDocument.company_id == current_user.company_id
+        ).distinct().all()
+        
+        documents_by_type = {}
+        for ft in file_types:
+            if ft[0]:
+                count = company_db.query(CompanyDocument).filter(
+                    CompanyDocument.company_id == current_user.company_id,
+                    CompanyDocument.file_type == ft[0]
+                ).count()
+                documents_by_type[ft[0]] = count
+        
+        # Get uploads by month (last 6 months)
+        uploads_by_month = {}
+        for i in range(6):
+            month_date = datetime.utcnow() - timedelta(days=30*i)
+            month_key = month_date.strftime("%Y-%m")
+            start_date = month_date.replace(day=1)
+            end_date = (start_date + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            
+            count = company_db.query(CompanyDocument).filter(
+                CompanyDocument.company_id == current_user.company_id,
+                CompanyDocument.created_at >= start_date,
+                CompanyDocument.created_at <= end_date
+            ).count()
+            uploads_by_month[month_key] = count
+        
+        # Get top viewed documents (placeholder - would need analytics table)
+        top_viewed_documents = []
+        
+        # Get recent activity
+        recent_activity = []
+        recent_docs = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id
+        ).order_by(CompanyDocument.created_at.desc()).limit(10).all()
+        
+        for doc in recent_docs:
+            recent_activity.append({
+                "action": "uploaded",
+                "document_name": doc.original_filename,
+                "user_name": doc.user.full_name if doc.user else "Unknown",
+                "timestamp": doc.created_at.isoformat(),
+                "document_id": doc.id
+            })
+        
+        return schemas.DocumentAnalyticsSummaryResponse(
+            total_documents=total_documents,
+            total_views=0,  # Placeholder
+            total_downloads=0,  # Placeholder
+            total_shares=0,  # Placeholder
+            documents_by_category=documents_by_category,
+            documents_by_type=documents_by_type,
+            uploads_by_month=uploads_by_month,
+            top_viewed_documents=top_viewed_documents,
+            recent_activity=recent_activity
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get analytics summary: {str(e)}")
+
+@router.get("/search", response_model=schemas.SearchResultResponse)
+async def search_documents_and_users(
+    query: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Search for documents and users"""
+    try:
+        start_time = datetime.utcnow()
+        
+        # Search documents
+        documents = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id,
+            or_(
+                CompanyDocument.original_filename.ilike(f"%{query}%"),
+                CompanyDocument.document_category.ilike(f"%{query}%"),
+                CompanyDocument.description.ilike(f"%{query}%")
+            )
+        ).limit(10).all()
+        
+        # Search users (if HR role)
+        employees = []
+        if current_user.role in ['hr_admin', 'hr_manager']:
+            employees = company_db.query(CompanyUser).filter(
+                CompanyUser.company_id == current_user.company_id,
+                or_(
+                    CompanyUser.full_name.ilike(f"%{query}%"),
+                    CompanyUser.email.ilike(f"%{query}%"),
+                    CompanyUser.role.ilike(f"%{query}%")
+                )
+            ).limit(10).all()
+        
+        search_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        
+        return schemas.SearchResultResponse(
+            employees=[schemas.EmployeeSummaryResponse(
+                id=emp.id,
+                full_name=emp.full_name,
+                email=emp.email,
+                role=emp.role,
+                department=None,  # Would need department field
+                status="active" if emp.is_active else "inactive",
+                documents_count=len(emp.documents),
+                last_login=None,  # Would need login tracking
+                created_at=emp.created_at
+            ) for emp in employees],
+            documents=[schemas.DocumentSummaryResponse(
+                id=doc.id,
+                original_filename=doc.original_filename,
+                document_category=doc.document_category,
+                file_size=doc.file_size,
+                file_type=doc.file_type,
+                user_id=doc.user_id,
+                user_full_name=doc.user.full_name if doc.user else "Unknown",
+                created_at=doc.created_at,
+                status=doc.status
+            ) for doc in documents],
+            total_results=len(employees) + len(documents),
+            search_time_ms=search_time
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+# HR Admin specific endpoints
+@router.get("/hr/stats", response_model=schemas.HRDashboardStatsResponse)
+async def get_hr_dashboard_stats(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Get HR dashboard statistics"""
+    try:
+        if current_user.role not in ['hr_admin', 'hr_manager']:
+            raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+        
+        # Get employee counts
+        total_employees = company_db.query(CompanyUser).filter(
+            CompanyUser.company_id == current_user.company_id
+        ).count()
+        
+        active_employees = company_db.query(CompanyUser).filter(
+            CompanyUser.company_id == current_user.company_id,
+            CompanyUser.is_active == True
+        ).count()
+        
+        # Get document counts
+        total_documents = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id
+        ).count()
+        
+        # Get documents this month
+        month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        documents_this_month = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id,
+            CompanyDocument.created_at >= month_start
+        ).count()
+        
+        # Calculate storage used (in GB)
+        total_size_bytes = company_db.query(func.sum(CompanyDocument.file_size)).filter(
+            CompanyDocument.company_id == current_user.company_id
+        ).scalar() or 0
+        storage_used_gb = total_size_bytes / (1024**3)
+        
+        # Placeholder values for features not yet implemented
+        pending_approvals = 0
+        compliance_alerts = 0
+        storage_limit_gb = 100.0  # 100GB default limit
+        
+        return schemas.HRDashboardStatsResponse(
+            total_employees=total_employees,
+            active_employees=active_employees,
+            pending_approvals=pending_approvals,
+            compliance_alerts=compliance_alerts,
+            total_documents=total_documents,
+            documents_this_month=documents_this_month,
+            storage_used_gb=round(storage_used_gb, 2),
+            storage_limit_gb=storage_limit_gb
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get HR stats: {str(e)}")
+
+@router.get("/hr/employees", response_model=List[schemas.EmployeeSummaryResponse])
+async def get_hr_employees_list(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db),
+    skip: int = 0,
+    limit: int = 100
+):
+    """Get list of employees for HR admin"""
+    try:
+        if current_user.role not in ['hr_admin', 'hr_manager']:
+            raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+        
+        employees = company_db.query(CompanyUser).filter(
+            CompanyUser.company_id == current_user.company_id
+        ).offset(skip).limit(limit).all()
+        
+        return [
+            schemas.EmployeeSummaryResponse(
+                id=emp.id,
+                full_name=emp.full_name,
+                email=emp.email,
+                role=emp.role,
+                department=None,  # Would need department field
+                status="active" if emp.is_active else "inactive",
+                documents_count=len(emp.documents),
+                last_login=None,  # Would need login tracking
+                created_at=emp.created_at
+            ) for emp in employees
+        ]
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get employees list: {str(e)}")
+
+@router.get("/hr/workflows", response_model=List[schemas.WorkflowSummaryResponse])
+async def get_hr_workflows_list(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db),
+    skip: int = 0,
+    limit: int = 100
+):
+    """Get list of workflows for HR admin"""
+    try:
+        if current_user.role not in ['hr_admin', 'hr_manager']:
+            raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+        
+        # Placeholder - workflows not yet implemented
+        return []
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get workflows list: {str(e)}")
+
+@router.get("/hr/compliance", response_model=List[schemas.ComplianceSummaryResponse])
+async def get_hr_compliance_violations(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db),
+    skip: int = 0,
+    limit: int = 100
+):
+    """Get list of compliance violations for HR admin"""
+    try:
+        if current_user.role not in ['hr_admin', 'hr_manager']:
+            raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+        
+        # Placeholder - compliance violations not yet implemented
+        return []
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get compliance violations: {str(e)}")
+

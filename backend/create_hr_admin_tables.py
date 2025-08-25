@@ -1,211 +1,205 @@
 #!/usr/bin/env python3
 """
-Database migration script to create HR admin monitoring tables
-This script adds new tables for tracking user activity, credentials, and login history
+Database migration script to create HR admin tables for company databases.
+This script adds new tables for document analytics, compliance, workflows, and notifications.
 """
 
 import os
 import sys
+import asyncio
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
 
 # Add the app directory to the Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import get_management_db
 from app.models import Company
+from app.models_company import (
+    CompanyBase, DocumentAnalytics, ComplianceRule, ComplianceViolation,
+    DocumentWorkflow, WorkflowStep, DocumentNotification, DocumentTag,
+    DocumentTagMapping, DocumentVersion
+)
+
+def create_hr_admin_tables_for_company(company_db_url):
+    """Create HR admin tables for a specific company database"""
+    try:
+        # Create engine for company database
+        engine = create_engine(company_db_url)
+        
+        # Create all tables
+        CompanyBase.metadata.create_all(engine)
+        
+        print(f"✅ Successfully created HR admin tables for company database")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to create HR admin tables: {str(e)}")
+        return False
 
 def create_hr_admin_tables():
-    """Create HR admin monitoring tables in all company databases"""
-    
+    """Create HR admin tables for all company databases"""
     print("🚀 Starting HR Admin tables creation...")
     
-    # Get management database session
-    management_db_gen = get_management_db()
-    management_db = next(management_db_gen)
-    
     try:
+        # Get management database session
+        management_db = next(get_management_db())
+        
         # Get all active companies
         companies = management_db.query(Company).filter(Company.is_active == True).all()
-        print(f"📋 Found {len(companies)} active companies")
+        
+        print(f"📊 Found {len(companies)} active companies")
+        
+        success_count = 0
+        failed_count = 0
         
         for company in companies:
             print(f"\n🏢 Processing company: {company.name}")
+            print(f"   Database: {company.database_name}")
+            print(f"   URL: {company.database_url}")
             
             try:
-                # Create company database engine
-                company_engine = create_engine(company.database_url)
-                
-                # Create tables
-                create_company_hr_tables(company_engine, company.name)
-                
-                print(f"✅ Successfully created HR admin tables for {company.name}")
-                
+                if create_hr_admin_tables_for_company(company.database_url):
+                    success_count += 1
+                    print(f"   ✅ Success")
+                else:
+                    failed_count += 1
+                    print(f"   ❌ Failed")
+                    
             except Exception as e:
-                print(f"❌ Failed to create tables for {company.name}: {str(e)}")
-                continue
-                
+                failed_count += 1
+                print(f"   ❌ Error: {str(e)}")
+        
+        print(f"\n🎯 Migration Summary:")
+        print(f"   Total companies: {len(companies)}")
+        print(f"   Successful: {success_count}")
+        print(f"   Failed: {failed_count}")
+        
+        if failed_count == 0:
+            print("🎉 All HR admin tables created successfully!")
+        else:
+            print("⚠️  Some companies failed. Check the logs above.")
+            
     except Exception as e:
-        print(f"❌ Error accessing management database: {str(e)}")
+        print(f"❌ Failed to get companies from management database: {str(e)}")
+        return False
     finally:
-        management_db.close()
+        if 'management_db' in locals():
+            management_db.close()
+    
+    return True
 
-def create_company_hr_tables(engine, company_name):
-    """Create HR admin tables in a specific company database"""
-    
-    # SQL statements to create the new tables
-    tables_sql = [
-        """
-        CREATE TABLE IF NOT EXISTS user_login_history (
-            id VARCHAR PRIMARY KEY,
-            user_id VARCHAR NOT NULL,
-            login_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            logout_timestamp TIMESTAMP NULL,
-            ip_address VARCHAR NULL,
-            user_agent TEXT NULL,
-            success BOOLEAN DEFAULT TRUE,
-            failure_reason VARCHAR NULL,
-            company_id VARCHAR NULL,
-            CONSTRAINT fk_login_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-        """,
+def create_sample_data_for_company(company_db_url):
+    """Create sample data for HR admin features"""
+    try:
+        engine = create_engine(company_db_url)
+        Session = sessionmaker(bind=engine)
+        session = Session()
         
-        """
-        CREATE TABLE IF NOT EXISTS user_credentials (
-            id VARCHAR PRIMARY KEY,
-            user_id VARCHAR NOT NULL UNIQUE,
-            hashed_password VARCHAR NOT NULL,
-            password_set_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            password_expires_at TIMESTAMP NULL,
-            last_password_change TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            login_attempts INTEGER DEFAULT 0,
-            account_locked BOOLEAN DEFAULT FALSE,
-            lock_reason VARCHAR NULL,
-            lock_timestamp TIMESTAMP NULL,
-            company_id VARCHAR NULL,
-            CONSTRAINT fk_cred_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-        """,
+        # Create sample document categories
+        from app.models_company import DocumentCategory
         
-        """
-        CREATE TABLE IF NOT EXISTS user_activity (
-            id VARCHAR PRIMARY KEY,
-            user_id VARCHAR NOT NULL,
-            activity_type VARCHAR NOT NULL,
-            activity_details JSON NULL,
-            ip_address VARCHAR NULL,
-            user_agent TEXT NULL,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            company_id VARCHAR NULL,
-            CONSTRAINT fk_activity_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-        """,
+        categories = [
+            {"name": "HR", "display_name": "Human Resources", "description": "HR related documents", "icon": "users", "color": "#3B82F6"},
+            {"name": "Legal", "display_name": "Legal Documents", "description": "Legal and compliance documents", "icon": "scale", "color": "#EF4444"},
+            {"name": "Finance", "display_name": "Financial Reports", "description": "Financial and accounting documents", "icon": "dollar-sign", "color": "#10B981"},
+            {"name": "Operations", "display_name": "Operations", "description": "Operational documents", "icon": "settings", "color": "#8B5CF6"},
+            {"name": "Marketing", "display_name": "Marketing", "description": "Marketing and sales documents", "icon": "trending-up", "color": "#F59E0B"}
+        ]
         
-        """
-        CREATE INDEX IF NOT EXISTS idx_login_history_user_id ON user_login_history(user_id);
-        CREATE INDEX IF NOT EXISTS idx_login_history_timestamp ON user_login_history(login_timestamp);
-        CREATE INDEX IF NOT EXISTS idx_login_history_success ON user_login_history(success);
+        for cat_data in categories:
+            existing = session.query(DocumentCategory).filter(DocumentCategory.name == cat_data["name"]).first()
+            if not existing:
+                category = DocumentCategory(
+                    name=cat_data["name"],
+                    display_name=cat_data["display_name"],
+                    description=cat_data["description"],
+                    icon=cat_data["icon"],
+                    color=cat_data["color"],
+                    is_active=True,
+                    sort_order=len(categories)
+                )
+                session.add(category)
         
-        CREATE INDEX IF NOT EXISTS idx_credentials_user_id ON user_credentials(user_id);
-        CREATE INDEX IF NOT EXISTS idx_credentials_locked ON user_credentials(account_locked);
+        # Create sample compliance rules
+        from app.models_company import ComplianceRule
         
-        CREATE INDEX IF NOT EXISTS idx_activity_user_id ON user_activity(user_id);
-        CREATE INDEX IF NOT EXISTS idx_activity_timestamp ON user_activity(timestamp);
-        CREATE INDEX IF NOT EXISTS idx_activity_type ON user_activity(activity_type);
-        """
-    ]
-    
-    # Execute SQL statements
-    with engine.connect() as connection:
-        for sql in tables_sql:
-            try:
-                connection.execute(text(sql))
-                connection.commit()
-            except SQLAlchemyError as e:
-                print(f"⚠️ Warning executing SQL: {str(e)}")
-                # Continue with other statements even if one fails
-                continue
+        rules = [
+            {
+                "name": "Document Retention Policy",
+                "description": "Documents must be retained for specified periods",
+                "rule_type": "retention",
+                "retention_period_days": 2555,  # 7 years
+                "requires_approval": True,
+                "requires_signature": False
+            },
+            {
+                "name": "Access Control Policy",
+                "description": "Documents must have proper access controls",
+                "rule_type": "access_control",
+                "retention_period_days": None,
+                "requires_approval": True,
+                "requires_signature": False
+            }
+        ]
+        
+        for rule_data in rules:
+            existing = session.query(ComplianceRule).filter(ComplianceRule.name == rule_data["name"]).first()
+            if not existing:
+                rule = ComplianceRule(
+                    name=rule_data["name"],
+                    description=rule_data["description"],
+                    rule_type=rule_data["rule_type"],
+                    retention_period_days=rule_data["retention_period_days"],
+                    requires_approval=rule_data["requires_approval"],
+                    requires_signature=rule_data["requires_signature"],
+                    is_active=True
+                )
+                session.add(rule)
+        
+        session.commit()
+        print(f"✅ Sample data created successfully")
+        session.close()
+        
+    except Exception as e:
+        print(f"❌ Failed to create sample data: {str(e)}")
+        if 'session' in locals():
+            session.rollback()
+            session.close()
 
-def populate_initial_data():
-    """Populate initial data for existing users"""
-    
-    print("\n📊 Populating initial data for existing users...")
-    
-    # Get management database session
-    management_db_gen = get_management_db()
-    management_db = next(management_db_gen)
+def create_sample_data():
+    """Create sample data for all company databases"""
+    print("\n🎨 Creating sample data for HR admin features...")
     
     try:
+        # Get management database session
+        management_db = next(get_management_db())
+        
         # Get all active companies
         companies = management_db.query(Company).filter(Company.is_active == True).all()
         
         for company in companies:
-            print(f"🏢 Populating data for company: {company.name}")
+            print(f"\n🏢 Adding sample data for company: {company.name}")
+            create_sample_data_for_company(company.database_url)
             
-            try:
-                # Create company database engine
-                company_engine = create_engine(company.database_url)
-                
-                # Populate initial credentials for existing users
-                populate_user_credentials(company_engine, company.name)
-                
-                print(f"✅ Successfully populated data for {company.name}")
-                
-            except Exception as e:
-                print(f"❌ Failed to populate data for {company.name}: {str(e)}")
-                continue
-                
     except Exception as e:
-        print(f"❌ Error accessing management database: {str(e)}")
+        print(f"❌ Failed to create sample data: {str(e)}")
     finally:
-        management_db.close()
-
-def populate_user_credentials(engine, company_name):
-    """Populate initial user credentials for existing users"""
-    
-    sql = """
-    INSERT INTO user_credentials (id, user_id, hashed_password, company_id)
-    SELECT 
-        'cred_' || substr(md5(random()::text), 1, 8),
-        u.id,
-        COALESCE(u.hashed_password, ''),
-        u.company_id
-    FROM users u
-    WHERE NOT EXISTS (
-        SELECT 1 FROM user_credentials uc WHERE uc.user_id = u.id
-    );
-    """
-    
-    with engine.connect() as connection:
-        try:
-            result = connection.execute(text(sql))
-            connection.commit()
-            print(f"   📝 Created {result.rowcount} credential records")
-        except SQLAlchemyError as e:
-            print(f"   ⚠️ Warning creating credentials: {str(e)}")
-
-def main():
-    """Main function to run the migration"""
-    
-    print("=" * 60)
-    print("🔧 HR Admin Tables Migration Script")
-    print("=" * 60)
-    
-    try:
-        # Create tables
-        create_hr_admin_tables()
-        
-        # Populate initial data
-        populate_initial_data()
-        
-        print("\n" + "=" * 60)
-        print("✅ HR Admin tables migration completed successfully!")
-        print("=" * 60)
-        
-    except Exception as e:
-        print(f"\n❌ Migration failed: {str(e)}")
-        sys.exit(1)
+        if 'management_db' in locals():
+            management_db.close()
 
 if __name__ == "__main__":
-    main()
+    print("🚀 HR Admin Tables Migration Script")
+    print("=" * 50)
+    
+    # Create tables
+    if create_hr_admin_tables():
+        print("\n" + "=" * 50)
+        
+        # Ask if user wants to create sample data
+        response = input("\n🤔 Would you like to create sample data for HR admin features? (y/n): ")
+        if response.lower() in ['y', 'yes']:
+            create_sample_data()
+    
+    print("\n✨ Migration script completed!")
