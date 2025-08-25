@@ -37,6 +37,8 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
   const [starredFilesCount, setStarredFilesCount] = useState(0);
   const [logsCount, setLogsCount] = useState(0);
   const [uploadsCount, setUploadsCount] = useState(0);
+  const [storageUsed, setStorageUsed] = useState('0 GB');
+  const [teamMembersCount, setTeamMembersCount] = useState(0);
 
   const [organizationFiles, setOrganizationFiles] = useState([
     {
@@ -204,6 +206,28 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
 
         const uploadsRes = await documentsAPI.getUploadsCount();
         setUploadsCount(uploadsRes.data.count);
+
+        // Load storage usage
+        try {
+          const documentsResponse = await documentsAPI.list(null);
+          const documents = documentsResponse.data || documentsResponse || [];
+          const totalSizeBytes = documents.reduce((total, doc) => total + (doc.file_size || 0), 0);
+          const storageUsedGB = totalSizeBytes / (1024 * 1024 * 1024);
+          setStorageUsed(`${storageUsedGB.toFixed(1)} GB`);
+        } catch (error) {
+          console.error('Failed to load storage usage:', error);
+        }
+
+        // Load team members count
+        if (['hr_admin', 'hr_manager', 'system_admin'].includes(user?.role)) {
+          try {
+            const usersResponse = await documentsAPI.getHREmployeesList();
+            const users = usersResponse.data || usersResponse || [];
+            setTeamMembersCount(Array.isArray(users) ? users.length : 0);
+          } catch (error) {
+            console.error('Failed to load team members count:', error);
+          }
+        }
 
         // Update organization files counts
         const updatedOrgFiles = organizationFiles.map(item => {
@@ -432,13 +456,13 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
               
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Storage Used</span>
-                <span className="font-semibold text-gray-900">2.4 GB</span>
+                <span className="font-semibold text-gray-900">{storageUsed || '0 GB'}</span>
               </div>
               
               {['system_admin', 'hr_admin', 'hr_manager'].includes(user?.role) && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Team Members</span>
-                  <span className="font-semibold text-gray-900">18</span>
+                  <span className="font-semibold text-gray-900">{teamMembersCount || 0}</span>
                 </div>
               )}
             </div>

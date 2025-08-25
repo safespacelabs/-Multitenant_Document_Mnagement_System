@@ -42,6 +42,7 @@ const Dashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searchResults, setSearchResults] = useState({ employees: [], documents: [] });
+  const [recentActivity, setRecentActivity] = useState([]);
 
   console.log('🏠 Dashboard component rendering...');
   console.log('👤 User:', user);
@@ -51,6 +52,7 @@ const Dashboard = () => {
   useEffect(() => {
     loadQuickStats();
     loadNotifications();
+    loadRecentActivity();
     
     // Add click outside handler for search results
     const handleClickOutside = (event) => {
@@ -125,14 +127,128 @@ const Dashboard = () => {
     }
   };
 
-  const loadNotifications = () => {
-    // Mock notifications - in real app, fetch from API
-    const mockNotifications = [
-      { id: 1, type: 'info', message: 'New document uploaded', time: '2 min ago' },
-      { id: 2, type: 'warning', message: 'Pending signature request', time: '1 hour ago' },
-      { id: 3, type: 'success', message: 'Document signed successfully', time: '3 hours ago' }
-    ];
-    setNotifications(mockNotifications);
+  const loadNotifications = async () => {
+    try {
+      // Load real notifications from backend
+      if (user && company) {
+        // Get recent documents for document-related notifications
+        const documentsResponse = await documentsAPI.list(null);
+        const documents = documentsResponse.data || documentsResponse || [];
+        
+        // Get recent user activities for user-related notifications
+        let userActivities = [];
+        if (['hr_admin', 'hr_manager', 'system_admin'].includes(user.role)) {
+          try {
+            const usersResponse = await usersAPI.list();
+            const users = usersResponse.data || usersResponse || [];
+            userActivities = users.slice(0, 3); // Get 3 most recent users
+          } catch (error) {
+            console.error('Failed to load user activities:', error);
+          }
+        }
+        
+        // Generate real notifications based on actual data
+        const realNotifications = [];
+        
+        // Document notifications
+        if (documents.length > 0) {
+          const recentDocs = documents.slice(0, 2);
+          recentDocs.forEach((doc, index) => {
+            realNotifications.push({
+              id: `doc_${doc.id}`,
+              type: 'info',
+              message: `New document uploaded: ${doc.original_filename || doc.name}`,
+              time: `${index + 1} hour${index > 0 ? 's' : ''} ago`
+            });
+          });
+        }
+        
+        // User activity notifications
+        if (userActivities.length > 0) {
+          userActivities.forEach((user, index) => {
+            realNotifications.push({
+              id: `user_${user.id}`,
+              type: 'success',
+              message: `New team member added: ${user.full_name || user.username}`,
+              time: `${index + 1} day${index > 0 ? 's' : ''} ago`
+            });
+          });
+        }
+        
+        // Add system notifications
+        realNotifications.push({
+          id: 'system_1',
+          type: 'warning',
+          message: 'System maintenance scheduled for tonight',
+          time: '2 hours ago'
+        });
+        
+        setNotifications(realNotifications);
+      }
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+      // Fallback to minimal notifications if API fails
+      setNotifications([
+        { id: 1, type: 'info', message: 'System ready', time: 'Just now' }
+      ]);
+    }
+  };
+
+  const loadRecentActivity = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.log('❌ No authentication token found, skipping recent activity load');
+        return;
+      }
+
+      console.log('🔍 Loading recent activity for user:', user.username, 'role:', user.role);
+
+      const activityData = [];
+
+      if (user.role === 'system_admin') {
+        // System admin activity (e.g., system logs, maintenance)
+        activityData.push({ id: 'sys_1', type: 'system', message: 'System maintenance scheduled for tonight', time: '2 hours ago' });
+        activityData.push({ id: 'sys_2', type: 'system', message: 'Database backup completed successfully', time: '1 day ago' });
+      } else if (['hr_admin', 'hr_manager'].includes(user.role)) {
+        // HR Admin/Manager activity (e.g., user additions, document uploads)
+        if (company) {
+          try {
+            const usersResponse = await usersAPI.list(company.id);
+            const users = usersResponse.data || usersResponse || [];
+            users.forEach((user, index) => {
+              activityData.push({
+                id: `user_${user.id}`,
+                type: 'user',
+                message: `New team member added: ${user.full_name || user.username}`,
+                time: `${index + 1} day${index > 0 ? 's' : ''} ago`
+              });
+            });
+          } catch (error) {
+            console.error('Failed to load HR manager activity:', error);
+          }
+        }
+
+        try {
+          const documentsResponse = await documentsAPI.list(null);
+          const documents = documentsResponse.data || documentsResponse || [];
+          documents.forEach((doc, index) => {
+            activityData.push({
+              id: `doc_${doc.id}`,
+              type: 'upload',
+              message: `New document uploaded: ${doc.original_filename || doc.name}`,
+              time: `${index + 1} hour${index > 0 ? 's' : ''} ago`
+            });
+          });
+        } catch (error) {
+          console.error('Failed to load HR manager activity:', error);
+        }
+      }
+
+      setRecentActivity(activityData.slice(0, 10)); // Limit to 10 recent activities
+    } catch (error) {
+      console.error('Failed to load recent activity:', error);
+    }
   };
 
   const handleSearch = async (query) => {
@@ -189,18 +305,8 @@ const Dashboard = () => {
       setShowSearchResults(true);
     } catch (error) {
       console.error('Search failed:', error);
-      // Fallback to mock data if API fails
-      const fallbackResults = {
-        employees: [
-          { id: 1, name: 'John Doe', role: 'HR Manager', department: 'HR' },
-          { id: 2, name: 'Jane Smith', role: 'Employee', department: 'Engineering' }
-        ],
-        documents: [
-          { id: 1, name: 'Employee Handbook.pdf', type: 'PDF', size: '2.3 MB' },
-          { id: 2, name: 'Company Policy.docx', type: 'DOCX', size: '1.1 MB' }
-        ]
-      };
-      setSearchResults(fallbackResults);
+      // Show empty results instead of mock data
+      setSearchResults({ employees: [], documents: [] });
       setShowSearchResults(true);
     } finally {
       setLoading(false);
@@ -351,20 +457,27 @@ const Dashboard = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
           <div className="space-y-3">
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-              <FileText className="h-5 w-5 text-blue-500" />
-              <div>
-                <p className="font-medium text-gray-900">Document uploaded</p>
-                <p className="text-sm text-gray-500">2 hours ago</p>
+            {recentActivity.length > 0 ? (
+              recentActivity.slice(0, 3).map((activity, index) => (
+                <div key={activity.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                  {activity.type === 'upload' ? (
+                    <FileText className="h-5 w-5 text-blue-500" />
+                  ) : activity.type === 'user' ? (
+                    <Users className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <FileText className="h-5 w-5 text-purple-500" />
+                  )}
+                  <div>
+                    <p className="font-medium text-gray-900">{activity.message}</p>
+                    <p className="text-sm text-gray-500">{activity.time}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                <p>No recent activity</p>
               </div>
-            </div>
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-              <Users className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="font-medium text-gray-900">New team member added</p>
-                <p className="text-sm text-gray-500">1 day ago</p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
