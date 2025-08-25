@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../utils/auth';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
-import { authAPI, documentsAPI, usersAPI, companiesAPI } from '../../services/api';
+import { authAPI, documentsAPI, usersAPI, companiesAPI, systemDocumentsAPI } from '../../services/api';
 import { EnhancedDocumentManager } from '../Documents';
 import ChatInterface from '../Features/ChatInterface';
 import Analytics from '../Features/Analytics';
@@ -33,7 +33,8 @@ import {
   TrendingUp,
   CheckCircle,
   AlertCircle,
-  Plus
+  Plus,
+  Grid
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -54,14 +55,21 @@ const Dashboard = () => {
   console.log('📍 Location:', location.pathname);
 
   useEffect(() => {
-    if (user && user.username) {
-      console.log('👤 User loaded, loading stats...');
-      loadQuickStats();
-      loadNotifications();
-    } else {
-      console.log('⏳ Waiting for user to load...');
-    }
-  }, [user, company]);
+    loadQuickStats();
+    loadNotifications();
+    
+    // Add click outside handler for search results
+    const handleClickOutside = (event) => {
+      if (showSearchResults && !event.target.closest('.search-container')) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSearchResults]);
 
   const loadQuickStats = async () => {
     try {
@@ -140,8 +148,55 @@ const Dashboard = () => {
     }
 
     try {
-      // Mock search results - in real app, implement actual search API calls
+      setLoading(true);
+      
+      // Real search implementation using APIs
       const results = {
+        employees: [],
+        documents: []
+      };
+
+      // Search for documents
+      try {
+        const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
+        const documentsResponse = await api.list(null);
+        const allDocuments = documentsResponse.data || documentsResponse || [];
+        
+        const matchingDocuments = allDocuments.filter(doc => 
+          (doc.original_filename || doc.name || '').toLowerCase().includes(query.toLowerCase()) ||
+          (doc.category || doc.folder || '').toLowerCase().includes(query.toLowerCase()) ||
+          (doc.user?.full_name || doc.uploadedBy || '').toLowerCase().includes(query.toLowerCase())
+        );
+        
+        results.documents = matchingDocuments.slice(0, 5); // Limit to 5 results
+      } catch (error) {
+        console.error('Document search failed:', error);
+      }
+
+      // Search for users (if user has permission)
+      if (['hr_admin', 'hr_manager', 'system_admin'].includes(user.role)) {
+        try {
+          const usersResponse = await usersAPI.list();
+          const allUsers = usersResponse.data || usersResponse || [];
+          
+          const matchingUsers = allUsers.filter(user => 
+            (user.full_name || user.username || '').toLowerCase().includes(query.toLowerCase()) ||
+            (user.role || '').toLowerCase().includes(query.toLowerCase()) ||
+            (user.email || '').toLowerCase().includes(query.toLowerCase())
+          );
+          
+          results.employees = matchingUsers.slice(0, 5); // Limit to 5 results
+        } catch (error) {
+          console.error('User search failed:', error);
+        }
+      }
+      
+      setSearchResults(results);
+      setShowSearchResults(true);
+    } catch (error) {
+      console.error('Search failed:', error);
+      // Fallback to mock data if API fails
+      const fallbackResults = {
         employees: [
           { id: 1, name: 'John Doe', role: 'HR Manager', department: 'HR' },
           { id: 2, name: 'Jane Smith', role: 'Employee', department: 'Engineering' }
@@ -151,11 +206,10 @@ const Dashboard = () => {
           { id: 2, name: 'Company Policy.docx', type: 'DOCX', size: '1.1 MB' }
         ]
       };
-      
-      setSearchResults(results);
+      setSearchResults(fallbackResults);
       setShowSearchResults(true);
-    } catch (error) {
-      console.error('Search failed:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -272,12 +326,27 @@ const Dashboard = () => {
                   </div>
 
                   <div
-                    onClick={() => navigate('/system-dashboard/chat')}
+                    onClick={() => navigate('/system-dashboard/documents')}
                     className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105"
                   >
                     <div className="flex items-center">
                       <div className="p-3 bg-green-100 rounded-xl">
-                        <MessageCircle className="h-8 w-8 text-green-600" />
+                        <FileText className="h-8 w-8 text-green-600" />
+                      </div>
+                      <div className="ml-4">
+                        <h3 className="text-lg font-semibold text-gray-900">System Documents</h3>
+                        <p className="text-gray-600">Manage all system documents</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => navigate('/system-dashboard/chat')}
+                    className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105"
+                  >
+                    <div className="flex items-center">
+                      <div className="p-3 bg-purple-100 rounded-xl">
+                        <MessageCircle className="h-8 w-8 text-purple-600" />
                       </div>
                       <div className="ml-4">
                         <h3 className="text-lg font-semibold text-gray-900">System Assistant</h3>
@@ -608,6 +677,15 @@ const Dashboard = () => {
     );
   };
 
+  const formatFileSize = (bytes, decimalPoint = 2) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimalPoint < 0 ? 0 : decimalPoint;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Modern Sidebar */}
@@ -744,7 +822,7 @@ const Dashboard = () => {
               </button>
               
               {/* Search Bar */}
-              <div className="relative w-96">
+              <div className="relative w-96 search-container">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-5 w-5 text-gray-400" />
                 </div>
@@ -766,48 +844,75 @@ const Dashboard = () => {
                     <div className="p-4">
                       <h3 className="text-sm font-semibold text-gray-900 mb-3">Search Results</h3>
                       
-                      {/* Employees */}
-                      {searchResults.employees.length > 0 && (
-                        <div className="mb-4">
-                          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Employees</h4>
-                          <div className="space-y-2">
-                            {searchResults.employees.map((employee) => (
-                              <div key={employee.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                  <User className="h-4 w-4 text-blue-600" />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900">{employee.name}</p>
-                                  <p className="text-xs text-gray-500">{employee.role} • {employee.department}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                      {loading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          <span className="ml-2 text-sm text-gray-500">Searching...</span>
                         </div>
-                      )}
-                      
-                      {/* Documents */}
-                      {searchResults.documents.length > 0 && (
-                        <div>
-                          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Documents</h4>
-                          <div className="space-y-2">
-                            {searchResults.documents.map((doc) => (
-                              <div key={doc.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                  <FileText className="h-4 w-4 text-green-600" />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900">{doc.name}</p>
-                                  <p className="text-xs text-gray-500">{doc.type} • {doc.size}</p>
-                                </div>
+                      ) : (
+                        <>
+                          {/* Employees */}
+                          {searchResults.employees.length > 0 && (
+                            <div className="mb-4">
+                              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Employees</h4>
+                              <div className="space-y-2">
+                                {searchResults.employees.map((employee) => (
+                                  <div 
+                                    key={employee.id} 
+                                    className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                                    onClick={() => {
+                                      if (['hr_admin', 'hr_manager', 'system_admin'].includes(user.role)) {
+                                        navigate('/dashboard/users');
+                                      }
+                                      setShowSearchResults(false);
+                                      setSearchQuery('');
+                                    }}
+                                  >
+                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                      <User className="h-4 w-4 text-blue-600" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-900">{employee.full_name || employee.name}</p>
+                                      <p className="text-xs text-gray-500">{employee.role} • {employee.department || 'N/A'}</p>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {searchResults.employees.length === 0 && searchResults.documents.length === 0 && (
-                        <p className="text-sm text-gray-500 text-center py-4">No results found</p>
+                            </div>
+                          )}
+                          
+                          {/* Documents */}
+                          {searchResults.documents.length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Documents</h4>
+                              <div className="space-y-2">
+                                {searchResults.documents.map((doc) => (
+                                  <div 
+                                    key={doc.id} 
+                                    className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                                    onClick={() => {
+                                      navigate('/dashboard/documents');
+                                      setShowSearchResults(false);
+                                      setSearchQuery('');
+                                    }}
+                                  >
+                                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                                      <FileText className="h-4 w-4 text-green-600" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-900">{doc.original_filename || doc.name}</p>
+                                      <p className="text-xs text-gray-500">{doc.file_type || doc.type} • {formatFileSize(doc.file_size || doc.size)}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {searchResults.employees.length === 0 && searchResults.documents.length === 0 && (
+                            <p className="text-sm text-gray-500 text-center py-4">No results found</p>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

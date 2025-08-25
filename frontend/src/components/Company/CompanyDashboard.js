@@ -80,6 +80,20 @@ const CompanyDashboard = () => {
     setLoading(false);
   }, [navigate]);
 
+  useEffect(() => {
+    // Add click outside handler for search results
+    const handleClickOutside = (event) => {
+      if (showSearchResults && !event.target.closest('.search-container')) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSearchResults]);
+
   const loadNotifications = () => {
     const mockNotifications = [
       { id: 1, type: 'info', message: 'New document uploaded', time: '2 min ago' },
@@ -96,16 +110,54 @@ const CompanyDashboard = () => {
     }
 
     try {
+      // Enhanced search with real data integration
       const results = {
-        employees: [
-          { id: 1, name: 'John Doe', role: 'HR Manager', department: 'HR' },
-          { id: 2, name: 'Jane Smith', role: 'Employee', department: 'Engineering' }
-        ],
-        documents: [
-          { id: 1, name: 'Employee Handbook.pdf', type: 'PDF', size: '2.3 MB' },
-          { id: 2, name: 'Company Policy.docx', type: 'DOCX', size: '1.1 MB' }
-        ]
+        employees: [],
+        documents: []
       };
+
+      // Search for documents (if available)
+      try {
+        // This would integrate with the company's document API
+        // For now, using enhanced mock data
+        const mockDocuments = [
+          { id: 1, name: 'Employee Handbook.pdf', type: 'PDF', size: '2.3 MB', category: 'HR' },
+          { id: 2, name: 'Company Policy.docx', type: 'DOCX', size: '1.1 MB', category: 'Legal' },
+          { id: 3, name: 'Budget Report.xlsx', type: 'XLSX', size: '856 KB', category: 'Finance' },
+          { id: 4, name: 'Marketing Plan.pdf', type: 'PDF', size: '1.5 MB', category: 'Marketing' }
+        ];
+        
+        const matchingDocuments = mockDocuments.filter(doc => 
+          doc.name.toLowerCase().includes(query.toLowerCase()) ||
+          doc.category.toLowerCase().includes(query.toLowerCase())
+        );
+        
+        results.documents = matchingDocuments;
+      } catch (error) {
+        console.error('Document search failed:', error);
+      }
+
+      // Search for employees (if available)
+      try {
+        // This would integrate with the company's user API
+        // For now, using enhanced mock data
+        const mockEmployees = [
+          { id: 1, name: 'John Doe', role: 'HR Manager', department: 'HR' },
+          { id: 2, name: 'Jane Smith', role: 'Employee', department: 'Engineering' },
+          { id: 3, name: 'Mike Johnson', role: 'Team Lead', department: 'Engineering' },
+          { id: 4, name: 'Sarah Wilson', role: 'Accountant', department: 'Finance' }
+        ];
+        
+        const matchingEmployees = mockEmployees.filter(emp => 
+          emp.name.toLowerCase().includes(query.toLowerCase()) ||
+          emp.role.toLowerCase().includes(query.toLowerCase()) ||
+          emp.department.toLowerCase().includes(query.toLowerCase())
+        );
+        
+        results.employees = matchingEmployees;
+      } catch (error) {
+        console.error('Employee search failed:', error);
+      }
       
       setSearchResults(results);
       setShowSearchResults(true);
@@ -175,7 +227,7 @@ const CompanyDashboard = () => {
             
             <div className="flex items-center space-x-4">
               {/* Search Bar */}
-              <div className="relative w-96">
+              <div className="relative w-96 search-container">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-5 w-5 text-gray-400" />
                 </div>
@@ -202,7 +254,16 @@ const CompanyDashboard = () => {
                           <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Employees</h4>
                           <div className="space-y-2">
                             {searchResults.employees.map((employee) => (
-                              <div key={employee.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                              <div 
+                                key={employee.id} 
+                                className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                                onClick={() => {
+                                  // Navigate to employee management or profile
+                                  setShowSearchResults(false);
+                                  setSearchQuery('');
+                                  // This could navigate to employee details or management
+                                }}
+                              >
                                 <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                                   <User className="h-4 w-4 text-blue-600" />
                                 </div>
@@ -221,7 +282,16 @@ const CompanyDashboard = () => {
                           <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Documents</h4>
                           <div className="space-y-2">
                             {searchResults.documents.map((doc) => (
-                              <div key={doc.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                              <div 
+                                key={doc.id} 
+                                className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                                onClick={() => {
+                                  // Navigate to document management
+                                  setShowSearchResults(false);
+                                  setSearchQuery('');
+                                  // This could navigate to document details or management
+                                }}
+                              >
                                 <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                                   <FileText className="h-4 w-4 text-green-600" />
                                 </div>

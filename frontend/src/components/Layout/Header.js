@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../utils/auth';
 import { 
   Search,
@@ -60,6 +60,20 @@ function Header({ sidebarOpen, setSidebarOpen, searchQuery, setSearchQuery, onSe
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  useEffect(() => {
+    // Add click outside handler for search results
+    const handleClickOutside = (event) => {
+      if (showSearchResults && !event.target.closest('.search-container')) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSearchResults]);
+
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="flex items-center justify-between px-6 py-4">
@@ -72,7 +86,7 @@ function Header({ sidebarOpen, setSidebarOpen, searchQuery, setSearchQuery, onSe
           </button>
           
           {/* Search Bar */}
-          <div className="relative w-96">
+          <div className="relative w-96 search-container">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-gray-400" />
             </div>

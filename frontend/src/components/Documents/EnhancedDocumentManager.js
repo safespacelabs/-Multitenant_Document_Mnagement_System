@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../utils/auth';
+import { documentsAPI, systemDocumentsAPI } from '../../services/api';
 import { 
   Search,
   Filter,
@@ -30,8 +32,10 @@ import {
 } from 'lucide-react';
 
 const EnhancedDocumentManager = () => {
+  const { user, company } = useAuth();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [showFilters, setShowFilters] = useState(false);
@@ -43,78 +47,175 @@ const EnhancedDocumentManager = () => {
   });
   const [selectedDocuments, setSelectedDocuments] = useState([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [folders, setFolders] = useState([]);
+  const [selectedFolder, setSelectedFolder] = useState(null);
 
   useEffect(() => {
     loadDocuments();
-  }, []);
+    loadFolders();
+  }, [selectedFolder]);
 
   const loadDocuments = async () => {
     try {
-      // Mock data - replace with actual API call
-      const mockDocuments = [
-        {
-          id: 1,
-          name: 'performance_report_2024.pdf',
-          type: 'PDF',
-          size: '1.04 MB',
-          category: 'HR',
-          uploadedBy: 'John Doe',
-          uploadDate: '2025-01-08',
-          lastModified: '2025-01-08',
-          status: 'active',
-          starred: false,
-          tags: ['performance', 'hr', '2024']
-        },
-        {
-          id: 2,
-          name: 'companies.csv',
-          type: 'CSV',
-          size: '1.59 KB',
-          category: 'Data',
-          uploadedBy: 'Jane Smith',
-          uploadDate: '2025-01-01',
-          lastModified: '2025-01-01',
-          status: 'active',
-          starred: true,
-          tags: ['data', 'companies', 'csv']
-        },
-        {
-          id: 3,
-          name: 'employee_handbook.docx',
-          type: 'DOCX',
-          size: '2.3 MB',
-          category: 'HR',
-          uploadedBy: 'HR Admin',
-          uploadDate: '2024-12-15',
-          lastModified: '2024-12-20',
-          status: 'active',
-          starred: false,
-          tags: ['handbook', 'hr', 'policy']
-        },
-        {
-          id: 4,
-          name: 'company_logo.png',
-          type: 'PNG',
-          size: '856 KB',
-          category: 'Marketing',
-          uploadedBy: 'Marketing Team',
-          uploadDate: '2024-11-30',
-          lastModified: '2024-11-30',
-          status: 'active',
-          starred: true,
-          tags: ['logo', 'branding', 'marketing']
-        }
-      ];
+      setLoading(true);
+      setError(null);
       
-      setDocuments(mockDocuments);
-      setLoading(false);
+      // Use appropriate API based on user role
+      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
+      const response = await api.list(selectedFolder);
+      
+      const documentsData = response.data || response || [];
+      setDocuments(documentsData);
     } catch (error) {
       console.error('Failed to load documents:', error);
+      setError('Failed to load documents. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
 
+  const loadFolders = async () => {
+    try {
+      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
+      const response = await api.folders();
+      const foldersData = response.data || response || [];
+      setFolders(foldersData);
+    } catch (error) {
+      console.error('Failed to load folders:', error);
+    }
+  };
+
+  const handleUpload = async (files) => {
+    if (!files || files.length === 0) return;
+    
+    try {
+      setUploading(true);
+      setUploadProgress(0);
+      
+      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
+      const folderToUse = selectedFolder || 'General';
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const progress = ((i + 1) / files.length) * 100;
+        setUploadProgress(progress);
+        
+        await api.upload(file, folderToUse);
+      }
+      
+      // Reload documents after upload
+      await loadDocuments();
+      setShowUploadModal(false);
+      setUploadProgress(0);
+      
+      // Show success message
+      alert(`${files.length} file(s) uploaded successfully!`);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleDownload = async (document) => {
+    try {
+      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
+      const response = await api.download(document.id);
+      
+      // Create download link
+      const blob = new Blob([response]);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = document.original_filename || document.name;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Download failed. Please try again.');
+    }
+  };
+
+  const handleDelete = async (documentId) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) {
+      return;
+    }
+    
+    try {
+      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
+      await api.delete(documentId);
+      
+      // Remove from local state
+      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      setSelectedDocuments(prev => prev.filter(id => id !== documentId));
+      
+      alert('Document deleted successfully!');
+    } catch (error) {
+      console.error('Delete failed:', error);
+      alert('Delete failed. Please try again.');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedDocuments.length === 0) {
+      alert('Please select documents to delete.');
+      return;
+    }
+    
+    if (!window.confirm(`Are you sure you want to delete ${selectedDocuments.length} document(s)?`)) {
+      return;
+    }
+    
+    try {
+      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
+      
+      for (const docId of selectedDocuments) {
+        await api.delete(docId);
+      }
+      
+      // Reload documents
+      await loadDocuments();
+      setSelectedDocuments([]);
+      
+      alert(`${selectedDocuments.length} document(s) deleted successfully!`);
+    } catch (error) {
+      console.error('Bulk delete failed:', error);
+      alert('Some documents could not be deleted. Please try again.');
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedDocuments.length === 0) {
+      alert('Please select documents to download.');
+      return;
+    }
+    
+    try {
+      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
+      
+      for (const docId of selectedDocuments) {
+        const doc = documents.find(d => d.id === docId);
+        if (doc) {
+          await handleDownload(doc);
+        }
+      }
+      
+      alert(`${selectedDocuments.length} document(s) download started!`);
+    } catch (error) {
+      console.error('Bulk download failed:', error);
+      alert('Some documents could not be downloaded. Please try again.');
+    }
+  };
+
   const getFileIcon = (fileType) => {
+    if (!fileType) return <File className="h-8 w-8 text-gray-500" />;
+    
     switch (fileType.toLowerCase()) {
       case 'pdf':
         return <FileText className="h-8 w-8 text-red-500" />;
@@ -142,15 +243,22 @@ const EnhancedDocumentManager = () => {
     }
   };
 
-  const formatFileSize = (size) => {
-    return size;
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return 'Unknown';
     return new Date(dateString).toLocaleDateString();
   };
 
   const toggleStar = (documentId) => {
+    // This would need to be implemented in the backend
+    // For now, just update local state
     setDocuments(prev => 
       prev.map(doc => 
         doc.id === documentId ? { ...doc, starred: !doc.starred } : doc
@@ -166,31 +274,20 @@ const EnhancedDocumentManager = () => {
     );
   };
 
-  const handleDownload = (document) => {
-    // Implement download functionality
-    console.log('Downloading:', document.name);
-  };
-
   const handleShare = (document) => {
-    // Implement share functionality
-    console.log('Sharing:', document.name);
-  };
-
-  const handleDelete = (documentId) => {
-    if (window.confirm('Are you sure you want to delete this document?')) {
-      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-      setSelectedDocuments(prev => prev.filter(id => id !== documentId));
-    }
+    // This would need to be implemented in the backend
+    alert(`Share functionality for ${document.original_filename || document.name} would be implemented here.`);
   };
 
   const filteredDocuments = documents.filter(doc => {
-    const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         doc.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         doc.uploadedBy.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = 
+      (doc.original_filename || doc.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (doc.category || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (doc.user?.full_name || doc.uploadedBy || '').toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesCategory = !filters.category || doc.category === filters.category;
-    const matchesFileType = !filters.fileType || doc.type === filters.fileType;
-    const matchesEmployee = !filters.employee || doc.uploadedBy === filters.employee;
+    const matchesFileType = !filters.fileType || (doc.file_type || doc.type) === filters.fileType;
+    const matchesEmployee = !filters.employee || (doc.user?.full_name || doc.uploadedBy) === filters.employee;
     
     return matchesSearch && matchesCategory && matchesFileType && matchesEmployee;
   });
@@ -199,6 +296,20 @@ const EnhancedDocumentManager = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-red-600 mb-4">{error}</div>
+        <button 
+          onClick={loadDocuments}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -222,13 +333,58 @@ const EnhancedDocumentManager = () => {
           </button>
           
           {selectedDocuments.length > 0 && (
-            <button className="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 transition-colors flex items-center space-x-2">
-              <Download className="h-4 w-4" />
-              <span>Download ({selectedDocuments.length})</span>
-            </button>
+            <>
+              <button 
+                onClick={handleBulkDownload}
+                className="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 transition-colors flex items-center space-x-2"
+              >
+                <Download className="h-4 w-4" />
+                <span>Download ({selectedDocuments.length})</span>
+              </button>
+              
+              <button 
+                onClick={handleBulkDelete}
+                className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 transition-colors flex items-center space-x-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Delete ({selectedDocuments.length})</span>
+              </button>
+            </>
           )}
         </div>
       </div>
+
+      {/* Folder Selection */}
+      {folders.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Current Folder</h3>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedFolder(null)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                !selectedFolder 
+                  ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Documents
+            </button>
+            {folders.map((folder) => (
+              <button
+                key={folder.id || folder.name}
+                onClick={() => setSelectedFolder(folder.name)}
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                  selectedFolder === folder.name 
+                    ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {folder.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Search and Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -313,11 +469,11 @@ const EnhancedDocumentManager = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">All Types</option>
-                  <option value="PDF">PDF</option>
-                  <option value="DOCX">DOCX</option>
-                  <option value="CSV">CSV</option>
-                  <option value="PNG">PNG</option>
-                  <option value="XLSX">XLSX</option>
+                  <option value="pdf">PDF</option>
+                  <option value="docx">DOCX</option>
+                  <option value="xlsx">XLSX</option>
+                  <option value="png">PNG</option>
+                  <option value="jpg">JPG</option>
                 </select>
               </div>
 
@@ -329,10 +485,9 @@ const EnhancedDocumentManager = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">All Employees</option>
-                  <option value="John Doe">John Doe</option>
-                  <option value="Jane Smith">Jane Smith</option>
-                  <option value="HR Admin">HR Admin</option>
-                  <option value="Marketing Team">Marketing Team</option>
+                  {Array.from(new Set(documents.map(doc => doc.user?.full_name || doc.uploadedBy).filter(Boolean))).map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -391,7 +546,7 @@ const EnhancedDocumentManager = () => {
                     }}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  {getFileIcon(document.type)}
+                  {getFileIcon(document.file_type || document.type)}
                 </div>
                 
                 <div className="flex items-center space-x-1">
@@ -420,25 +575,25 @@ const EnhancedDocumentManager = () => {
               </div>
 
               <div className="space-y-2">
-                <h3 className="font-medium text-gray-900 truncate" title={document.name}>
-                  {document.name}
+                <h3 className="font-medium text-gray-900 truncate" title={document.original_filename || document.name}>
+                  {document.original_filename || document.name}
                 </h3>
                 
                 <div className="text-sm text-gray-500 space-y-1">
                   <div className="flex items-center space-x-2">
-                    <span>{formatFileSize(document.size)}</span>
+                    <span>{formatFileSize(document.file_size || document.size)}</span>
                     <span>•</span>
-                    <span>{formatDate(document.uploadDate)}</span>
+                    <span>{formatDate(document.created_at || document.uploadDate)}</span>
                   </div>
                   
                   <div className="flex items-center space-x-2">
                     <User className="h-3 w-3" />
-                    <span>{document.uploadedBy}</span>
+                    <span>{document.user?.full_name || document.uploadedBy || 'Unknown'}</span>
                   </div>
                   
                   <div className="flex items-center space-x-2">
                     <Folder className="h-3 w-3" />
-                    <span>{document.category}</span>
+                    <span>{document.category || document.folder || 'General'}</span>
                   </div>
                 </div>
 
@@ -534,27 +689,27 @@ const EnhancedDocumentManager = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          {getFileIcon(document.type)}
+                          {getFileIcon(document.file_type || document.type)}
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{document.name}</div>
-                          <div className="text-sm text-gray-500">{document.type}</div>
+                          <div className="text-sm font-medium text-gray-900">{document.original_filename || document.name}</div>
+                          <div className="text-sm text-gray-500">{document.file_type || document.type}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                        {document.category}
+                        {document.category || document.folder || 'General'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatFileSize(document.size)}
+                      {formatFileSize(document.file_size || document.size)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {document.uploadedBy}
+                      {document.user?.full_name || document.uploadedBy || 'Unknown'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(document.uploadDate)}
+                      {formatDate(document.created_at || document.uploadDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
@@ -633,14 +788,33 @@ const EnhancedDocumentManager = () => {
                 <div className="mt-4">
                   <p className="text-sm text-gray-600">
                     Drag and drop files here, or{' '}
-                    <button className="text-blue-600 hover:text-blue-500 font-medium">
+                    <label className="text-blue-600 hover:text-blue-500 font-medium cursor-pointer">
                       browse
-                    </button>
+                      <input
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => handleUpload(Array.from(e.target.files))}
+                        accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt,.csv"
+                      />
+                    </label>
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     PDF, DOCX, XLSX, PNG, JPG up to 10MB
                   </p>
                 </div>
+                
+                {uploading && (
+                  <div className="mt-4">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-2">Uploading... {Math.round(uploadProgress)}%</p>
+                  </div>
+                )}
               </div>
               
               <div className="mt-4 flex justify-end space-x-3">
@@ -649,9 +823,6 @@ const EnhancedDocumentManager = () => {
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
                 >
                   Cancel
-                </button>
-                <button className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-                  Upload
                 </button>
               </div>
             </div>
