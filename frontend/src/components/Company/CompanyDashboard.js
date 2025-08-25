@@ -164,12 +164,12 @@ const CompanyDashboard = () => {
 
   const loadCompanyData = async (companyId) => {
     try {
-      // Try to get company data from backend
-      const companyResponse = await companiesAPI.get(companyId);
-      if (companyResponse && companyResponse.data) {
+      // Try to get company data from backend using the public endpoint
+      const companyResponse = await companiesAPI.getPublic(companyId);
+      if (companyResponse && companyResponse.name) {
         setCompanyData({
           id: companyId,
-          name: companyResponse.data.name || 'Company'
+          name: companyResponse.name || 'Company'
         });
       } else {
         // Fallback to user data if backend fails

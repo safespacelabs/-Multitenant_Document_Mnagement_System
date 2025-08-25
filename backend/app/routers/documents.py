@@ -2021,9 +2021,10 @@ async def upload_options():
     return Response(
         status_code=200,
         headers={
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": "https://multitenant-frontend.onrender.com",
             "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, Origin, User-Agent, Cache-Control, X-Requested-With",
+            "Access-Control-Allow-Credentials": "true",
             "Access-Control-Max-Age": "3600"
         }
     )

@@ -202,6 +202,28 @@ const companiesAPI = {
     return data;
   },
 
+  get: async (companyId) => {
+    console.log('🏢 Making company get request to:', buildApiUrl(`/api/companies/${companyId}`));
+    const response = await fetch(buildApiUrl(`/api/companies/${companyId}`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    console.log('📥 Company get response status:', response.status);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('❌ Company get failed:', error);
+      throw new Error(error.detail || 'Failed to fetch company');
+    }
+    
+    const data = await response.json();
+    console.log('✅ Company get successful:', data);
+    return data;
+  },
+
   create: async (companyData) => {
     const response = await fetch(buildApiUrl('/api/companies/'), {
       method: 'POST',
@@ -527,8 +549,24 @@ const documentsAPI = {
     
     console.log('📤 Uploading file:', file.name, 'to folder:', folderName);
     console.log('🔗 Upload URL:', buildApiUrl('/api/documents/upload'));
+    console.log('🔐 Authorization token:', localStorage.getItem('access_token') ? 'Present' : 'Missing');
     
     try {
+      // First, test the CORS preflight
+      console.log('🧪 Testing CORS preflight...');
+      const preflightResponse = await fetch(buildApiUrl('/api/documents/upload'), {
+        method: 'OPTIONS',
+        headers: {
+          'Origin': window.location.origin,
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'Authorization, Content-Type'
+        }
+      });
+      
+      console.log('📥 Preflight response status:', preflightResponse.status);
+      console.log('📥 Preflight response headers:', Object.fromEntries(preflightResponse.headers.entries()));
+      
+      // Now make the actual upload request
       const response = await fetch(buildApiUrl('/api/documents/upload'), {
         method: 'POST',
         headers: {
