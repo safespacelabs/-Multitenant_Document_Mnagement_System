@@ -53,6 +53,7 @@ const CompanyDashboard = () => {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searchResults, setSearchResults] = useState({ employees: [], documents: [] });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -64,10 +65,8 @@ const CompanyDashboard = () => {
         const user = JSON.parse(userDataStr);
         setUserData(user);
         
-        setCompanyData({
-          id: companyId,
-          name: user.company_name || 'Your Company'
-        });
+        // Load real company data from backend
+        loadCompanyData(companyId);
         
         loadNotifications();
       } catch (error) {
@@ -87,13 +86,16 @@ const CompanyDashboard = () => {
       if (showSearchResults && !event.target.closest('.search-container')) {
         setShowSearchResults(false);
       }
+      if (showNotificationsPanel && !event.target.closest('.notifications-panel')) {
+        setShowNotificationsPanel(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showSearchResults]);
+  }, [showSearchResults, showNotificationsPanel]);
 
   const loadNotifications = async () => {
     try {
@@ -157,6 +159,34 @@ const CompanyDashboard = () => {
       setNotifications([
         { id: 1, type: 'info', message: 'System ready', time: 'Just now' }
       ]);
+    }
+  };
+
+  const loadCompanyData = async (companyId) => {
+    try {
+      // Try to get company data from backend
+      const companyResponse = await companiesAPI.get(companyId);
+      if (companyResponse && companyResponse.data) {
+        setCompanyData({
+          id: companyId,
+          name: companyResponse.data.name || 'Company'
+        });
+      } else {
+        // Fallback to user data if backend fails
+        const user = JSON.parse(localStorage.getItem('user_data') || '{}');
+        setCompanyData({
+          id: companyId,
+          name: user.company_name || 'Company'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load company data:', error);
+      // Fallback to user data if backend fails
+      const user = JSON.parse(localStorage.getItem('user_data') || '{}');
+      setCompanyData({
+        id: companyId,
+        name: user.company_name || 'Company'
+      });
     }
   };
 
@@ -370,13 +400,32 @@ const CompanyDashboard = () => {
 
               {/* Header Icons */}
               <div className="flex items-center space-x-2">
-                <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                <button 
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                  onClick={() => setShowSearchResults(!showSearchResults)}
+                  title="Search"
+                >
                   <Search className="h-5 w-5" />
                 </button>
-                <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                <button 
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                  onClick={() => {
+                    // Toggle favorites view or show favorite documents
+                    console.log('Favorites clicked');
+                    // You can implement favorites functionality here
+                  }}
+                  title="Favorites"
+                >
                   <Star className="h-5 w-5" />
                 </button>
-                <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 relative">
+                <button 
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 relative"
+                  onClick={() => {
+                    // Toggle notifications panel
+                    setShowNotificationsPanel(!showNotificationsPanel);
+                  }}
+                  title="Notifications"
+                >
                   <Bell className="h-5 w-5" />
                   {notifications.length > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
@@ -384,10 +433,28 @@ const CompanyDashboard = () => {
                     </span>
                   )}
                 </button>
-                <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                <button 
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                  onClick={() => {
+                    // Open chat or messaging system
+                    console.log('Chat clicked');
+                    // You can implement chat functionality here
+                    navigate('/dashboard/chat');
+                  }}
+                  title="Chat"
+                >
                   <MessageCircle className="h-5 w-5" />
                 </button>
-                <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                <button 
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                  onClick={() => {
+                    // Open help/support system
+                    console.log('Support clicked');
+                    // You can implement support functionality here
+                    // This could open a help modal or navigate to support page
+                  }}
+                  title="Help & Support"
+                >
                   <Headphones className="h-5 w-5" />
                 </button>
               </div>
@@ -659,6 +726,58 @@ const CompanyDashboard = () => {
           </div>
         </div>
       </main>
+
+      {/* Notifications Panel */}
+      {showNotificationsPanel && (
+        <div className="fixed right-4 top-20 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 notifications-panel">
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+              <button 
+                onClick={() => setShowNotificationsPanel(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          
+          <div className="max-h-96 overflow-y-auto">
+            {notifications.length > 0 ? (
+              <div className="p-4 space-y-3">
+                {notifications.map((notification) => (
+                  <div 
+                    key={notification.id} 
+                    className="p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-50"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className={`w-2 h-2 rounded-full mt-2 ${
+                        notification.type === 'success' ? 'bg-green-500' :
+                        notification.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+                      }`} />
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-900">{notification.message}</p>
+                        <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center">
+                <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No notifications</p>
+              </div>
+            )}
+          </div>
+          
+          <div className="p-4 border-t border-gray-200">
+            <button className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium">
+              View All Notifications
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
