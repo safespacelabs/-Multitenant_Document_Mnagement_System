@@ -40,7 +40,7 @@ import {
   Download,
   Filter,
   List,
-  Grid3X3
+  Grid
 } from 'lucide-react';
 
 const CompanyDashboard = () => {

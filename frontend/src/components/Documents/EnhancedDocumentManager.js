@@ -4,7 +4,7 @@ import {
   Filter,
   Download,
   List,
-  Grid3X3,
+  Grid,
   FileText,
   File,
   Image,
@@ -270,7 +270,7 @@ const EnhancedDocumentManager = () => {
                   : 'bg-white text-gray-600 hover:bg-gray-50'
               }`}
             >
-              <Grid3X3 className="h-4 w-4" />
+              <Grid className="h-4 w-4" />
             </button>
             <button
               onClick={() => setViewMode('list')}
