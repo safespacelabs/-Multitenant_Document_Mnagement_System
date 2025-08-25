@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../utils/auth';
+import { documentsAPI, systemDocumentsAPI } from '../../services/api';
 import { 
   FileText, 
   MessageCircle, 
@@ -22,10 +25,42 @@ import {
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
-import { useAuth } from '../../utils/auth';
 
 function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [myFilesCount, setMyFilesCount] = useState(0);
+  const [orgFilesCount, setOrgFilesCount] = useState(0);
+  const [recentFilesCount, setRecentFilesCount] = useState(0);
+  const [starredFilesCount, setStarredFilesCount] = useState(0);
+  const [logsCount, setLogsCount] = useState(0);
+  const [uploadsCount, setUploadsCount] = useState(0);
+
+  const [organizationFiles, setOrganizationFiles] = useState([
+    {
+      id: 'hr-docs',
+      label: 'HR Documents',
+      icon: Users,
+      path: '/dashboard/documents?category=HR',
+      count: 0
+    },
+    {
+      id: 'legal-docs',
+      label: 'Legal Documents',
+      icon: FileText,
+      path: '/dashboard/documents?category=Legal',
+      count: 0
+    },
+    {
+      id: 'financial-docs',
+      label: 'Financial Reports',
+      icon: BarChart3,
+      path: '/dashboard/documents?category=Finance',
+      count: 0
+    }
+  ]);
 
   const menuItems = [
     {
@@ -100,61 +135,97 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
       id: 'my-files',
       label: 'My Files',
       icon: Folder,
-      path: '/dashboard/documents'
+      path: '/dashboard/documents',
+      description: 'Access your personal documents'
     },
     {
       id: 'org-files',
       label: 'Org Files',
       icon: Users,
       path: '/dashboard/documents',
+      description: 'Company-wide document management',
       active: true
     },
     {
       id: 'recent',
       label: 'Recent',
       icon: Calendar,
-      path: '/dashboard/documents'
+      path: '/dashboard/documents',
+      description: 'Recently accessed documents'
     },
     {
       id: 'starred',
       label: 'Starred',
       icon: Star,
-      path: '/dashboard/documents'
+      path: '/dashboard/documents',
+      description: 'Your favorite documents'
     },
     {
       id: 'logs',
       label: 'Logs',
       icon: FileTextIcon,
-      path: '/dashboard/documents'
+      path: '/dashboard/documents',
+      description: 'Document activity logs'
     },
     {
       id: 'uploads',
       label: 'Uploads',
       icon: Upload,
-      path: '/dashboard/documents'
+      path: '/dashboard/documents',
+      description: 'Upload new documents'
     }
   ];
 
-  const organizationFiles = [
-    {
-      id: 'hr-docs',
-      label: 'HR Documents',
-      icon: Users,
-      count: 12
-    },
-    {
-      id: 'legal-docs',
-      label: 'Legal Documents',
-      icon: FileText,
-      count: 8
-    },
-    {
-      id: 'financial-docs',
-      label: 'Financial Reports',
-      icon: BarChart3,
-      count: 15
-    }
-  ];
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const myFilesRes = await documentsAPI.getMyDocumentsCount();
+        setMyFilesCount(myFilesRes.data.count);
+
+        const orgFilesRes = await documentsAPI.getOrgDocumentsCount();
+        setOrgFilesCount(orgFilesRes.data.count);
+
+        const recentFilesRes = await documentsAPI.getRecentDocumentsCount();
+        setRecentFilesCount(recentFilesRes.data.count);
+
+        const starredFilesRes = await documentsAPI.getStarredDocumentsCount();
+        setStarredFilesCount(starredFilesRes.data.count);
+
+        const logsRes = await documentsAPI.getDocumentActivityLogsCount();
+        setLogsCount(logsRes.data.count);
+
+        const uploadsRes = await documentsAPI.getUploadsCount();
+        setUploadsCount(uploadsRes.data.count);
+
+        // Update organization files counts
+        const updatedOrgFiles = organizationFiles.map(item => {
+          if (item.id === 'hr-docs') {
+            return { ...item, count: 0 }; // Placeholder, will be updated by backend
+          }
+          if (item.id === 'legal-docs') {
+            return { ...item, count: 0 }; // Placeholder, will be updated by backend
+          }
+          if (item.id === 'financial-docs') {
+            return { ...item, count: 0 }; // Placeholder, will be updated by backend
+          }
+          return item;
+        });
+        setOrganizationFiles(updatedOrgFiles);
+
+      } catch (error) {
+        console.error('Error fetching counts:', error);
+      }
+    };
+
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 30000); // Poll every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleNavigationClick = (path) => {
+    navigate(path);
+    setActiveTab('documents'); // Assuming 'documents' is the default active tab for document management
+  };
 
   return (
     <aside className={`${collapsed ? 'w-16' : 'w-64'} bg-white shadow-lg border-r border-gray-200 min-h-screen transition-all duration-300`}>
@@ -188,26 +259,42 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
           )}
           
           <div className="space-y-2">
-            {navigationItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.active;
-              
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center space-x-3 px-3 py-3 rounded-xl text-left transition-all duration-200 ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
-                  {!collapsed && <span className="font-medium">{item.label}</span>}
-                </button>
-              );
-            })}
-          </div>
+                {navigationItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.path || location.pathname.startsWith('/dashboard/documents');
+                  
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleNavigationClick(item.path)}
+                      className={`w-full flex items-center space-x-3 px-3 py-3 rounded-xl text-left transition-all duration-200 ${
+                        isActive
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                      }`}
+                      title={item.description}
+                    >
+                      <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <div className="flex-1">
+                        <div className="font-medium">{item.label}</div>
+                        {!collapsed && (
+                          <div className="text-xs text-gray-500 mt-1">{item.description}</div>
+                        )}
+                      </div>
+                      {!collapsed && (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                          {item.id === 'my-files' && myFilesCount}
+                          {item.id === 'org-files' && orgFilesCount}
+                          {item.id === 'recent' && recentFilesCount}
+                          {item.id === 'starred' && starredFilesCount}
+                          {item.id === 'logs' && logsCount}
+                          {item.id === 'uploads' && uploadsCount}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
 
           {/* Organization Files Section */}
           {!collapsed && (
@@ -216,20 +303,27 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
               <div className="space-y-2">
                 {organizationFiles.map((item) => {
                   const Icon = item.icon;
+                  const isActive = location.search.includes(item.path.split('?')[1]);
                   
                   return (
-                    <div
+                    <button
                       key={item.id}
-                      className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                      onClick={() => handleNavigationClick(item.path)}
+                      className={`w-full flex items-center space-x-3 px-3 py-3 rounded-xl text-left transition-all duration-200 ${
+                        isActive
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                      }`}
+                      title={`View ${item.label}`}
                     >
-                      <div className="flex items-center space-x-3">
-                        <Icon className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-600">{item.label}</span>
+                      <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <div className="flex-1">
+                        <div className="font-medium">{item.label}</div>
                       </div>
-                      <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
                         {item.count}
                       </span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -307,7 +401,7 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Your Documents</span>
-                <span className="font-semibold text-gray-900">24</span>
+                <span className="font-semibold text-gray-900">{myFilesCount}</span>
               </div>
               
               <div className="flex items-center justify-between">

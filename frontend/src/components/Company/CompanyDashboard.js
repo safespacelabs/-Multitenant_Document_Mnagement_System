@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EnhancedDocumentManager } from '../Documents';
+import { documentsAPI, usersAPI, companiesAPI } from '../../services/api';
 import { 
   Search,
   Bell,
@@ -94,13 +95,25 @@ const CompanyDashboard = () => {
     };
   }, [showSearchResults]);
 
-  const loadNotifications = () => {
-    const mockNotifications = [
-      { id: 1, type: 'info', message: 'New document uploaded', time: '2 min ago' },
-      { id: 2, type: 'warning', message: 'Pending signature request', time: '1 hour ago' },
-      { id: 3, type: 'success', message: 'Document signed successfully', time: '3 hours ago' }
-    ];
-    setNotifications(mockNotifications);
+  const loadNotifications = async () => {
+    try {
+      // Try to get real notifications from backend
+      // For now, using a fallback approach
+      const mockNotifications = [
+        { id: 1, type: 'info', message: 'New document uploaded', time: '2 min ago' },
+        { id: 2, type: 'warning', message: 'Pending signature request', time: '1 hour ago' },
+        { id: 3, type: 'success', message: 'Document signed successfully', time: '3 hours ago' }
+      ];
+      setNotifications(mockNotifications);
+      
+      // TODO: Implement real notification API when available
+      // const response = await notificationsAPI.getCompanyNotifications(companyData.id);
+      // setNotifications(response.data || []);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+      // Fallback to empty notifications
+      setNotifications([]);
+    }
   };
 
   const handleSearch = async (query) => {
@@ -110,59 +123,54 @@ const CompanyDashboard = () => {
     }
 
     try {
-      // Enhanced search with real data integration
       const results = {
         employees: [],
         documents: []
       };
 
-      // Search for documents (if available)
+      // Search for documents using real API
       try {
-        // This would integrate with the company's document API
-        // For now, using enhanced mock data
-        const mockDocuments = [
-          { id: 1, name: 'Employee Handbook.pdf', type: 'PDF', size: '2.3 MB', category: 'HR' },
-          { id: 2, name: 'Company Policy.docx', type: 'DOCX', size: '1.1 MB', category: 'Legal' },
-          { id: 3, name: 'Budget Report.xlsx', type: 'XLSX', size: '856 KB', category: 'Finance' },
-          { id: 4, name: 'Marketing Plan.pdf', type: 'PDF', size: '1.5 MB', category: 'Marketing' }
-        ];
+        const documentsResponse = await documentsAPI.list(null);
+        const allDocuments = documentsResponse.data || documentsResponse || [];
         
-        const matchingDocuments = mockDocuments.filter(doc => 
-          doc.name.toLowerCase().includes(query.toLowerCase()) ||
-          doc.category.toLowerCase().includes(query.toLowerCase())
+        const matchingDocuments = allDocuments.filter(doc => 
+          (doc.original_filename || doc.name || '').toLowerCase().includes(query.toLowerCase()) ||
+          (doc.category || doc.folder || '').toLowerCase().includes(query.toLowerCase()) ||
+          (doc.user?.full_name || doc.uploadedBy || '').toLowerCase().includes(query.toLowerCase())
         );
         
-        results.documents = matchingDocuments;
+        results.documents = matchingDocuments.slice(0, 5); // Limit to 5 results
       } catch (error) {
         console.error('Document search failed:', error);
+        // Fallback to empty results
+        results.documents = [];
       }
 
-      // Search for employees (if available)
+      // Search for employees using real API
       try {
-        // This would integrate with the company's user API
-        // For now, using enhanced mock data
-        const mockEmployees = [
-          { id: 1, name: 'John Doe', role: 'HR Manager', department: 'HR' },
-          { id: 2, name: 'Jane Smith', role: 'Employee', department: 'Engineering' },
-          { id: 3, name: 'Mike Johnson', role: 'Team Lead', department: 'Engineering' },
-          { id: 4, name: 'Sarah Wilson', role: 'Accountant', department: 'Finance' }
-        ];
+        const usersResponse = await usersAPI.list();
+        const allUsers = usersResponse.data || usersResponse || [];
         
-        const matchingEmployees = mockEmployees.filter(emp => 
-          emp.name.toLowerCase().includes(query.toLowerCase()) ||
-          emp.role.toLowerCase().includes(query.toLowerCase()) ||
-          emp.department.toLowerCase().includes(query.toLowerCase())
+        const matchingUsers = allUsers.filter(user => 
+          (user.full_name || user.username || '').toLowerCase().includes(query.toLowerCase()) ||
+          (user.role || '').toLowerCase().includes(query.toLowerCase()) ||
+          (user.email || '').toLowerCase().includes(query.toLowerCase())
         );
         
-        results.employees = matchingEmployees;
+        results.employees = matchingUsers.slice(0, 5); // Limit to 5 results
       } catch (error) {
         console.error('Employee search failed:', error);
+        // Fallback to empty results
+        results.employees = [];
       }
       
       setSearchResults(results);
       setShowSearchResults(true);
     } catch (error) {
       console.error('Search failed:', error);
+      // Fallback to empty results
+      setSearchResults({ employees: [], documents: [] });
+      setShowSearchResults(true);
     }
   };
 
@@ -261,15 +269,18 @@ const CompanyDashboard = () => {
                                   // Navigate to employee management or profile
                                   setShowSearchResults(false);
                                   setSearchQuery('');
-                                  // This could navigate to employee details or management
+                                  // Navigate to user management if user has permission
+                                  if (userData.role === 'hr_admin' || userData.role === 'system_admin') {
+                                    navigate('/users');
+                                  }
                                 }}
                               >
                                 <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                                   <User className="h-4 w-4 text-blue-600" />
                                 </div>
                                 <div>
-                                  <p className="text-sm font-medium text-gray-900">{employee.name}</p>
-                                  <p className="text-xs text-gray-500">{employee.role} • {employee.department}</p>
+                                  <p className="text-sm font-medium text-gray-900">{employee.full_name || employee.name}</p>
+                                  <p className="text-xs text-gray-500">{employee.role} • {employee.department || 'N/A'}</p>
                                 </div>
                               </div>
                             ))}
@@ -289,15 +300,15 @@ const CompanyDashboard = () => {
                                   // Navigate to document management
                                   setShowSearchResults(false);
                                   setSearchQuery('');
-                                  // This could navigate to document details or management
+                                  navigate('/dashboard/documents');
                                 }}
                               >
                                 <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                                   <FileText className="h-4 w-4 text-green-600" />
                                 </div>
                                 <div>
-                                  <p className="text-sm font-medium text-gray-900">{doc.name}</p>
-                                  <p className="text-xs text-gray-500">{doc.type} • {doc.size}</p>
+                                  <p className="text-sm font-medium text-gray-900">{doc.original_filename || doc.name}</p>
+                                  <p className="text-xs text-gray-500">{doc.file_type || doc.type} • {doc.file_size || doc.size}</p>
                                 </div>
                               </div>
                             ))}
@@ -334,12 +345,6 @@ const CompanyDashboard = () => {
                 </button>
                 <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
                   <Headphones className="h-5 w-5" />
-                </button>
-                <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 relative">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    10
-                  </span>
                 </button>
               </div>
 
@@ -384,58 +389,76 @@ const CompanyDashboard = () => {
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <button className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left">
+            <button 
+              onClick={() => navigate('/dashboard/documents')}
+              className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left"
+            >
               <div className="flex items-center space-x-3">
                 <BookOpen className="h-6 w-6" />
                 <div>
-                  <div className="font-medium">View My Learning</div>
+                  <div className="font-medium">View Documents</div>
                 </div>
               </div>
             </button>
             
-            <button className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left">
+            <button 
+              onClick={() => navigate('/users')}
+              className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left"
+            >
               <div className="flex items-center space-x-3">
                 <UsersIcon className="h-6 w-6" />
                 <div>
-                  <div className="font-medium">Manage My Team</div>
+                  <div className="font-medium">Manage Team</div>
                 </div>
               </div>
             </button>
             
-            <button className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left">
+            <button 
+              onClick={() => navigate('/dashboard/documents')}
+              className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left"
+            >
               <div className="flex items-center space-x-3">
                 <CalendarX className="h-6 w-6" />
                 <div>
-                  <div className="font-medium">Request Time Off</div>
+                  <div className="font-medium">Upload Files</div>
                 </div>
               </div>
             </button>
             
-            <button className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left">
+            <button 
+              onClick={() => navigate('/analytics')}
+              className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left"
+            >
               <div className="flex items-center space-x-3">
                 <UserCircle className="h-6 w-6" />
                 <div>
-                  <div className="font-medium">View My Profile</div>
+                  <div className="font-medium">View Analytics</div>
                 </div>
               </div>
             </button>
             
-            <button className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left">
+            <button 
+              onClick={() => navigate('/dashboard/documents')}
+              className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left"
+            >
               <div className="flex items-center space-x-3">
                 <Network className="h-6 w-6" />
                 <div>
-                  <div className="font-medium">View Org Chart</div>
+                  <div className="font-medium">Browse Files</div>
                 </div>
               </div>
             </button>
           </div>
           
           <div className="mt-4">
-            <button className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left">
+            <button 
+              onClick={() => navigate('/dashboard/documents')}
+              className="bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition-colors text-left"
+            >
               <div className="flex items-center space-x-3">
                 <Clock1 className="h-6 w-6" />
                 <div>
-                  <div className="font-medium">View My Time Sheet</div>
+                  <div className="font-medium">Recent Files</div>
                 </div>
               </div>
             </button>
@@ -503,19 +526,23 @@ const CompanyDashboard = () => {
                 </button>
               </div>
               <div className="space-y-2 text-sm">
-                <p className="font-medium">Internal Training</p>
-                <p className="text-gray-500">Course Title</p>
-                <p className="text-gray-500">Type</p>
-                <p className="text-gray-500">Price</p>
-                <p className="text-gray-500">Diversity</p>
-                <p className="text-gray-500">Online Item</p>
-                <p className="font-semibold">0.0 USD</p>
+                <p className="font-medium">Document Approval</p>
+                <p className="text-gray-500">Pending Review</p>
+                <p className="text-gray-500">Type: Policy</p>
+                <p className="text-gray-500">Submitted: Today</p>
+                <p className="font-semibold">Status: Pending</p>
               </div>
               <div className="flex space-x-2 mt-4">
-                <button className="flex-1 bg-green-500 text-white p-2 rounded-lg hover:bg-green-600">
+                <button 
+                  onClick={() => navigate('/dashboard/documents')}
+                  className="flex-1 bg-green-500 text-white p-2 rounded-lg hover:bg-green-600"
+                >
                   <CheckCircle className="h-4 w-4 mx-auto" />
                 </button>
-                <button className="flex-1 bg-red-500 text-white p-2 rounded-lg hover:bg-red-600">
+                <button 
+                  onClick={() => navigate('/dashboard/documents')}
+                  className="flex-1 bg-red-500 text-white p-2 rounded-lg hover:bg-red-600"
+                >
                   <X className="h-4 w-4 mx-auto" />
                 </button>
               </div>
@@ -531,19 +558,22 @@ const CompanyDashboard = () => {
                 </button>
               </div>
               <div className="space-y-2 text-sm">
-                <p className="font-medium">Job Requisition</p>
-                <p className="text-gray-500">Project Manager</p>
-                <p className="text-gray-500">Submitted on Oct 22, 2023</p>
-                <p className="font-semibold">Req Id 2755</p>
+                <p className="font-medium">File Upload</p>
+                <p className="text-gray-500">New Document</p>
+                <p className="text-gray-500">Submitted today</p>
+                <p className="font-semibold">Ready for Review</p>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '60%' }}></div>
+                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '100%' }}></div>
                 </div>
-                <p className="text-gray-500">Hiring Manager</p>
-                <p className="text-gray-500">Recruiter</p>
-                <p className="text-gray-500">Pending For 2 days</p>
+                <p className="text-gray-500">Status: Complete</p>
               </div>
               <div className="mt-4">
-                <a href="#" className="text-blue-600 hover:text-blue-700 text-sm font-medium">View All (8)</a>
+                <button 
+                  onClick={() => navigate('/dashboard/documents')}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  View Document
+                </button>
               </div>
             </div>
 
@@ -557,13 +587,18 @@ const CompanyDashboard = () => {
                 </button>
               </div>
               <div className="space-y-2 text-sm">
-                <p className="font-medium">Create Spot Award</p>
-                <p className="text-gray-500">Retail Sales Associate</p>
-                <p className="text-gray-500">Submitted On Sep 17, 2023</p>
-                <p className="text-gray-500">Submitted By Mya Cooper</p>
+                <p className="font-medium">Access Request</p>
+                <p className="text-gray-500">New User</p>
+                <p className="text-gray-500">Submitted Today</p>
+                <p className="text-gray-500">Role: Employee</p>
               </div>
               <div className="mt-4">
-                <a href="#" className="text-blue-600 hover:text-blue-700 text-sm font-medium">View All (6)</a>
+                <button 
+                  onClick={() => navigate('/users')}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  Review Request
+                </button>
               </div>
             </div>
           </div>

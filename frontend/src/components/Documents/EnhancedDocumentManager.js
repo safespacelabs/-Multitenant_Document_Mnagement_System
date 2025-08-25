@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../utils/auth';
+import { useSearchParams } from 'react-router-dom';
 import { documentsAPI, systemDocumentsAPI } from '../../services/api';
 import { 
   Search,
@@ -33,6 +34,7 @@ import {
 
 const EnhancedDocumentManager = () => {
   const { user, company } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,9 +55,24 @@ const EnhancedDocumentManager = () => {
   const [selectedFolder, setSelectedFolder] = useState(null);
 
   useEffect(() => {
+    // Read category from URL parameters
+    const categoryFromUrl = searchParams.get('category');
+    if (categoryFromUrl) {
+      setFilters(prev => ({ ...prev, category: categoryFromUrl }));
+    }
+    
     loadDocuments();
     loadFolders();
-  }, [selectedFolder]);
+  }, [selectedFolder, searchParams]);
+
+  // Update URL when filters change
+  useEffect(() => {
+    if (filters.category) {
+      setSearchParams({ category: filters.category });
+    } else {
+      setSearchParams({});
+    }
+  }, [filters.category, setSearchParams]);
 
   const loadDocuments = async () => {
     try {
@@ -292,6 +309,15 @@ const EnhancedDocumentManager = () => {
     return matchesSearch && matchesCategory && matchesFileType && matchesEmployee;
   });
 
+  const clearFilters = () => {
+    setFilters({ category: '', fileType: '', employee: '', dateRange: '' });
+    setSearchParams({});
+  };
+
+  const updateFilters = (newFilters) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -449,7 +475,7 @@ const EnhancedDocumentManager = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Document Category</label>
                 <select
                   value={filters.category}
-                  onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
+                  onChange={(e) => updateFilters({ category: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">All Categories</option>
@@ -465,7 +491,7 @@ const EnhancedDocumentManager = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">File Type</label>
                 <select
                   value={filters.fileType}
-                  onChange={(e) => setFilters(prev => ({ ...prev, fileType: e.target.value }))}
+                  onChange={(e) => updateFilters({ fileType: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">All Types</option>
@@ -481,7 +507,7 @@ const EnhancedDocumentManager = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Employees</label>
                 <select
                   value={filters.employee}
-                  onChange={(e) => setFilters(prev => ({ ...prev, employee: e.target.value }))}
+                  onChange={(e) => updateFilters({ employee: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">All Employees</option>
@@ -495,7 +521,7 @@ const EnhancedDocumentManager = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
                 <select
                   value={filters.dateRange}
-                  onChange={(e) => setFilters(prev => ({ ...prev, dateRange: e.target.value }))}
+                  onChange={(e) => updateFilters({ dateRange: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">All Time</option>
@@ -510,7 +536,7 @@ const EnhancedDocumentManager = () => {
 
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
               <button
-                onClick={() => setFilters({ category: '', fileType: '', employee: '', dateRange: '' })}
+                onClick={clearFilters}
                 className="text-sm text-gray-600 hover:text-gray-800"
               >
                 Clear All Filters
