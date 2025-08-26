@@ -37,6 +37,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     console.log('🔐 AuthProvider initializing...');
@@ -49,22 +50,56 @@ export function AuthProvider({ children }) {
     console.log('🏢 Saved company:', savedCompany);
 
     if (token && savedUser) {
-      const userData = JSON.parse(savedUser);
-      console.log('✅ Setting user:', userData.username);
-      setUser(userData);
-      
-      // Company might be null for system users
-      if (savedCompany && savedCompany !== 'null') {
-        const companyData = JSON.parse(savedCompany);
-        console.log('✅ Setting company:', companyData.name);
-        setCompany(companyData);
-      } else {
-        console.log('ℹ️ No company data (system user)');
+      try {
+        const userData = JSON.parse(savedUser);
+        console.log('✅ Setting user:', userData.username);
+        
+        // Validate that user data has required fields
+        if (userData && userData.username && userData.role) {
+          setUser(userData);
+          
+          // Company might be null for system users
+          if (savedCompany && savedCompany !== 'null') {
+            try {
+              const companyData = JSON.parse(savedCompany);
+              console.log('✅ Setting company:', companyData.name);
+              setCompany(companyData);
+            } catch (companyError) {
+              console.error('❌ Failed to parse company data:', companyError);
+              setCompany(null);
+            }
+          } else {
+            console.log('ℹ️ No company data (system user)');
+            setCompany(null);
+          }
+        } else {
+          console.error('❌ Invalid user data - missing required fields:', userData);
+          // Clear invalid data
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('company');
+          setUser(null);
+          setCompany(null);
+        }
+      } catch (userError) {
+        console.error('❌ Failed to parse user data:', userError);
+        // Clear invalid data
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('company');
+        setUser(null);
         setCompany(null);
       }
     } else {
       console.log('❌ No token or user data found');
+      // Clear any stale data
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('company');
+      setUser(null);
+      setCompany(null);
     }
+    
     setLoading(false);
     console.log('🔐 AuthProvider initialization complete');
   }, []);
@@ -83,6 +118,11 @@ export function AuthProvider({ children }) {
       console.log('✅ Login response received:', response);
       
       const { access_token, user: userData, company: companyData } = response;
+      
+      // Validate user data before storing
+      if (!userData || !userData.username || !userData.role) {
+        throw new Error('Invalid user data received from server');
+      }
       
       console.log('💾 Storing token and user data...');
       localStorage.setItem('access_token', access_token);
@@ -106,6 +146,7 @@ export function AuthProvider({ children }) {
       return { user: userData, company: companyData };
     } catch (error) {
       console.error('❌ Login error:', error);
+      setError(error.message);
       throw error;
     }
   };
@@ -117,6 +158,11 @@ export function AuthProvider({ children }) {
       console.log('✅ System admin login response received:', response);
       
       const { access_token, user: userData, company: companyData, permissions } = response;
+      
+      // Validate user data before storing
+      if (!userData || !userData.username || !userData.role) {
+        throw new Error('Invalid user data received from server');
+      }
       
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('user', JSON.stringify(userData));
@@ -135,22 +181,34 @@ export function AuthProvider({ children }) {
       return { user: userData, company: companyData, permissions };
     } catch (error) {
       console.error('System admin login error:', error);
+      setError(error.message);
       throw error;
     }
   };
 
   const register = async (userData) => {
-    const response = await authAPI.register(userData);
-    const { access_token, user: newUser, company: companyData } = response;
-    
-    localStorage.setItem('access_token', access_token);
-    localStorage.setItem('user', JSON.stringify(newUser));
-    localStorage.setItem('company', JSON.stringify(companyData));
-    
-    setUser(newUser);
-    setCompany(companyData);
-    
-    return response;
+    try {
+      const response = await authAPI.register(userData);
+      const { access_token, user: newUser, company: companyData } = response;
+      
+      // Validate user data before storing
+      if (!newUser || !newUser.username || !newUser.role) {
+        throw new Error('Invalid user data received from server');
+      }
+      
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('user', JSON.stringify(newUser));
+      localStorage.setItem('company', JSON.stringify(companyData));
+      
+      setUser(newUser);
+      setCompany(companyData);
+      
+      return response;
+    } catch (error) {
+      console.error('Registration error:', error);
+      setError(error.message);
+      throw error;
+    }
   };
 
   const logout = () => {
@@ -159,6 +217,46 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('company');
     setUser(null);
     setCompany(null);
+    setError(null);
+  };
+
+  const clearError = () => {
+    setError(null);
+  };
+
+  const clearInvalidAuth = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('company');
+    setUser(null);
+    setCompany(null);
+    setError(null);
+  };
+
+  const debugAuthState = () => {
+    const token = localStorage.getItem('access_token');
+    const savedUser = localStorage.getItem('user');
+    const savedCompany = localStorage.getItem('company');
+    
+    console.log('🔍 Debug Auth State:');
+    console.log('  Token:', token ? `${token.substring(0, 20)}...` : 'None');
+    console.log('  Saved User:', savedUser);
+    console.log('  Saved Company:', savedCompany);
+    console.log('  Current User State:', user);
+    console.log('  Current Company State:', company);
+    console.log('  Loading:', loading);
+    console.log('  Error:', error);
+    
+    if (savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        console.log('  Parsed User Data:', parsedUser);
+        console.log('  Has Username:', !!parsedUser.username);
+        console.log('  Has Role:', !!parsedUser.role);
+      } catch (e) {
+        console.log('  Failed to parse user data:', e);
+      }
+    }
   };
 
   const value = {
@@ -168,7 +266,11 @@ export function AuthProvider({ children }) {
     systemAdminLogin,
     register,
     logout,
-    loading
+    loading,
+    error,
+    clearError,
+    clearInvalidAuth,
+    debugAuthState
   };
 
   return (

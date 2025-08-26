@@ -54,6 +54,34 @@ const EnhancedDocumentManager = () => {
   const [folders, setFolders] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState(null);
 
+  // Early return if user is not loaded yet
+  if (!user) {
+    console.log('⏳ User not loaded yet, showing loading...');
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading document manager...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Early return if user doesn't have a role
+  if (!user.role) {
+    console.log('❌ User role not available, showing error...');
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="h-6 w-6 text-red-600" />
+          </div>
+          <p className="text-gray-600">User role not available. Please log in again.</p>
+        </div>
+      </div>
+    );
+  }
+
   useEffect(() => {
     // Read category from URL parameters
     const categoryFromUrl = searchParams.get('category');

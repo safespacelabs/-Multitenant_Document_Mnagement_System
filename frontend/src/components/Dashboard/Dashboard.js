@@ -26,11 +26,12 @@ import {
   Bell,
   Headphones,
   ChevronDown,
-  User
+  User,
+  AlertCircle
 } from 'lucide-react';
 
 const Dashboard = () => {
-  const { user, company, logout } = useAuth();
+  const { user, company, logout, debugAuthState } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -43,11 +44,40 @@ const Dashboard = () => {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searchResults, setSearchResults] = useState({ employees: [], documents: [] });
   const [recentActivity, setRecentActivity] = useState([]);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   console.log('🏠 Dashboard component rendering...');
   console.log('👤 User:', user);
   console.log('🏢 Company:', company);
   console.log('📍 Location:', location.pathname);
+
+  // Early return if user is not loaded yet
+  if (!user) {
+    console.log('⏳ User not loaded yet, showing loading...');
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Early return if user doesn't have a role
+  if (!user.role) {
+    console.log('❌ User role not available, showing error...');
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="h-6 w-6 text-red-600" />
+          </div>
+          <p className="text-gray-600">User role not available. Please log in again.</p>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     loadQuickStats();
@@ -72,6 +102,13 @@ const Dashboard = () => {
       const token = localStorage.getItem('access_token');
       if (!token) {
         console.log('❌ No authentication token found, skipping stats load');
+        setLoading(false);
+        return;
+      }
+      
+      // Ensure user exists and has role
+      if (!user || !user.role) {
+        console.log('❌ User or user role not available, skipping stats load');
         setLoading(false);
         return;
       }
@@ -129,22 +166,26 @@ const Dashboard = () => {
 
   const loadNotifications = async () => {
     try {
+      // Ensure user and company exist before loading notifications
+      if (!user || !company) {
+        console.log('❌ User or company not available, skipping notifications load');
+        return;
+      }
+      
       // Load real notifications from backend
-      if (user && company) {
+      if (['hr_admin', 'hr_manager', 'system_admin'].includes(user.role)) {
         // Get recent documents for document-related notifications
         const documentsResponse = await documentsAPI.list(null);
         const documents = documentsResponse.data || documentsResponse || [];
         
         // Get recent user activities for user-related notifications
         let userActivities = [];
-        if (['hr_admin', 'hr_manager', 'system_admin'].includes(user.role)) {
-          try {
-            const usersResponse = await usersAPI.list();
-            const users = usersResponse.data || usersResponse || [];
-            userActivities = users.slice(0, 3); // Get 3 most recent users
-          } catch (error) {
-            console.error('Failed to load user activities:', error);
-          }
+        try {
+          const usersResponse = await usersAPI.list();
+          const users = usersResponse.data || usersResponse || [];
+          userActivities = users.slice(0, 3); // Get 3 most recent users
+        } catch (error) {
+          console.error('Failed to load user activities:', error);
         }
         
         // Generate real notifications based on actual data
@@ -199,6 +240,12 @@ const Dashboard = () => {
       const token = localStorage.getItem('access_token');
       if (!token) {
         console.log('❌ No authentication token found, skipping recent activity load');
+        return;
+      }
+
+      // Ensure user exists and has role
+      if (!user || !user.role) {
+        console.log('❌ User or user role not available, skipping recent activity load');
         return;
       }
 
@@ -259,6 +306,13 @@ const Dashboard = () => {
 
     try {
       setLoading(true);
+      
+      // Ensure user exists and has role
+      if (!user || !user.role) {
+        console.log('❌ User or user role not available, skipping search');
+        setLoading(false);
+        return;
+      }
       
       // Real search implementation using APIs
       const results = {
@@ -322,7 +376,14 @@ const Dashboard = () => {
     }
   };
 
+
+
   const getMenuItems = () => {
+    // Ensure user exists and has role
+    if (!user || !user.role) {
+      return [];
+    }
+    
     const basePath = user.role === 'system_admin' ? '/system-dashboard' : '/dashboard';
     
     const baseItems = [
@@ -371,6 +432,11 @@ const Dashboard = () => {
   };
 
   const isActivePage = (path) => {
+    // Ensure user exists and has role
+    if (!user || !user.role) {
+      return false;
+    }
+    
     const basePath = user.role === 'system_admin' ? '/system-dashboard' : '/dashboard';
     
     if (path === basePath) return true;
@@ -381,8 +447,20 @@ const Dashboard = () => {
   const renderMainContent = () => {
     const path = location.pathname;
     
+    // Ensure user exists and has role
+    if (!user || !user.role) {
+      return (
+        <div className="p-6">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading user data...</p>
+          </div>
+        </div>
+      );
+    }
+    
     // HR Admin Dashboard
-    if (path === '/dashboard/hr-admin' && ['hr_admin', 'hr_manager'].includes(user?.role)) {
+    if (path === '/dashboard/hr-admin' && ['hr_admin', 'hr_manager'].includes(user.role)) {
       return <HRAdminDashboard />;
     }
     
@@ -397,7 +475,7 @@ const Dashboard = () => {
     }
     
     // User Management
-    if (path === '/dashboard/users' && ['hr_admin', 'hr_manager', 'system_admin'].includes(user?.role)) {
+    if (path === '/dashboard/users' && ['hr_admin', 'hr_manager', 'system_admin'].includes(user.role)) {
       return <UserManagement />;
     }
     
@@ -624,6 +702,20 @@ const Dashboard = () => {
               <LogOut className="h-5 w-5" />
               <span>Logout</span>
             </button>
+            
+            {/* Debug Button - Only show in development */}
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                onClick={() => {
+                  debugAuthState();
+                  setShowDebugInfo(!showDebugInfo);
+                }}
+                className="w-full flex items-center space-x-3 px-4 py-3 mt-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                <SettingsIcon className="h-5 w-5" />
+                <span>Debug Auth</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

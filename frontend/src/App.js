@@ -29,7 +29,19 @@ import { EnhancedDocumentManager } from './components/Documents';
 import './App.css';
 
 function ProtectedRoute({ children, allowedRoles = [] }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  
+  // Show loading while auth is being determined
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   
   if (!user) {
     return <Navigate to="/" replace />;
@@ -44,7 +56,20 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
 
 function ESignatureWrapper() {
   const { user } = useAuth();
-  return <ESignatureManager userRole={user?.role} userId={user?.id} />;
+  
+  // Show loading while user is being determined
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  return <ESignatureManager userRole={user.role} userId={user.id} />;
 }
 
 function App() {
