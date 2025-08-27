@@ -186,7 +186,7 @@ const AIAssistant = () => {
   };
 
   const deleteSession = async (sessionId) => {
-    if (!confirm('Are you sure you want to delete this session?')) return;
+    if (!window.confirm('Are you sure you want to delete this session?')) return;
 
     try {
       await aiAssistantAPI.deleteChatSession(sessionId);

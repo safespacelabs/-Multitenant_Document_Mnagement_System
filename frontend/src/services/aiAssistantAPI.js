@@ -1,4 +1,21 @@
-import { apiClient } from './api';
+// Helper function to make HTTP requests
+const makeRequest = async (url, options = {}) => {
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+      ...options.headers
+    },
+    ...options
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Request failed');
+  }
+  
+  return response.json();
+};
 
 const AI_ASSISTANT_BASE_URL = '/api/ai-assistant';
 
@@ -6,8 +23,8 @@ export const aiAssistantAPI = {
   // Chat Sessions
   createChatSession: async (sessionData) => {
     try {
-      const response = await apiClient.post(`${AI_ASSISTANT_BASE_URL}/chat/sessions`, sessionData);
-      return response.data;
+      const response = await makeRequest(`${AI_ASSISTANT_BASE_URL}/chat/sessions`, { method: 'POST', body: JSON.stringify(sessionData) });
+      return response;
     } catch (error) {
       console.error('Failed to create chat session:', error);
       throw error;
@@ -16,8 +33,8 @@ export const aiAssistantAPI = {
 
   getChatSessions: async () => {
     try {
-      const response = await apiClient.get(`${AI_ASSISTANT_BASE_URL}/chat/sessions`);
-      return response.data;
+      const response = await makeRequest(`${AI_ASSISTANT_BASE_URL}/chat/sessions`);
+      return response;
     } catch (error) {
       console.error('Failed to get chat sessions:', error);
       throw error;
@@ -26,8 +43,8 @@ export const aiAssistantAPI = {
 
   deleteChatSession: async (sessionId) => {
     try {
-      const response = await apiClient.delete(`${AI_ASSISTANT_BASE_URL}/chat/sessions/${sessionId}`);
-      return response.data;
+      const response = await makeRequest(`${AI_ASSISTANT_BASE_URL}/chat/sessions/${sessionId}`, { method: 'DELETE' });
+      return response;
     } catch (error) {
       console.error('Failed to delete chat session:', error);
       throw error;
@@ -37,8 +54,8 @@ export const aiAssistantAPI = {
   // Chat Messages
   sendChatMessage: async (messageData) => {
     try {
-      const response = await apiClient.post(`${AI_ASSISTANT_BASE_URL}/chat/messages`, messageData);
-      return response.data;
+      const response = await makeRequest(`${AI_ASSISTANT_BASE_URL}/chat/messages`, { method: 'POST', body: JSON.stringify(messageData) });
+      return response;
     } catch (error) {
       console.error('Failed to send chat message:', error);
       throw error;
@@ -47,8 +64,8 @@ export const aiAssistantAPI = {
 
   getChatMessages: async (sessionId) => {
     try {
-      const response = await apiClient.get(`${AI_ASSISTANT_BASE_URL}/chat/sessions/${sessionId}/messages`);
-      return response.data;
+      const response = await makeRequest(`${AI_ASSISTANT_BASE_URL}/chat/sessions/${sessionId}/messages`);
+      return response;
     } catch (error) {
       console.error('Failed to get chat messages:', error);
       throw error;
@@ -58,8 +75,8 @@ export const aiAssistantAPI = {
   // Document Analysis
   analyzeDocument: async (analysisRequest) => {
     try {
-      const response = await apiClient.post(`${AI_ASSISTANT_BASE_URL}/documents/analyze`, analysisRequest);
-      return response.data;
+      const response = await makeRequest(`${AI_ASSISTANT_BASE_URL}/documents/analyze`, { method: 'POST', body: JSON.stringify(analysisRequest) });
+      return response;
     } catch (error) {
       console.error('Failed to analyze document:', error);
       throw error;
@@ -69,8 +86,8 @@ export const aiAssistantAPI = {
   // Smart Suggestions
   getSmartSuggestions: async (suggestionRequest) => {
     try {
-      const response = await apiClient.post(`${AI_ASSISTANT_BASE_URL}/suggestions`, suggestionRequest);
-      return response.data;
+      const response = await makeRequest(`${AI_ASSISTANT_BASE_URL}/suggestions`, { method: 'POST', body: JSON.stringify(suggestionRequest) });
+      return response;
     } catch (error) {
       console.error('Failed to get smart suggestions:', error);
       throw error;
@@ -80,8 +97,8 @@ export const aiAssistantAPI = {
   // AI Assistant Statistics
   getAIStats: async () => {
     try {
-      const response = await apiClient.get(`${AI_ASSISTANT_BASE_URL}/stats`);
-      return response.data;
+      const response = await makeRequest(`${AI_ASSISTANT_BASE_URL}/stats`);
+      return response;
     } catch (error) {
       console.error('Failed to get AI stats:', error);
       throw error;
