@@ -54,6 +54,29 @@ const EnhancedDocumentManager = () => {
   const [folders, setFolders] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState(null);
 
+  useEffect(() => {
+    // Only run effects if user and user.role exist
+    if (user && user.role) {
+      // Read category from URL parameters
+      const categoryFromUrl = searchParams.get('category');
+      if (categoryFromUrl) {
+        setFilters(prev => ({ ...prev, category: categoryFromUrl }));
+      }
+      
+      loadDocuments();
+      loadFolders();
+    }
+  }, [selectedFolder, searchParams, user]);
+
+  // Update URL when filters change
+  useEffect(() => {
+    if (filters.category) {
+      setSearchParams({ category: filters.category });
+    } else {
+      setSearchParams({});
+    }
+  }, [filters.category, setSearchParams]);
+
   // Early return if user is not loaded yet
   if (!user) {
     console.log('⏳ User not loaded yet, showing loading...');
@@ -81,26 +104,6 @@ const EnhancedDocumentManager = () => {
       </div>
     );
   }
-
-  useEffect(() => {
-    // Read category from URL parameters
-    const categoryFromUrl = searchParams.get('category');
-    if (categoryFromUrl) {
-      setFilters(prev => ({ ...prev, category: categoryFromUrl }));
-    }
-    
-    loadDocuments();
-    loadFolders();
-  }, [selectedFolder, searchParams]);
-
-  // Update URL when filters change
-  useEffect(() => {
-    if (filters.category) {
-      setSearchParams({ category: filters.category });
-    } else {
-      setSearchParams({});
-    }
-  }, [filters.category, setSearchParams]);
 
   const loadDocuments = async () => {
     try {

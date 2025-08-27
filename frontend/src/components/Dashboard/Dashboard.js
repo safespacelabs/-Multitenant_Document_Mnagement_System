@@ -51,6 +51,27 @@ const Dashboard = () => {
   console.log('🏢 Company:', company);
   console.log('📍 Location:', location.pathname);
 
+  useEffect(() => {
+    // Only run effects if user and user.role exist
+    if (user && user.role) {
+      loadQuickStats();
+      loadNotifications();
+      loadRecentActivity();
+    }
+    
+    // Add click outside handler for search results
+    const handleClickOutside = (event) => {
+      if (showSearchResults && !event.target.closest('.search-container')) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSearchResults, user]);
+
   // Early return if user is not loaded yet
   if (!user) {
     console.log('⏳ User not loaded yet, showing loading...');
@@ -78,24 +99,6 @@ const Dashboard = () => {
       </div>
     );
   }
-
-  useEffect(() => {
-    loadQuickStats();
-    loadNotifications();
-    loadRecentActivity();
-    
-    // Add click outside handler for search results
-    const handleClickOutside = (event) => {
-      if (showSearchResults && !event.target.closest('.search-container')) {
-        setShowSearchResults(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showSearchResults]);
 
   const loadQuickStats = async () => {
     try {
