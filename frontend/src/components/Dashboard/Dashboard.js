@@ -5,7 +5,7 @@ import { documentsAPI, usersAPI, companiesAPI, systemDocumentsAPI } from '../../
 import { EnhancedDocumentManager } from '../Documents';
 import { HRAdminDashboard, UserManagement, MailingSystem } from '../Features';
 import { Analytics } from '../Features';
-import { ESignatureManager } from '../ESignature';
+import ESignatureManager from '../ESignature/ESignatureManager';
 import Sidebar from '../Layout/Sidebar';
 import Header from '../Layout/Header';
 import { 
