@@ -9,25 +9,14 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Company
 from ..models_company import User, Document
-try:
-    from ..schemas.ai_assistant import (
-        ChatSessionCreate,
-        ChatMessageCreate,
-        DocumentAnalysisRequest,
-        SmartSuggestionRequest,
-        AIAssistantStats,
-        ChatContext
-    )
-except ImportError:
-    # Fallback to direct import if relative import fails
-    from app.schemas.ai_assistant import (
-        ChatSessionCreate,
-        ChatMessageCreate,
-        DocumentAnalysisRequest,
-        SmartSuggestionRequest,
-        AIAssistantStats,
-        ChatContext
-    )
+from ..schemas.ai_assistant import (
+    ChatSessionCreate,
+    ChatMessageCreate,
+    DocumentAnalysisRequest,
+    SmartSuggestionRequest,
+    AIAssistantStats,
+    ChatContext
+)
 
 class AIService:
     def __init__(self):

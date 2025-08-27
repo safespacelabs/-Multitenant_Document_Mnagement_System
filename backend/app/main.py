@@ -9,15 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_management_db
 from app.services.database_manager import db_manager
 from app import models
-from app.routers.auth import router as auth_router
-from app.routers.companies import router as companies_router
-from app.routers.users import router as users_router
-from app.routers.documents import router as documents_router
-from app.routers.chatbot import router as chatbot_router
-from app.routers.user_management import router as user_management_router
-from app.routers.esignature import router as esignature_router
-from app.routers.ai_assistant import router as ai_assistant_router
-from app.routers.hr_admin import router as hr_admin_router
+from app.routers import auth, companies, users, documents, chatbot, user_management, esignature, ai_assistant, hr_admin
 from app.config import get_cors_origins, ENVIRONMENT, IS_DEVELOPMENT, IS_PRODUCTION
 
 @asynccontextmanager
@@ -236,28 +228,28 @@ async def test_document_enhanced():
 
 # Include routers
 print("🔧 Including API routers...")
-app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 print("✅ Auth router included")
-app.include_router(companies_router, prefix="/api/companies", tags=["Companies"])
+app.include_router(companies.router, prefix="/api/companies", tags=["Companies"])
 print("✅ Companies router included")
-app.include_router(users_router, prefix="/api/users", tags=["Users"])
+app.include_router(users.router, prefix="/api/users", tags=["Users"])
 print("✅ Users router included")
-app.include_router(documents_router, prefix="/api/documents", tags=["Documents"])
+app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
 print("✅ Documents router included")
-app.include_router(chatbot_router, prefix="/api/chat", tags=["Chatbot"])
+app.include_router(chatbot.router, prefix="/api/chat", tags=["Chatbot"])
 print("✅ Chatbot router included")
-app.include_router(user_management_router, prefix="/api/user-management", tags=["User Management"])
+app.include_router(user_management.router, prefix="/api/user-management", tags=["User Management"])
 print("✅ User Management router included")
-app.include_router(esignature_router, prefix="/api", tags=["E-Signature"])
+app.include_router(esignature.router, prefix="/api", tags=["E-Signature"])
 print("✅ E-Signature router included")
 
 # AI Assistant routes
-app.include_router(ai_assistant_router, prefix="/api/ai-assistant", tags=["AI Assistant"])
+app.include_router(ai_assistant.router, prefix="/api/ai-assistant", tags=["AI Assistant"])
 print("✅ AI Assistant router included")
 
 # Import and include HR admin router
 # from app.routers import hr_admin # This line is removed as per the edit hint
-app.include_router(hr_admin_router, prefix="/api/hr-admin", tags=["HR Admin"])
+app.include_router(hr_admin.router, prefix="/api/hr-admin", tags=["HR Admin"])
 print("✅ HR Admin router included")
 print("🔧 All routers included successfully!")
 

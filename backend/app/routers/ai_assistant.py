@@ -8,31 +8,17 @@ from datetime import datetime
 from ..database import get_db
 from ..models import Company
 from ..models_company import User
-try:
-    from ..schemas.ai_assistant import (
-        ChatMessageCreate,
-        ChatMessageResponse,
-        ChatSessionCreate,
-        ChatSessionResponse,
-        DocumentAnalysisRequest,
-        DocumentAnalysisResponse,
-        SmartSuggestionRequest,
-        SmartSuggestionResponse,
-        AIAssistantStats
-    )
-except ImportError:
-    # Fallback to direct import if relative import fails
-    from app.schemas.ai_assistant import (
-        ChatMessageCreate,
-        ChatMessageResponse,
-        ChatSessionCreate,
-        ChatSessionResponse,
-        DocumentAnalysisRequest,
-        DocumentAnalysisResponse,
-        SmartSuggestionRequest,
-        SmartSuggestionResponse,
-        AIAssistantStats
-    )
+from ..schemas.ai_assistant import (
+    ChatMessageCreate,
+    ChatMessageResponse,
+    ChatSessionCreate,
+    ChatSessionResponse,
+    DocumentAnalysisRequest,
+    DocumentAnalysisResponse,
+    SmartSuggestionRequest,
+    SmartSuggestionResponse,
+    AIAssistantStats
+)
 from ..auth import get_current_user, get_current_company
 from ..services.ai_service import AIService
 
