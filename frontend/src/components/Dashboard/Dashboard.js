@@ -27,7 +27,8 @@ import {
   Headphones,
   ChevronDown,
   User,
-  AlertCircle
+  AlertCircle,
+  Mail
 } from 'lucide-react';
 
 const Dashboard = () => {

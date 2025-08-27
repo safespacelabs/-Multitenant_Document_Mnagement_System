@@ -235,7 +235,14 @@ const MailingSystem = () => {
                     <p className="text-sm text-gray-600">{template.subject}</p>
                   </div>
                   <button
-                    onClick={() => useTemplate(template)}
+                    onClick={() => {
+                      setEmailForm(prev => ({
+                        ...prev,
+                        subject: template.subject,
+                        body: template.body
+                      }));
+                      setShowCreateModal(true);
+                    }}
                     className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md"
                   >
                     Use Template
