@@ -3,8 +3,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { documentsAPI, usersAPI, companiesAPI, systemDocumentsAPI } from '../../services/api';
 import { EnhancedDocumentManager } from '../Documents';
-import { HRAdminDashboard, UserManagement } from '../Features';
+import { HRAdminDashboard, UserManagement, MailingSystem } from '../Features';
 import { Analytics } from '../Features';
+import { ESignatureManager } from '../ESignature';
 import Sidebar from '../Layout/Sidebar';
 import Header from '../Layout/Header';
 import { 
@@ -396,6 +397,7 @@ const Dashboard = () => {
       { id: 'overview', name: 'Overview', icon: Home, path: basePath, color: 'blue' },
       { id: 'documents', name: 'Documents', icon: FileText, path: `${basePath}/documents`, color: 'green' },
       { id: 'esignature', name: 'E-Signature', icon: FileSignature, path: `${basePath}/esignature`, color: 'purple' },
+      { id: 'mailing', name: 'Mailing System', icon: Mail, path: `${basePath}/mailing`, color: 'teal' },
       { id: 'chat', name: 'AI Assistant', icon: MessageCircle, path: `${basePath}/chat`, color: 'indigo' },
       { id: 'analytics', name: 'Analytics', icon: BarChart3, path: `${basePath}/analytics`, color: 'orange' },
       { id: 'settings', name: 'Settings', icon: SettingsIcon, path: `${basePath}/settings`, color: 'gray' }
@@ -487,7 +489,12 @@ const Dashboard = () => {
     
     // E-Signature
     if (path === '/dashboard/esignature') {
-      return <div className="p-6"><h2 className="text-2xl font-bold mb-4">E-Signature Management</h2><p>E-Signature features coming soon...</p></div>;
+      return <ESignatureManager userRole={user.role} userId={user.id} />;
+    }
+    
+    // Mailing System
+    if (path === '/dashboard/mailing') {
+      return <MailingSystem />;
     }
     
     // Chat/AI Assistant
@@ -525,6 +532,13 @@ const Dashboard = () => {
             icon={BarChart3}
             color="purple"
             onClick={() => navigate('/dashboard/analytics')}
+          />
+          <QuickActionCard
+            title="Mailing System"
+            description="Send emails and manage templates"
+            icon={Mail}
+            color="teal"
+            onClick={() => navigate('/dashboard/mailing')}
           />
           {['hr_admin', 'hr_manager'].includes(user?.role) && (
             <QuickActionCard

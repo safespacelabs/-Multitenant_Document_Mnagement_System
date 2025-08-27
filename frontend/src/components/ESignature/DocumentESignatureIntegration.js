@@ -90,7 +90,7 @@ const DocumentESignatureIntegration = ({ document, userRole, userId, onSignature
     try {
               const response = await esignatureAPI.signDocumentDirectly(document.id, {
         signature_text: signatureText.trim(),
-        ip_address: '127.0.0.1', // In a real app, get actual IP
+        ip_address: window.location.hostname || 'unknown', // In a real app, get actual IP
         user_agent: navigator.userAgent
       });
 

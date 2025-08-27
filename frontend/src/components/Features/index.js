@@ -6,4 +6,5 @@ export { default as CompanyManagement } from './CompanyManagement';
 export { default as ChatInterface } from './ChatInterface';
 export { default as Analytics } from './Analytics';
 export { default as Settings } from './Settings';
-export { default as HRAdminDashboard } from './HRAdminDashboard'; 
+export { default as HRAdminDashboard } from './HRAdminDashboard';
+export { default as MailingSystem } from './MailingSystem'; 

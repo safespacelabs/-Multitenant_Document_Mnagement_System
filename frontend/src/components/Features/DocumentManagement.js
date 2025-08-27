@@ -228,7 +228,7 @@ const DocumentManagement = () => {
         },
         body: JSON.stringify({
           signature_text: `${user.full_name} - ${user.role}`,
-          ip_address: '127.0.0.1',
+          ip_address: window.location.hostname || 'unknown',
           user_agent: navigator.userAgent
         })
       });

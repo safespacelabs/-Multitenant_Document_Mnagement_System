@@ -120,7 +120,7 @@ const EmailDocumentSigning = () => {
 
       const signRequest = {
         signature_text: signatureText.trim(),
-        ip_address: '127.0.0.1',
+        ip_address: window.location.hostname || 'unknown',
         user_agent: navigator.userAgent,
         recipient_email: recipientEmail // Include recipient email for verification
       };

@@ -66,9 +66,25 @@ const Analytics = () => {
     
     setLoading(true);
     try {
-      // Load analytics summary from backend
-      const analyticsResponse = await documentsAPI.getDocumentAnalyticsSummary();
-      const analytics = analyticsResponse || {};
+      // Load analytics summary from backend with error handling
+      let analytics = {};
+      try {
+        const analyticsResponse = await documentsAPI.getDocumentAnalyticsSummary();
+        analytics = analyticsResponse || {};
+      } catch (error) {
+        console.error('Failed to load analytics summary:', error);
+        // Provide fallback analytics data
+        analytics = {
+          totalDocuments: 0,
+          totalUsers: 0,
+          storageUsed: '0 GB',
+          activeUsers: 0,
+          documentsUploaded: 0,
+          documentsDownloaded: 0,
+          averageResponseTime: '0s',
+          completionRate: 0
+        };
+      }
       
       // Load document counts
       const documentsResponse = await documentsAPI.list(null);

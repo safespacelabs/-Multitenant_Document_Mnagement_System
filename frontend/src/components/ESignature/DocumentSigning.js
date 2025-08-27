@@ -53,7 +53,7 @@ const DocumentSigning = ({ documentId, onSigningComplete, onCancel }) => {
 
       const signRequest = {
         signature_text: signatureText.trim(),
-        ip_address: '127.0.0.1', // In production, this would be captured properly
+        ip_address: window.location.hostname || 'unknown', // In production, this would be captured properly
         user_agent: navigator.userAgent
       };
 
