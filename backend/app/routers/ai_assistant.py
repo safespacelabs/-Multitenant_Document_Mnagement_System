@@ -8,7 +8,7 @@ from datetime import datetime
 from ..database import get_db
 from ..models import Company
 from ..models_company import User
-from ..schemas.ai_assistant import (
+from ..schemas import (
     ChatMessageCreate,
     ChatMessageResponse,
     ChatSessionCreate,
@@ -19,7 +19,7 @@ from ..schemas.ai_assistant import (
     SmartSuggestionResponse,
     AIAssistantStats
 )
-from ..auth import get_current_user, get_current_company
+from ..auth import get_current_user, get_current_company_user
 from ..services.ai_service import AIService
 
 router = APIRouter(prefix="/api/ai-assistant", tags=["AI Assistant"])
@@ -30,15 +30,19 @@ ai_service = AIService()
 @router.post("/chat/sessions", response_model=ChatSessionResponse)
 async def create_chat_session(
     session_data: ChatSessionCreate,
-    current_user: User = Depends(get_current_user),
-    current_company: Company = Depends(get_current_company),
+    current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
     """Create a new AI chat session for company users"""
     try:
+        # Get company from user's company_id
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+            
         session = ai_service.create_chat_session(
             user_id=current_user.id,
-            company_id=current_company.id,
+            company_id=company.id,
             session_name=session_data.session_name,
             context=session_data.context
         )
@@ -58,15 +62,19 @@ async def create_chat_session(
 
 @router.get("/chat/sessions", response_model=List[ChatSessionResponse])
 async def get_chat_sessions(
-    current_user: User = Depends(get_current_user),
-    current_company: Company = Depends(get_current_company),
+    current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
     """Get all chat sessions for the current user in their company"""
     try:
+        # Get company from user's company_id
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+            
         sessions = ai_service.get_user_chat_sessions(
             user_id=current_user.id,
-            company_id=current_company.id
+            company_id=company.id
         )
         return sessions
     except Exception as e:
@@ -79,16 +87,20 @@ async def get_chat_sessions(
 @router.post("/chat/messages", response_model=ChatMessageResponse)
 async def send_chat_message(
     message_data: ChatMessageCreate,
-    current_user: User = Depends(get_current_user),
-    current_company: Company = Depends(get_current_company),
+    current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
     """Send a message to AI Assistant and get response"""
     try:
+        # Get company from user's company_id
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+            
         # Get company context for AI
         company_context = {
-            "company_name": current_company.name,
-            "company_industry": getattr(current_company, 'industry', 'General'),
+            "company_name": company.name,
+            "company_industry": getattr(company, 'industry', 'General'),
             "user_role": current_user.role,
             "user_department": getattr(current_user, 'department', 'General')
         }
@@ -96,7 +108,7 @@ async def send_chat_message(
         # Process message with AI service
         response = ai_service.process_chat_message(
             user_id=current_user.id,
-            company_id=current_company.id,
+            company_id=company.id,
             session_id=message_data.session_id,
             message=message_data.message,
             message_type=message_data.message_type,
@@ -122,16 +134,20 @@ async def send_chat_message(
 @router.get("/chat/sessions/{session_id}/messages", response_model=List[ChatMessageResponse])
 async def get_chat_messages(
     session_id: str,
-    current_user: User = Depends(get_current_user),
-    current_company: Company = Depends(get_current_company),
+    current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
     """Get all messages for a specific chat session"""
     try:
+        # Get company from user's company_id
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+            
         messages = ai_service.get_chat_session_messages(
             session_id=session_id,
             user_id=current_user.id,
-            company_id=current_company.id
+            company_id=company.id
         )
         return messages
     except Exception as e:
@@ -144,18 +160,22 @@ async def get_chat_messages(
 @router.post("/documents/analyze", response_model=DocumentAnalysisResponse)
 async def analyze_document(
     analysis_request: DocumentAnalysisRequest,
-    current_user: User = Depends(get_current_user),
-    current_company: Company = Depends(get_current_company),
+    current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
     """Analyze a document using AI for company-specific insights"""
     try:
+        # Get company from user's company_id
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+            
         analysis = ai_service.analyze_document(
             document_id=analysis_request.document_id,
             analysis_type=analysis_request.analysis_type,
             company_context={
-                "company_name": current_company.name,
-                "industry": getattr(current_company, 'industry', 'General'),
+                "company_name": company.name,
+                "industry": getattr(company, 'industry', 'General'),
                 "user_role": current_user.role
             }
         )
@@ -179,15 +199,19 @@ async def analyze_document(
 @router.post("/suggestions", response_model=SmartSuggestionResponse)
 async def get_smart_suggestions(
     suggestion_request: SmartSuggestionRequest,
-    current_user: User = Depends(get_current_user),
-    current_company: Company = Depends(get_current_company),
+    current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
     """Get AI-powered smart suggestions for company operations"""
     try:
+        # Get company from user's company_id
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+            
         suggestions = ai_service.generate_smart_suggestions(
             user_id=current_user.id,
-            company_id=current_company.id,
+            company_id=company.id,
             suggestion_type=suggestion_request.suggestion_type,
             context=suggestion_request.context
         )
@@ -208,14 +232,18 @@ async def get_smart_suggestions(
 
 @router.get("/stats", response_model=AIAssistantStats)
 async def get_ai_assistant_stats(
-    current_user: User = Depends(get_current_user),
-    current_company: Company = Depends(get_current_company),
+    current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
     """Get AI Assistant usage statistics for the company"""
     try:
+        # Get company from user's company_id
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+            
         stats = ai_service.get_company_ai_stats(
-            company_id=current_company.id,
+            company_id=company.id,
             user_id=current_user.id
         )
         
@@ -238,16 +266,20 @@ async def get_ai_assistant_stats(
 @router.delete("/chat/sessions/{session_id}")
 async def delete_chat_session(
     session_id: str,
-    current_user: User = Depends(get_current_user),
-    current_company: Company = Depends(get_current_company),
+    current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
     """Delete a chat session and all its messages"""
     try:
+        # Get company from user's company_id
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+            
         ai_service.delete_chat_session(
             session_id=session_id,
             user_id=current_user.id,
-            company_id=current_company.id
+            company_id=company.id
         )
         return {"message": "Chat session deleted successfully"}
     except Exception as e:

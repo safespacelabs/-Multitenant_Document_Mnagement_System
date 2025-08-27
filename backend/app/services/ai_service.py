@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Company
 from ..models_company import User, Document
-from ..schemas.ai_assistant import (
+from ..schemas import (
     ChatSessionCreate,
     ChatMessageCreate,
     DocumentAnalysisRequest,
