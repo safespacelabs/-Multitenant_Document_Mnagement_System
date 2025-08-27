@@ -70,33 +70,70 @@ const HRAdminDashboard = () => {
       setLoading(true);
       setError(null);
 
-      // Load HR dashboard stats
-      const statsResponse = await documentsAPI.getHRDashboardStats();
-      setStats(statsResponse);
+      // Load HR dashboard stats with error handling
+      try {
+        const statsResponse = await documentsAPI.getHRDashboardStats();
+        setStats(statsResponse);
+      } catch (err) {
+        console.error('Failed to load HR stats:', err);
+        // Provide fallback stats
+        setStats({
+          totalEmployees: 0,
+          activeEmployees: 0,
+          totalDocuments: 0,
+          pendingApprovals: 0,
+          complianceScore: 0
+        });
+      }
 
-      // Load employees list
-      const employeesResponse = await documentsAPI.getHREmployeesList();
-      setEmployees(employeesResponse);
+      // Load employees list with error handling
+      try {
+        const employeesResponse = await documentsAPI.getHREmployeesList();
+        setEmployees(employeesResponse);
+      } catch (err) {
+        console.error('Failed to load HR employees:', err);
+        setEmployees([]);
+      }
 
-      // Load documents list
-      const documentsResponse = await documentsAPI.list();
-      setDocuments(documentsResponse.data || documentsResponse || []);
+      // Load documents list with error handling
+      try {
+        const documentsResponse = await documentsAPI.list();
+        setDocuments(documentsResponse.data || documentsResponse || []);
+      } catch (err) {
+        console.error('Failed to load documents:', err);
+        setDocuments([]);
+      }
 
-      // Load workflows (placeholder for now)
-      const workflowsResponse = await documentsAPI.getHRWorkflowsList();
-      setWorkflows(workflowsResponse);
+      // Load workflows with error handling
+      try {
+        const workflowsResponse = await documentsAPI.getHRWorkflowsList();
+        setWorkflows(workflowsResponse);
+      } catch (err) {
+        console.error('Failed to load HR workflows:', err);
+        setWorkflows([]);
+      }
 
-      // Load compliance violations (placeholder for now)
-      const complianceResponse = await documentsAPI.getHRComplianceViolations();
-      setComplianceViolations(complianceResponse);
+      // Load compliance violations with error handling
+      try {
+        const complianceResponse = await documentsAPI.getHRComplianceViolations();
+        setComplianceViolations(complianceResponse);
+      } catch (err) {
+        console.error('Failed to load HR compliance:', err);
+        setComplianceViolations([]);
+      }
 
-      // Load analytics summary
-      const analyticsResponse = await documentsAPI.getDocumentAnalyticsSummary();
-      setAnalytics(analyticsResponse);
+      // Load analytics summary with error handling
+      try {
+        const analyticsResponse = await documentsAPI.getDocumentAnalyticsSummary();
+        setAnalytics(analyticsResponse);
+      } catch (err) {
+        console.error('Failed to load analytics:', err);
+        setAnalytics({});
+      }
 
     } catch (err) {
       console.error('Failed to load HR dashboard data:', err);
-      setError('Failed to load dashboard data. Please try again.');
+      setError('Some dashboard data failed to load. Please refresh to try again.');
     } finally {
       setLoading(false);
     }
@@ -195,7 +232,7 @@ const OverviewTab = ({ stats, navigate }) => (
           <Users className="h-8 w-8 text-blue-600" />
           <div>
             <p className="text-sm font-medium text-blue-600">Total Employees</p>
-            <p className="text-2xl font-bold text-blue-900">{stats.total_employees || 0}</p>
+            <p className="text-2xl font-bold text-blue-900">{stats.totalEmployees || 0}</p>
           </div>
         </div>
       </div>
@@ -205,7 +242,7 @@ const OverviewTab = ({ stats, navigate }) => (
           <FileText className="h-8 w-8 text-green-600" />
           <div>
             <p className="text-sm font-medium text-green-600">Total Documents</p>
-            <p className="text-2xl font-bold text-green-900">{stats.total_documents || 0}</p>
+            <p className="text-2xl font-bold text-green-900">{stats.totalDocuments || 0}</p>
           </div>
         </div>
       </div>
@@ -215,7 +252,7 @@ const OverviewTab = ({ stats, navigate }) => (
           <Clock className="h-8 w-8 text-yellow-600" />
           <div>
             <p className="text-sm font-medium text-yellow-600">Pending Approvals</p>
-            <p className="text-2xl font-bold text-yellow-900">{stats.pending_approvals || 0}</p>
+            <p className="text-2xl font-bold text-yellow-900">{stats.pendingApprovals || 0}</p>
           </div>
         </div>
       </div>
@@ -225,7 +262,7 @@ const OverviewTab = ({ stats, navigate }) => (
           <AlertTriangle className="h-8 w-8 text-red-600" />
           <div>
             <p className="text-sm font-medium text-red-600">Compliance Alerts</p>
-            <p className="text-2xl font-bold text-red-900">{stats.compliance_alerts || 0}</p>
+            <p className="text-2xl font-bold text-red-900">{stats.complianceScore || 0}%</p>
           </div>
         </div>
       </div>
