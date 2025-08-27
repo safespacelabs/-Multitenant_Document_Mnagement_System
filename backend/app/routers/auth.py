@@ -4,7 +4,10 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 from app.database import get_management_db, get_company_db
 from app import models
-from app import schemas
+from app.schemas import (
+    SystemUserCreate, SystemUserResponse, CompanyUserCreate, CompanyUserResponse,
+    CompanyResponse, Token, UserLogin, CompanyLoginCredentials, UserResponse
+)
 from app import auth as auth_utils
 from app.models_company import User as CompanyUser
 from app.config import ACCESS_TOKEN_EXPIRE_MINUTES
@@ -16,9 +19,9 @@ security = HTTPBearer()
 
 
 
-@router.post("/system/register", response_model=schemas.SystemUserResponse)
+@router.post("/system/register", response_model=SystemUserResponse)
 async def register_system_user(
-    user: schemas.SystemUserCreate, 
+    user: SystemUserCreate, 
     current_admin: models.SystemUser = Depends(auth_utils.get_current_system_user),
     db: Session = Depends(get_management_db)
 ):
@@ -69,9 +72,9 @@ async def register_system_user(
     
     return db_user
 
-@router.post("/register", response_model=schemas.Token)
+@router.post("/register", response_model=Token)
 async def register_company_user(
-    user: schemas.CompanyUserCreate,
+    user: CompanyUserCreate,
     company_id: str,
     management_db: Session = Depends(get_management_db)
 ):
@@ -128,7 +131,7 @@ async def register_company_user(
         )
         
         # Convert to response format
-        user_response = schemas.CompanyUserResponse(
+        user_response = CompanyUserResponse(
             id=str(db_user.id),
             username=str(db_user.username),
             email=str(db_user.email),
@@ -140,7 +143,7 @@ async def register_company_user(
             is_active=bool(db_user.is_active)
         )
         
-        company_response = schemas.CompanyResponse(
+        company_response = CompanyResponse(
             id=str(company.id),
             name=str(company.name),
             email=str(company.email),
@@ -163,9 +166,9 @@ async def register_company_user(
     finally:
         company_db.close()
 
-@router.post("/login", response_model=schemas.Token)
+@router.post("/login", response_model=Token)
 async def login_user(
-    user_credentials: schemas.UserLogin, 
+    user_credentials: UserLogin, 
     management_db: Session = Depends(get_management_db)
 ):
     """Login for both system users and company users"""
@@ -192,7 +195,7 @@ async def login_user(
         )
         
         # Convert to response format
-        user_response = schemas.UserResponse(
+        user_response = UserResponse(
             id=system_user.id,
             username=system_user.username,
             email=system_user.email,
@@ -249,7 +252,7 @@ async def login_user(
                 )
                 
                 # Convert to response formats
-                user_response = schemas.UserResponse(
+                user_response = UserResponse(
                     id=user.id,
                     username=user.username,
                     email=user.email,
@@ -260,7 +263,7 @@ async def login_user(
                     is_active=user.is_active
                 )
                 
-                company_response = schemas.CompanyResponse(
+                company_response = CompanyResponse(
                     id=company.id,
                     name=company.name,
                     email=company.email,
@@ -295,11 +298,11 @@ async def login_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-@router.get("/me", response_model=schemas.UserResponse)
+@router.get("/me", response_model=UserResponse)
 async def read_users_me(current_user = Depends(auth_utils.get_current_user)):
     """Get current user information"""
     if isinstance(current_user, models.SystemUser):
-        return schemas.UserResponse(
+        return UserResponse(
             id=current_user.id,
             username=current_user.username,
             email=current_user.email,
@@ -310,7 +313,7 @@ async def read_users_me(current_user = Depends(auth_utils.get_current_user)):
         )
     else:
         # CompanyUser
-        return schemas.UserResponse(
+        return UserResponse(
             id=current_user.id,
             username=current_user.username,
             email=current_user.email,
@@ -321,9 +324,9 @@ async def read_users_me(current_user = Depends(auth_utils.get_current_user)):
             is_active=current_user.is_active
         )
 
-@router.post("/company-login", response_model=schemas.Token)
+@router.post("/company-login", response_model=Token)
 async def company_login(
-    user_credentials: schemas.CompanyLoginCredentials, 
+    user_credentials: CompanyLoginCredentials, 
     management_db: Session = Depends(get_management_db)
 ):
     """Login for company users with specific company context"""
@@ -376,7 +379,7 @@ async def company_login(
         )
         
         # Convert to response formats
-        user_response = schemas.UserResponse(
+        user_response = UserResponse(
             id=user.id,
             username=user.username,
             email=user.email,
@@ -387,7 +390,7 @@ async def company_login(
             is_active=user.is_active
         )
         
-        company_response = schemas.CompanyResponse(
+        company_response = CompanyResponse(
             id=company.id,
             name=company.name,
             email=company.email,
@@ -411,9 +414,9 @@ async def company_login(
     finally:
         company_db.close()
 
-@router.post("/system-admin/login", response_model=schemas.Token)
+@router.post("/system-admin/login", response_model=Token)
 async def system_admin_login(
-    user_credentials: schemas.UserLogin, 
+    user_credentials: UserLogin, 
     management_db: Session = Depends(get_management_db)
 ):
     """Dedicated login endpoint for system administrators"""
@@ -457,7 +460,7 @@ async def system_admin_login(
     )
     
     # Convert to response format
-    user_response = schemas.UserResponse(
+    user_response = UserResponse(
         id=system_user.id,
         username=system_user.username,
         email=system_user.email,
@@ -480,7 +483,7 @@ async def system_admin_login(
     
     return response_data
 
-@router.get("/system/admins", response_model=List[schemas.SystemUserResponse])
+@router.get("/system/admins", response_model=List[SystemUserResponse])
 async def list_system_admins(
     current_admin: models.SystemUser = Depends(auth_utils.get_current_system_user),
     db: Session = Depends(get_management_db)
