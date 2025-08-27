@@ -10,10 +10,19 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({
     email: '',
     full_name: '',
     role: 'employee'
+  });
+  const [createForm, setCreateForm] = useState({
+    username: '',
+    email: '',
+    full_name: '',
+    role: 'employee',
+    password: '',
+    confirm_password: ''
   });
 
 
@@ -81,6 +90,65 @@ const UserManagement = () => {
     } catch (error) {
       console.error('Failed to send invitation:', error);
       alert('Failed to send invitation: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    
+    if (user.role === 'system_admin' || !company) {
+      alert('System admins cannot create company users');
+      return;
+    }
+    
+    // Validate passwords match
+    if (createForm.password !== createForm.confirm_password) {
+      alert('Passwords do not match');
+      return;
+    }
+    
+    // Validate password length
+    if (createForm.password.length < 6) {
+      alert('Password must be at least 6 characters long');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Create user data object
+      const userData = {
+        username: createForm.username,
+        email: createForm.email,
+        full_name: createForm.full_name,
+        role: createForm.role,
+        password: createForm.password,
+        company_id: company.id
+      };
+      
+      // Call the API to create user
+      await userManagementAPI.createUser(userData, company.id);
+      
+      // Reset form and close modal
+      setShowCreateModal(false);
+      setCreateForm({
+        username: '',
+        email: '',
+        full_name: '',
+        role: 'employee',
+        password: '',
+        confirm_password: ''
+      });
+      
+      // Reload users list
+      loadUsers();
+      
+      alert('User created successfully!');
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      alert('Failed to create user: ' + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);
     }
@@ -182,6 +250,12 @@ const UserManagement = () => {
             className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
           >
             Invite New User
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+          >
+            Create New User
           </button>
           <button
             onClick={() => { loadUsers(); loadInvitations(); }}
@@ -393,6 +467,117 @@ const UserManagement = () => {
                     <button
                       type="button"
                       onClick={() => setShowInviteModal(false)}
+                      className="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create User Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Create New User</h3>
+                <form onSubmit={handleCreateUser} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.username}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, username: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={createForm.email}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.full_name}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, full_name: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Role
+                    </label>
+                    <select
+                      value={createForm.role}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, role: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {getAvailableRoles().map(role => (
+                        <option key={role} value={role}>
+                          {role.replace('_', ' ').toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={createForm.password}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      value={createForm.confirm_password}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, confirm_password: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="flex space-x-3 pt-4">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600 disabled:opacity-50"
+                    >
+                      {loading ? 'Creating...' : 'Create User'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateModal(false)}
                       className="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600"
                     >
                       Cancel
