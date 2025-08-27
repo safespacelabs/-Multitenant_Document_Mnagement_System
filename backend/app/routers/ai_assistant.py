@@ -6,7 +6,8 @@ import logging
 from datetime import datetime
 
 from ..database import get_db
-from ..models import User, Company
+from ..models import Company
+from ..models_company import User
 from ..schemas.ai_assistant import (
     ChatMessageCreate,
     ChatMessageResponse,

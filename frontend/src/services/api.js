@@ -1528,3 +1528,18 @@ export {
   systemAdminAPI,
   esignatureAPI
 };
+
+// Export apiClient for backward compatibility
+export const apiClient = {
+  auth: authAPI,
+  documents: documentsAPI,
+  companies: companiesAPI,
+  users: usersAPI,
+  userManagement: userManagementAPI,
+  chat: chatAPI,
+  systemChat: systemChatAPI,
+  systemDocuments: systemDocumentsAPI,
+  systemAdmin: systemAdminAPI,
+  esignature: esignatureAPI,
+  hrAdmin: hrAdminAPI
+};
