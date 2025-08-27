@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../utils/auth';
 import { EnhancedDocumentManager } from '../Documents';
 import { documentsAPI, usersAPI, companiesAPI } from '../../services/api';
 import { 
@@ -45,8 +46,7 @@ import {
 } from 'lucide-react';
 
 const CompanyDashboard = () => {
-  const [userData, setUserData] = useState(null);
-  const [companyData, setCompanyData] = useState(null);
+  const { user: userData, company: companyData, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [notifications, setNotifications] = useState([]);
@@ -57,28 +57,18 @@ const CompanyDashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const userDataStr = localStorage.getItem('user_data');
-    const companyId = localStorage.getItem('company_id');
-    
-    if (userDataStr && companyId) {
-      try {
-        const user = JSON.parse(userDataStr);
-        setUserData(user);
-        
-        // Load real company data from backend
-        loadCompanyData(companyId);
-        
-        loadNotifications();
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        navigate('/company-login');
-      }
-    } else {
+    // Check if user and company are loaded from auth context
+    if (userData && companyData) {
+      loadNotifications();
+      setLoading(false);
+    } else if (userData && !companyData) {
+      // User exists but no company - redirect to company selection
       navigate('/company-login');
+    } else if (!userData) {
+      // No user - redirect to login
+      navigate('/');
     }
-    
-    setLoading(false);
-  }, [navigate]);
+  }, [userData, companyData, navigate]);
 
   useEffect(() => {
     // Add click outside handler for search results
@@ -162,33 +152,7 @@ const CompanyDashboard = () => {
     }
   };
 
-  const loadCompanyData = async (companyId) => {
-    try {
-      // Try to get company data from backend using the public endpoint
-      const companyResponse = await companiesAPI.getPublic(companyId);
-      if (companyResponse && companyResponse.name) {
-        setCompanyData({
-          id: companyId,
-          name: companyResponse.name || 'Company'
-        });
-      } else {
-        // Fallback to user data if backend fails
-        const user = JSON.parse(localStorage.getItem('user_data') || '{}');
-        setCompanyData({
-          id: companyId,
-          name: user.company_name || 'Company'
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load company data:', error);
-      // Fallback to user data if backend fails
-      const user = JSON.parse(localStorage.getItem('user_data') || '{}');
-      setCompanyData({
-        id: companyId,
-        name: user.company_name || 'Company'
-      });
-    }
-  };
+
 
   const handleSearch = async (query) => {
     if (!query.trim()) {
@@ -222,16 +186,18 @@ const CompanyDashboard = () => {
 
       // Search for employees using real API
       try {
-        const usersResponse = await usersAPI.list();
-        const allUsers = usersResponse.data || usersResponse || [];
-        
-        const matchingUsers = allUsers.filter(user => 
-          (user.full_name || user.username || '').toLowerCase().includes(query.toLowerCase()) ||
-          (user.role || '').toLowerCase().includes(query.toLowerCase()) ||
-          (user.email || '').toLowerCase().includes(query.toLowerCase())
-        );
-        
-        results.employees = matchingUsers.slice(0, 5); // Limit to 5 results
+        if (companyData && companyData.id) {
+          const usersResponse = await usersAPI.list(companyData.id);
+          const allUsers = usersResponse.data || usersResponse || [];
+          
+          const matchingUsers = allUsers.filter(user => 
+            (user.full_name || user.username || '').toLowerCase().includes(query.toLowerCase()) ||
+            (user.role || '').toLowerCase().includes(query.toLowerCase()) ||
+            (user.email || '').toLowerCase().includes(query.toLowerCase())
+          );
+          
+          results.employees = matchingUsers.slice(0, 5); // Limit to 5 results
+        }
       } catch (error) {
         console.error('Employee search failed:', error);
         // Fallback to empty results
@@ -249,11 +215,9 @@ const CompanyDashboard = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user_type');
-    localStorage.removeItem('company_id');
-    localStorage.removeItem('user_data');
-    navigate('/company-login');
+    // Use the auth context logout function
+    logout();
+    navigate('/');
   };
 
   const getWelcomeMessage = () => {

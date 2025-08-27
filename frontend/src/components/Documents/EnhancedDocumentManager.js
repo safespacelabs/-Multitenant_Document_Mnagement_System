@@ -54,6 +54,40 @@ const EnhancedDocumentManager = () => {
   const [folders, setFolders] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState(null);
 
+  console.log('🏠 EnhancedDocumentManager component rendering...');
+  console.log('👤 User:', user);
+  console.log('🏢 Company:', company);
+
+  const loadDocuments = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Use appropriate API based on user role
+      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
+      const response = await api.list(selectedFolder);
+      
+      const documentsData = response.data || response || [];
+      setDocuments(documentsData);
+    } catch (error) {
+      console.error('Failed to load documents:', error);
+      setError('Failed to load documents. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFolders = async () => {
+    try {
+      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
+      const response = await api.folders();
+      const foldersData = response.data || response || [];
+      setFolders(foldersData);
+    } catch (error) {
+      console.error('Failed to load folders:', error);
+    }
+  };
+
   useEffect(() => {
     // Only run effects if user and user.role exist
     if (user && user.role) {
@@ -66,7 +100,7 @@ const EnhancedDocumentManager = () => {
       loadDocuments();
       loadFolders();
     }
-  }, [selectedFolder, searchParams, user]);
+  }, [selectedFolder, user?.role, company?.id]); // Use specific properties instead of entire objects
 
   // Update URL when filters change
   useEffect(() => {
@@ -104,36 +138,6 @@ const EnhancedDocumentManager = () => {
       </div>
     );
   }
-
-  const loadDocuments = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Use appropriate API based on user role
-      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
-      const response = await api.list(selectedFolder);
-      
-      const documentsData = response.data || response || [];
-      setDocuments(documentsData);
-    } catch (error) {
-      console.error('Failed to load documents:', error);
-      setError('Failed to load documents. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadFolders = async () => {
-    try {
-      const api = user.role === 'system_admin' ? systemDocumentsAPI : documentsAPI;
-      const response = await api.folders();
-      const foldersData = response.data || response || [];
-      setFolders(foldersData);
-    } catch (error) {
-      console.error('Failed to load folders:', error);
-    }
-  };
 
   const handleUpload = async (files) => {
     if (!files || files.length === 0) return;

@@ -51,55 +51,6 @@ const Dashboard = () => {
   console.log('🏢 Company:', company);
   console.log('📍 Location:', location.pathname);
 
-  useEffect(() => {
-    // Only run effects if user and user.role exist
-    if (user && user.role) {
-      loadQuickStats();
-      loadNotifications();
-      loadRecentActivity();
-    }
-    
-    // Add click outside handler for search results
-    const handleClickOutside = (event) => {
-      if (showSearchResults && !event.target.closest('.search-container')) {
-        setShowSearchResults(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showSearchResults, user]);
-
-  // Early return if user is not loaded yet
-  if (!user) {
-    console.log('⏳ User not loaded yet, showing loading...');
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Early return if user doesn't have a role
-  if (!user.role) {
-    console.log('❌ User role not available, showing error...');
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="h-6 w-6 text-red-600" />
-          </div>
-          <p className="text-gray-600">User role not available. Please log in again.</p>
-        </div>
-      </div>
-    );
-  }
-
   const loadQuickStats = async () => {
     try {
       const token = localStorage.getItem('access_token');
@@ -184,9 +135,11 @@ const Dashboard = () => {
         // Get recent user activities for user-related notifications
         let userActivities = [];
         try {
-          const usersResponse = await usersAPI.list();
-          const users = usersResponse.data || usersResponse || [];
-          userActivities = users.slice(0, 3); // Get 3 most recent users
+          if (company && company.id) {
+            const usersResponse = await usersAPI.list(company.id);
+            const users = usersResponse.data || usersResponse || [];
+            userActivities = users.slice(0, 3); // Get 3 most recent users
+          }
         } catch (error) {
           console.error('Failed to load user activities:', error);
         }
@@ -301,6 +254,55 @@ const Dashboard = () => {
     }
   };
 
+  useEffect(() => {
+    // Only run effects if user and user.role exist
+    if (user && user.role) {
+      loadQuickStats();
+      loadNotifications();
+      loadRecentActivity();
+    }
+    
+    // Add click outside handler for search results
+    const handleClickOutside = (event) => {
+      if (showSearchResults && !event.target.closest('.search-container')) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [user?.role, company?.id]); // Use specific properties instead of entire objects
+
+  // Early return if user is not loaded yet
+  if (!user) {
+    console.log('⏳ User not loaded yet, showing loading...');
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Early return if user doesn't have a role
+  if (!user.role) {
+    console.log('❌ User role not available, showing error...');
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="h-6 w-6 text-red-600" />
+          </div>
+          <p className="text-gray-600">User role not available. Please log in again.</p>
+        </div>
+      </div>
+    );
+  }
+
   const handleSearch = async (query) => {
     if (!query.trim()) {
       setShowSearchResults(false);
@@ -343,16 +345,18 @@ const Dashboard = () => {
       // Search for users (if user has permission)
       if (['hr_admin', 'hr_manager', 'system_admin'].includes(user.role)) {
         try {
-          const usersResponse = await usersAPI.list();
-          const allUsers = usersResponse.data || usersResponse || [];
-          
-          const matchingUsers = allUsers.filter(user => 
-            (user.full_name || user.username || '').toLowerCase().includes(query.toLowerCase()) ||
-            (user.role || '').toLowerCase().includes(query.toLowerCase()) ||
-            (user.email || '').toLowerCase().includes(query.toLowerCase())
-          );
-          
-          results.employees = matchingUsers.slice(0, 5); // Limit to 5 results
+          if (company && company.id) {
+            const usersResponse = await usersAPI.list(company.id);
+            const allUsers = usersResponse.data || usersResponse || [];
+            
+            const matchingUsers = allUsers.filter(user => 
+              (user.full_name || user.username || '').toLowerCase().includes(query.toLowerCase()) ||
+              (user.role || '').toLowerCase().includes(query.toLowerCase()) ||
+              (user.email || '').toLowerCase().includes(query.toLowerCase())
+            );
+            
+            results.employees = matchingUsers.slice(0, 5); // Limit to 5 results
+          }
         } catch (error) {
           console.error('User search failed:', error);
         }

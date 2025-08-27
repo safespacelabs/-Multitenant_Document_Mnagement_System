@@ -1,74 +1,46 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../utils/auth';
 import { authAPI } from '../../services/api';
+import { Building2, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 
 const CompanyLogin = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
-    companyId: '',
+    companyId: location.state?.companyId || '',
     username: '',
     password: ''
   });
-  const [step, setStep] = useState('company'); // 'company' or 'login'
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [companyData, setCompanyData] = useState(null);
+  const [success, setSuccess] = useState('');
 
-  const navigate = useNavigate();
-
-  const handleCompanySubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.companyId.trim()) {
-      setError('Please enter a Company ID');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      // Verify company exists
-      const companyResponse = await authAPI.getCompany(formData.companyId.trim());
-      setCompanyData(companyResponse);
-      setStep('login');
-      setError('');
-    } catch (error) {
-      console.error('Company verification failed:', error);
-      if (error.message.includes('Company not found')) {
-        setError('Company ID not found. Please check your Company ID and try again.');
-      } else {
-        setError('Unable to verify company. Please try again.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLoginSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
-      // Login with company context
-      const loginResponse = await authAPI.loginCompany(
-        formData.username,
-        formData.password,
-        formData.companyId,
-        companyData.database_url
-      );
-
-      if (loginResponse.access_token) {
-        localStorage.setItem('access_token', loginResponse.access_token);
-        localStorage.setItem('user_type', 'company_user');
-        localStorage.setItem('company_id', formData.companyId);
-        localStorage.setItem('user_data', JSON.stringify(loginResponse.user));
-        
-        // Navigate to company dashboard
-        navigate('/company-dashboard');
-      }
+      console.log('🔐 Attempting company login with:', formData);
+      
+      // Use the main auth context login function
+      const result = await login(formData, formData.companyId);
+      
+      console.log('✅ Company login successful:', result);
+      setSuccess('Login successful! Redirecting...');
+      
+      // Redirect to dashboard after successful login
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1000);
+      
     } catch (error) {
-      console.error('Login error:', error);
-      setError(error.response?.data?.detail || error.message || 'Login failed');
+      console.error('❌ Company login failed:', error);
+      setError(error.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
