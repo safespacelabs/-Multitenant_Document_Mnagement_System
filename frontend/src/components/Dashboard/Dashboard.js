@@ -6,6 +6,8 @@ import { EnhancedDocumentManager } from '../Documents';
 import { HRAdminDashboard, UserManagement, MailingSystem } from '../Features';
 import { Analytics } from '../Features';
 import ESignatureManager from '../ESignature/ESignatureManager';
+import TestingInterface from '../Testing/TestingInterface';
+import Chatbot from '../Chat/Chatbot';
 import Sidebar from '../Layout/Sidebar';
 import Header from '../Layout/Header';
 import { 
@@ -498,10 +500,15 @@ const Dashboard = () => {
       return <MailingSystem />;
     }
     
-    // Chat/AI Assistant
-    if (path === '/dashboard/chat') {
-      return <div className="p-6"><h2 className="text-2xl font-bold mb-4">AI Assistant</h2><p>AI Assistant features coming soon...</p></div>;
-    }
+         // Chat/AI Assistant
+     if (path === '/dashboard/chat') {
+       return <Chatbot />;
+     }
+     
+     // Testing Interface
+     if (path === '/dashboard/testing') {
+       return <TestingInterface />;
+     }
     
     // Default Dashboard Overview
     return (
@@ -534,22 +541,36 @@ const Dashboard = () => {
             color="purple"
             onClick={() => navigate('/dashboard/analytics')}
           />
-          <QuickActionCard
-            title="Mailing System"
-            description="Send emails and manage templates"
-            icon={Mail}
-            color="teal"
-            onClick={() => navigate('/dashboard/mailing')}
-          />
-          {['hr_admin', 'hr_manager'].includes(user?.role) && (
-            <QuickActionCard
-              title="HR Admin"
-              description="HR management dashboard"
-              icon={Users}
-              color="indigo"
-              onClick={() => navigate('/dashboard/hr-admin')}
-            />
-          )}
+                     <QuickActionCard
+             title="Mailing System"
+             description="Send emails and manage templates"
+             icon={Mail}
+             color="teal"
+             onClick={() => navigate('/dashboard/mailing')}
+           />
+           <QuickActionCard
+             title="AI Assistant"
+             description="Get help and answers from AI"
+             icon={MessageCircle}
+             color="indigo"
+             onClick={() => navigate('/dashboard/chat')}
+           />
+           <QuickActionCard
+             title="Testing Interface"
+             description="Test system functionality"
+             icon={SettingsIcon}
+             color="yellow"
+             onClick={() => navigate('/dashboard/testing')}
+           />
+           {['hr_admin', 'hr_manager'].includes(user?.role) && (
+             <QuickActionCard
+               title="HR Admin"
+               description="HR management dashboard"
+               icon={Users}
+               color="indigo"
+               onClick={() => navigate('/dashboard/hr-admin')}
+             />
+           )}
         </div>
 
         {/* Recent Activity */}
