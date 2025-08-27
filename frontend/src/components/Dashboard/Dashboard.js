@@ -3,11 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { documentsAPI, usersAPI, companiesAPI, systemDocumentsAPI } from '../../services/api';
 import { EnhancedDocumentManager } from '../Documents';
-import { HRAdminDashboard, UserManagement, MailingSystem } from '../Features';
+import { HRAdminDashboard, UserManagement, MailingSystem, AIAssistant } from '../Features';
 import { Analytics } from '../Features';
 import ESignatureManager from '../ESignature/ESignatureManager';
 import TestingInterface from '../Testing/TestingInterface';
-import Chatbot from '../Chat/Chatbot';
 import Sidebar from '../Layout/Sidebar';
 import Header from '../Layout/Header';
 import { 
@@ -502,7 +501,7 @@ const Dashboard = () => {
     
          // Chat/AI Assistant
      if (path === '/dashboard/chat') {
-       return <Chatbot />;
+       return <AIAssistant />;
      }
      
      // Testing Interface

@@ -111,6 +111,8 @@ function App() {
             <Route path="/dashboard/analytics" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/esignature" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/chat" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/testing" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/mailing" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/system-dashboard/*" element={
               <ProtectedRoute allowedRoles={['system_admin']}>
                 <Dashboard />
@@ -181,11 +183,7 @@ function App() {
               </ProtectedRoute>
             } />
             
-            <Route path="/testing" element={
-              <ProtectedRoute>
-                <TestingInterface />
-              </ProtectedRoute>
-            } />
+
             
             {/* Fallback Routes */}
             <Route path="*" element={<Navigate to="/" replace />} />

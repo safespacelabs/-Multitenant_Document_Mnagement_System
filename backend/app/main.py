@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_management_db
 from app.services.database_manager import db_manager
 from app import models
-from app.routers import auth, companies, users, documents, chatbot, user_management, esignature
+from app.routers import auth, companies, users, documents, chatbot, user_management, esignature, ai_assistant
 from app.config import get_cors_origins, ENVIRONMENT, IS_DEVELOPMENT, IS_PRODUCTION
 
 @asynccontextmanager
@@ -242,6 +242,10 @@ app.include_router(user_management.router, prefix="/api/user-management", tags=[
 print("✅ User Management router included")
 app.include_router(esignature.router, prefix="/api", tags=["E-Signature"])
 print("✅ E-Signature router included")
+
+# AI Assistant routes
+app.include_router(ai_assistant.router, prefix="/api/ai-assistant", tags=["AI Assistant"])
+print("✅ AI Assistant router included")
 
 # Import and include HR admin router
 from app.routers import hr_admin
