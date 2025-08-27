@@ -3,9 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { documentsAPI, usersAPI, companiesAPI, systemDocumentsAPI } from '../../services/api';
 import { EnhancedDocumentManager } from '../Documents';
-import { HRAdminDashboard } from '../Features';
+import { HRAdminDashboard, UserManagement } from '../Features';
 import { Analytics } from '../Features';
-import UserManagement from '../Users/UserManagement';
 import Sidebar from '../Layout/Sidebar';
 import Header from '../Layout/Header';
 import { 
