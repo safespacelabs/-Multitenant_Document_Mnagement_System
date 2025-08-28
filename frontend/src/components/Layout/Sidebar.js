@@ -131,13 +131,7 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
       path: '/dashboard/hr-admin'
     });
     
-    menuItems.push({
-      id: 'hr-user-folders',  
-      label: 'User Folders',
-      icon: Folder,
-      description: 'Manage user folders and documents',
-      path: '/hr-user-folders'
-    });
+
     
     menuItems.push({
       id: 'users',  

@@ -21,7 +21,10 @@ import {
   CheckCircle,
   AlertCircle,
   Folder,
-  FolderPlus
+  FolderPlus,
+  Users,
+  Plus,
+  X
 } from 'lucide-react';
 
 const DocumentManagement = () => {
@@ -48,6 +51,26 @@ const DocumentManagement = () => {
   // Admin signing state
   const [showSigningModal, setShowSigningModal] = useState(false);
   const [selectedDocumentForSigning, setSelectedDocumentForSigning] = useState(null);
+  
+  // HR User Folders state
+  const [showUserSearch, setShowUserSearch] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userFolders, setUserFolders] = useState([]);
+  const [userDocuments, setUserDocuments] = useState([]);
+  const [showCreateUserFolder, setShowCreateUserFolder] = useState(false);
+  const [newUserFolder, setNewUserFolder] = useState({
+    name: '',
+    display_name: '',
+    description: '',
+    user_id: '',
+    folder_type: 'hr_managed',
+    sort_order: 0
+  });
+  const [showUploadToUserFolder, setShowUploadToUserFolder] = useState(false);
+  const [selectedUserFolder, setSelectedUserFolder] = useState(null);
+  const [companyUsers, setCompanyUsers] = useState([]);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [filteredUsers, setFilteredUsers] = useState([]);
 
   // Determine if user is system admin
   const isSystemAdmin = user?.role === 'system_admin';
@@ -61,7 +84,10 @@ const DocumentManagement = () => {
   useEffect(() => {
     fetchDocuments();
     fetchFolders();
-  }, [selectedFolder, isSystemAdmin]);
+    if (user?.role === 'hr_admin' || user?.role === 'hr_manager' || user?.role === 'system_admin') {
+      fetchCompanyUsers();
+    }
+  }, [selectedFolder, isSystemAdmin, user?.role]);
 
   const fetchDocuments = async () => {
     try {
@@ -269,6 +295,211 @@ const DocumentManagement = () => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // HR User Folders functions
+  const fetchCompanyUsers = async () => {
+    try {
+      const response = await fetch('/api/hr-admin/company/users', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const usersData = await response.json();
+        setCompanyUsers(usersData);
+        setFilteredUsers(usersData);
+      } else {
+        throw new Error('Failed to load users');
+      }
+    } catch (err) {
+      console.error('Error loading users:', err);
+      setError('Failed to load company users');
+    }
+  };
+
+  const searchUsers = (searchTerm) => {
+    if (!searchTerm.trim()) {
+      setFilteredUsers(companyUsers);
+      return;
+    }
+    
+    const filtered = companyUsers.filter(user => 
+      user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.username?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredUsers(filtered);
+  };
+
+  const selectUser = async (user) => {
+    setSelectedUser(user);
+    setShowUserSearch(false);
+    await fetchUserFolders(user.id);
+  };
+
+  const fetchUserFolders = async (userId) => {
+    try {
+      const response = await fetch(`/api/hr-user-folders/users/${userId}/folders`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUserFolders(data.folders || []);
+      } else {
+        throw new Error('Failed to load user folders');
+      }
+    } catch (err) {
+      console.error('Error loading user folders:', err);
+      setUserFolders([]);
+    }
+  };
+
+  const openUserFolder = async (folder) => {
+    setSelectedUserFolder(folder);
+    try {
+      const response = await fetch(`/api/hr-user-folders/folders/${folder.id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUserDocuments(data.documents || []);
+      } else {
+        throw new Error('Failed to load folder contents');
+      }
+    } catch (err) {
+      console.error('Error loading folder contents:', err);
+      setUserDocuments([]);
+    }
+  };
+
+  const createUserFolder = async (e) => {
+    e.preventDefault();
+    
+    try {
+      const response = await fetch('/api/hr-user-folders/folders', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newUserFolder)
+      });
+      
+      if (response.ok) {
+        const createdFolder = await response.json();
+        setUserFolders(prev => [createdFolder, ...prev]);
+        setShowCreateUserFolder(false);
+        setNewUserFolder({
+          name: '',
+          display_name: '',
+          description: '',
+          user_id: '',
+          folder_type: 'hr_managed',
+          sort_order: 0
+        });
+        setError('');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to create folder');
+      }
+    } catch (err) {
+      setError('Failed to create folder: ' + err.message);
+      console.error('Error creating folder:', err);
+    }
+  };
+
+  const uploadToUserFolder = async (formData) => {
+    try {
+      const response = await fetch(`/api/hr-user-folders/folders/${selectedUserFolder.id}/documents`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+      
+      if (response.ok) {
+        const uploadedDoc = await response.json();
+        setUserDocuments(prev => [uploadedDoc, ...prev]);
+        setShowUploadToUserFolder(false);
+        setError('');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to upload document');
+      }
+    } catch (err) {
+      setError('Failed to upload document: ' + err.message);
+      console.error('Error uploading document:', err);
+    }
+  };
+
+  const deleteUserFolder = async (folderId) => {
+    if (!window.confirm('Are you sure you want to delete this folder? This will also delete all documents inside.')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/hr-user-folders/folders/${folderId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        setUserFolders(prev => prev.filter(f => f.id !== folderId));
+        if (selectedUserFolder?.id === folderId) {
+          setSelectedUserFolder(null);
+          setUserDocuments([]);
+        }
+        setError('');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to delete folder');
+      }
+    } catch (err) {
+      setError('Failed to delete folder: ' + err.message);
+      console.error('Error deleting folder:', err);
+    }
+  };
+
+  const deleteUserDocument = async (documentId) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/hr-user-folders/documents/${documentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        setUserDocuments(prev => prev.filter(d => d.id !== documentId));
+        setError('');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to delete document');
+      }
+    } catch (err) {
+      setError('Failed to delete document: ' + err.message);
+      console.error('Error deleting document:', err);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -498,6 +729,149 @@ const DocumentManagement = () => {
             />
           </div>
         </div>
+
+        {/* HR User Folders Section - Only visible for HR roles */}
+        {(user?.role === 'hr_admin' || user?.role === 'hr_manager' || user?.role === 'system_admin') && (
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-medium text-blue-900">HR User Document Management</h3>
+                <p className="text-sm text-blue-700">Create folders and manage documents for any user in your company</p>
+              </div>
+              <button
+                onClick={() => setShowUserSearch(true)}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Search User
+              </button>
+            </div>
+
+            {/* Selected User Display */}
+            {selectedUser && (
+              <div className="bg-white rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <User className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-medium text-gray-900">{selectedUser.full_name}</h4>
+                      <p className="text-sm text-gray-600">{selectedUser.email} • {selectedUser.role}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedUser(null);
+                      setUserFolders([]);
+                      setUserDocuments([]);
+                      setSelectedUserFolder(null);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* User Folders */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-md font-medium text-gray-900">User Folders ({userFolders.length})</h5>
+                    <button
+                      onClick={() => {
+                        setNewUserFolder(prev => ({ ...prev, user_id: selectedUser.id }));
+                        setShowCreateUserFolder(true);
+                      }}
+                      className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Create Folder
+                    </button>
+                  </div>
+
+                  {userFolders.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">No folders created yet for this user.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {userFolders.map((folder) => (
+                        <div key={folder.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:bg-gray-100">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <Folder className="h-4 w-4 text-blue-500" />
+                              <div>
+                                <h6 className="text-sm font-medium text-gray-900">{folder.display_name}</h6>
+                                <p className="text-xs text-gray-500">{folder.documents_count || 0} documents</p>
+                              </div>
+                            </div>
+                            <div className="flex space-x-1">
+                              <button
+                                onClick={() => openUserFolder(folder)}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                title="View folder contents"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteUserFolder(folder.id)}
+                                className="text-red-600 hover:text-red-800 p-1"
+                                title="Delete folder"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected Folder Documents */}
+                {selectedUserFolder && (
+                  <div className="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h6 className="text-md font-medium text-gray-900">
+                        Documents in {selectedUserFolder.display_name} ({userDocuments.length})
+                      </h6>
+                      <button
+                        onClick={() => setShowUploadToUserFolder(true)}
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                      >
+                        <Upload className="h-4 w-4 mr-1" />
+                        Upload Document
+                      </button>
+                    </div>
+
+                    {userDocuments.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-2">No documents in this folder.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {userDocuments.map((doc) => (
+                          <div key={doc.id} className="flex items-center justify-between bg-white rounded p-2 border border-gray-200">
+                            <div className="flex items-center space-x-2">
+                              <FileText className="h-4 w-4 text-gray-400" />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{doc.original_filename}</p>
+                                <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => deleteUserDocument(doc.id)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="Delete document"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Current Folder Indicator */}
@@ -713,6 +1087,187 @@ const DocumentManagement = () => {
                   Sign Document
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HR User Search Modal */}
+      {showUserSearch && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-2xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Search for User</h3>
+                <button
+                  onClick={() => setShowUserSearch(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or username..."
+                  value={userSearchTerm}
+                  onChange={(e) => {
+                    setUserSearchTerm(e.target.value);
+                    searchUsers(e.target.value);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="max-h-96 overflow-y-auto">
+                {filteredUsers.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4">No users found</p>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        onClick={() => selectUser(user)}
+                        className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                      >
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <User className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                          <p className="text-xs text-gray-500">{user.email} • {user.role}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create User Folder Modal */}
+      {showCreateUserFolder && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Create New Folder</h3>
+              <form onSubmit={createUserFolder}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Folder Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={newUserFolder.name}
+                    onChange={(e) => setNewUserFolder(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter folder name"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={newUserFolder.display_name}
+                    onChange={(e) => setNewUserFolder(prev => ({ ...prev, display_name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter display name"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    value={newUserFolder.description}
+                    onChange={(e) => setNewUserFolder(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter description"
+                    rows="3"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateUserFolder(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+                  >
+                    Create Folder
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload to User Folder Modal */}
+      {showUploadToUserFolder && selectedUserFolder && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Upload Document</h3>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                uploadToUserFolder(formData);
+              }}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
+                  <input
+                    type="file"
+                    name="file"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    name="document_category"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select category</option>
+                    <option value="Career Development">Career Development</option>
+                    <option value="Compensation">Compensation</option>
+                    <option value="Performance">Performance</option>
+                    <option value="Training">Training</option>
+                    <option value="Compliance">Compliance</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    name="description"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter document description"
+                    rows="3"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowUploadToUserFolder(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700"
+                  >
+                    Upload
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

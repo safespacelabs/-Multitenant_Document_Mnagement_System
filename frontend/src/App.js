@@ -24,7 +24,7 @@ import {
   Analytics,
   Settings,
   HRAdminDashboard,
-  HRUserFolders
+
 } from './components/Features';
 import { EnhancedDocumentManager } from './components/Documents';
 import './App.css';
@@ -145,11 +145,7 @@ function App() {
               </ProtectedRoute>
             } />
             
-            <Route path="/hr-user-folders" element={
-              <ProtectedRoute allowedRoles={['hr_admin', 'hr_manager', 'system_admin']}>
-                <HRUserFolders />
-              </ProtectedRoute>
-            } />
+
             
             <Route path="/documents" element={
               <ProtectedRoute>
