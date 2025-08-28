@@ -129,7 +129,7 @@ const UserManagement = () => {
       };
       
       // Call the API to create user
-      await userManagementAPI.createUser(userData, company.id);
+      await userManagementAPI.create(userData, company.id);
       
       // Reset form and close modal
       setShowCreateModal(false);
