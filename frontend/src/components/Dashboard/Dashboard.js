@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { documentsAPI, usersAPI, companiesAPI, systemDocumentsAPI } from '../../services/api';
 import { EnhancedDocumentManager } from '../Documents';
+import { DocumentManagement } from '../Features';
 import { HRAdminDashboard, UserManagement, MailingSystem, AIAssistant } from '../Features';
 import { Analytics } from '../Features';
 import ESignatureManager from '../ESignature/ESignatureManager';
@@ -476,7 +477,7 @@ const Dashboard = () => {
     
     // Document Management
     if (path === '/dashboard/documents') {
-      return <EnhancedDocumentManager />;
+      return <DocumentManagement />;
     }
     
     // Analytics
