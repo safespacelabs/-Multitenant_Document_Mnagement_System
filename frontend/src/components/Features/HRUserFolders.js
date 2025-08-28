@@ -70,6 +70,11 @@ const HRUserFolders = () => {
     sort_order: 0
   });
   
+  // Confirmation states
+  const [showDeleteFolderConfirm, setShowDeleteFolderConfirm] = useState(false);
+  const [showDeleteDocumentConfirm, setShowDeleteDocumentConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  
   // Search and filters
   const [searchTerm, setSearchTerm] = useState('');
   const [userFilter, setUserFilter] = useState('');
@@ -217,9 +222,12 @@ const HRUserFolders = () => {
   };
 
   const deleteFolder = async (folderId) => {
-    if (!confirm('Are you sure you want to delete this folder? This will also delete all documents inside.')) {
-      return;
-    }
+    setItemToDelete({ type: 'folder', id: folderId });
+    setShowDeleteFolderConfirm(true);
+  };
+
+  const confirmDeleteFolder = async () => {
+    const folderId = itemToDelete.id;
     
     try {
       const response = await fetch(`/api/hr-user-folders/folders/${folderId}`, {
@@ -244,13 +252,19 @@ const HRUserFolders = () => {
     } catch (err) {
       console.error('Error deleting folder:', err);
       alert(`Error deleting folder: ${err.message}`);
+    } finally {
+      setShowDeleteFolderConfirm(false);
+      setItemToDelete(null);
     }
   };
 
   const deleteDocument = async (documentId) => {
-    if (!confirm('Are you sure you want to delete this document?')) {
-      return;
-    }
+    setItemToDelete({ type: 'document', id: documentId });
+    setShowDeleteDocumentConfirm(true);
+  };
+
+  const confirmDeleteDocument = async () => {
+    const documentId = itemToDelete.id;
     
     try {
       const response = await fetch(`/api/hr-user-folders/documents/${documentId}`, {
@@ -271,6 +285,9 @@ const HRUserFolders = () => {
     } catch (err) {
       console.error('Error deleting document:', err);
       alert(`Error deleting document: ${err.message}`);
+    } finally {
+      setShowDeleteDocumentConfirm(false);
+      setItemToDelete(null);
     }
   };
 
@@ -756,6 +773,70 @@ const HRUserFolders = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Folder Confirmation Modal */}
+      {showDeleteFolderConfirm && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Delete</h3>
+              <p className="text-sm text-gray-600 mb-6">
+                Are you sure you want to delete this folder? This will also delete all documents inside.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteFolderConfirm(false);
+                    setItemToDelete(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteFolder}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+                >
+                  Delete Folder
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Document Confirmation Modal */}
+      {showDeleteDocumentConfirm && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Delete</h3>
+              <p className="text-sm text-gray-600 mb-6">
+                Are you sure you want to delete this document?
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteDocumentConfirm(false);
+                    setItemToDelete(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteDocument}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+                >
+                  Delete Document
+                </button>
+              </div>
             </div>
           </div>
         </div>
