@@ -451,4 +451,98 @@ class DocumentVersion(CompanyBase):
     
     # Relationships
     document = relationship("Document", backref="versions")
-    creator = relationship("User") 
+    creator = relationship("User")
+
+# New models for HR-managed user folders and documents
+class UserFolder(CompanyBase):
+    __tablename__ = "user_folders"
+    
+    id = Column(String, primary_key=True, default=lambda: f"ufolder_{uuid.uuid4().hex[:8]}")
+    name = Column(String, nullable=False)
+    display_name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)  # The user this folder belongs to
+    created_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)  # HR admin/manager who created it
+    s3_folder_path = Column(String, nullable=False)  # S3 path for this folder
+    folder_type = Column(String, default="hr_managed")  # hr_managed, user_created, system
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+    company_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id], backref="hr_folders")
+    creator = relationship("User", foreign_keys=[created_by_user_id])
+    documents = relationship("HRManagedDocument", back_populates="folder")
+
+class HRManagedDocument(CompanyBase):
+    __tablename__ = "hr_managed_documents"
+    
+    id = Column(String, primary_key=True, default=lambda: f"hrdoc_{uuid.uuid4().hex[:8]}")
+    filename = Column(String, nullable=False)
+    original_filename = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    file_size = Column(Integer, nullable=False)
+    file_type = Column(String, nullable=False)
+    s3_key = Column(String, nullable=False)
+    folder_id = Column(String, ForeignKey("user_folders.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)  # The user this document belongs to
+    created_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)  # HR admin/manager who uploaded it
+    document_category = Column(String, nullable=True)  # Career Development, Compensation, etc.
+    document_subcategory = Column(String, nullable=True)
+    tags = Column(JSON, nullable=True)  # Array of tags
+    description = Column(Text, nullable=True)
+    is_public = Column(Boolean, default=False)
+    access_level = Column(String, default="private")  # private, shared, public
+    expiry_date = Column(DateTime, nullable=True)
+    version = Column(String, default="1.0")
+    status = Column(String, default="active")  # active, archived, expired
+    metadata_json = Column(JSON, nullable=True)
+    processed = Column(Boolean, default=False)
+    company_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    folder = relationship("UserFolder", back_populates="documents")
+    user = relationship("User", foreign_keys=[user_id])
+    creator = relationship("User", foreign_keys=[created_by_user_id])
+
+class UserFolderAccess(CompanyBase):
+    __tablename__ = "user_folder_access"
+    
+    id = Column(String, primary_key=True, default=lambda: f"ufaccess_{uuid.uuid4().hex[:8]}")
+    folder_id = Column(String, ForeignKey("user_folders.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=True)  # Null for role-based access
+    role_id = Column(String, nullable=True)  # For role-based access
+    access_type = Column(String, nullable=False)  # read, write, admin
+    granted_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    company_id = Column(String, nullable=True)
+    granted_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    folder = relationship("UserFolder")
+    user = relationship("User", foreign_keys=[user_id])
+    granted_by = relationship("User", foreign_keys=[granted_by_user_id])
+
+class UserFolderAuditLog(CompanyBase):
+    __tablename__ = "user_folder_audit_logs"
+    
+    id = Column(String, primary_key=True, default=lambda: f"ufaudit_{uuid.uuid4().hex[:8]}")
+    folder_id = Column(String, ForeignKey("user_folders.id"), nullable=False)
+    document_id = Column(String, ForeignKey("hr_managed_documents.id"), nullable=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    action = Column(String, nullable=False)  # folder_created, folder_accessed, document_uploaded, document_downloaded, etc.
+    details = Column(JSON, nullable=True)  # Additional action details
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    company_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    folder = relationship("UserFolder")
+    document = relationship("HRManagedDocument")
+    user = relationship("User") 

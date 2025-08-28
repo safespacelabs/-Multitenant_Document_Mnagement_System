@@ -7,5 +7,6 @@ export { default as ChatInterface } from './ChatInterface';
 export { default as Analytics } from './Analytics';
 export { default as Settings } from './Settings';
 export { default as HRAdminDashboard } from './HRAdminDashboard';
+export { default as HRUserFolders } from './HRUserFolders';
 export { default as MailingSystem } from './MailingSystem';
 export { default as AIAssistant } from './AIAssistant'; 

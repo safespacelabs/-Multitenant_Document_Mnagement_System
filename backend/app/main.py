@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_management_db
 from app.services.database_manager import db_manager
 from app import models
-from app.routers import auth, companies, users, documents, chatbot, user_management, esignature, ai_assistant, hr_admin
+from app.routers import auth, companies, users, documents, chatbot, user_management, esignature, ai_assistant, hr_admin, hr_user_folders
 from app.config import get_cors_origins, ENVIRONMENT, IS_DEVELOPMENT, IS_PRODUCTION
 
 @asynccontextmanager
@@ -250,6 +250,7 @@ print("✅ AI Assistant router included")
 # Import and include HR admin router
 # from app.routers import hr_admin # This line is removed as per the edit hint
 app.include_router(hr_admin.router, prefix="/api/hr-admin", tags=["HR Admin"])
+app.include_router(hr_user_folders.router, prefix="/api/hr-user-folders", tags=["HR User Folders"])
 print("✅ HR Admin router included")
 print("🔧 All routers included successfully!")
 

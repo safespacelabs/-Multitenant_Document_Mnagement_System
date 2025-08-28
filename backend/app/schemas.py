@@ -226,6 +226,144 @@ class DocumentVersionResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# New schemas for HR-managed user folders and documents
+class UserFolderCreate(BaseModel):
+    name: str
+    display_name: str
+    description: Optional[str] = None
+    user_id: str
+    folder_type: str = "hr_managed"
+    sort_order: int = 0
+
+class UserFolderUpdate(BaseModel):
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+    sort_order: Optional[int] = None
+
+class UserFolderResponse(BaseModel):
+    id: str
+    name: str
+    display_name: str
+    description: Optional[str]
+    user_id: str
+    created_by_user_id: str
+    s3_folder_path: str
+    folder_type: str
+    is_active: bool
+    sort_order: int
+    company_id: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    documents_count: int = 0
+    total_size: int = 0
+
+    class Config:
+        from_attributes = True
+
+class HRManagedDocumentCreate(BaseModel):
+    folder_id: str
+    user_id: str
+    document_category: Optional[str] = None
+    document_subcategory: Optional[str] = None
+    tags: Optional[List[str]] = None
+    description: Optional[str] = None
+    is_public: bool = False
+    access_level: str = "private"
+    expiry_date: Optional[datetime] = None
+    version: str = "1.0"
+    status: str = "active"
+
+class HRManagedDocumentUpdate(BaseModel):
+    document_category: Optional[str] = None
+    document_subcategory: Optional[str] = None
+    tags: Optional[List[str]] = None
+    description: Optional[str] = None
+    is_public: Optional[bool] = None
+    access_level: Optional[str] = None
+    expiry_date: Optional[datetime] = None
+    version: Optional[str] = None
+    status: Optional[str] = None
+
+class HRManagedDocumentResponse(BaseModel):
+    id: str
+    filename: str
+    original_filename: str
+    file_path: str
+    file_size: int
+    file_type: str
+    s3_key: str
+    folder_id: str
+    user_id: str
+    created_by_user_id: str
+    document_category: Optional[str]
+    document_subcategory: Optional[str]
+    tags: Optional[List[str]]
+    description: Optional[str]
+    is_public: bool
+    access_level: str
+    expiry_date: Optional[datetime]
+    version: str
+    status: str
+    metadata_json: Optional[Dict[str, Any]]
+    processed: bool
+    company_id: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class UserFolderWithDocumentsResponse(BaseModel):
+    folder: UserFolderResponse
+    documents: List[HRManagedDocumentResponse]
+    total_documents: int
+    total_size: int
+
+class UserFoldersSummaryResponse(BaseModel):
+    user_id: str
+    user_name: str
+    user_email: str
+    folders: List[UserFolderResponse]
+    total_folders: int
+    total_documents: int
+    total_size: int
+
+class UserFolderAccessCreate(BaseModel):
+    folder_id: str
+    user_id: Optional[str] = None
+    role_id: Optional[str] = None
+    access_type: str  # read, write, admin
+    expires_at: Optional[datetime] = None
+
+class UserFolderAccessResponse(BaseModel):
+    id: str
+    folder_id: str
+    user_id: Optional[str]
+    role_id: Optional[str]
+    access_type: str
+    granted_by_user_id: str
+    granted_at: datetime
+    expires_at: Optional[datetime]
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+class UserFolderAuditLogResponse(BaseModel):
+    id: str
+    folder_id: str
+    document_id: Optional[str]
+    user_id: str
+    action: str
+    details: Optional[Dict[str, Any]]
+    ip_address: Optional[str]
+    user_agent: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 # HR Admin Dashboard schemas
 class HRDashboardStatsResponse(BaseModel):
     total_employees: int

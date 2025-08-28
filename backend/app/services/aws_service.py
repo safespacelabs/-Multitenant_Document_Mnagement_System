@@ -376,34 +376,208 @@ class AWSService:
             raise Exception(f"Failed to delete file: {str(e)}")
     
     async def delete_company_bucket(self, bucket_name: str) -> bool:
-        """Delete entire S3 bucket and all its contents"""
+        """Delete company S3 bucket and all contents"""
         if self.use_mock:
             return await self.mock_service.delete_company_bucket(bucket_name)
             
         try:
-            # First, delete all objects in the bucket
+            # List all objects in the bucket
             paginator = self.s3_client.get_paginator('list_objects_v2')
-            pages = paginator.paginate(Bucket=bucket_name)
+            objects_to_delete = []
             
-            for page in pages:
+            for page in paginator.paginate(Bucket=bucket_name):
                 if 'Contents' in page:
-                    objects = [{'Key': obj['Key']} for obj in page['Contents']]
-                    if objects:
-                        self.s3_client.delete_objects(
-                            Bucket=bucket_name,
-                            Delete={'Objects': objects}
-                        )
+                    objects_to_delete.extend([{'Key': obj['Key']} for obj in page['Contents']])
             
-            # Then delete the bucket itself
+            # Delete all objects if any exist
+            if objects_to_delete:
+                self.s3_client.delete_objects(
+                    Bucket=bucket_name,
+                    Delete={'Objects': objects_to_delete}
+                )
+            
+            # Delete the bucket
             self.s3_client.delete_bucket(Bucket=bucket_name)
             return True
             
         except ClientError as e:
-            print(f"Failed to delete bucket {bucket_name}: {str(e)}")
-            return False
+            error_code = e.response['Error']['Code']
+            if error_code == 'NoSuchBucket':
+                # Bucket doesn't exist, which is fine
+                return True
+            else:
+                print(f"Error deleting bucket {bucket_name}: {e}")
+                return False
         except Exception as e:
-            print(f"Failed to delete bucket {bucket_name}: {str(e)}")
+            print(f"Unexpected error deleting bucket {bucket_name}: {e}")
             return False
 
-# Create service instance that automatically falls back to mock if needed
+    # New methods for HR-managed user folders
+    async def create_hr_user_folder(self, bucket_name: str, user_id: str, folder_name: str) -> str:
+        """Create a folder for a specific user managed by HR"""
+        if self.use_mock:
+            return await self.mock_service.create_hr_user_folder(bucket_name, user_id, folder_name)
+            
+        # Sanitize folder name to be S3-safe
+        safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name)
+        folder_key = f"users/{user_id}/hr_folders/{safe_folder_name}/"
+        
+        try:
+            self.s3_client.put_object(
+                Bucket=bucket_name,
+                Key=folder_key,
+                Body=b'',
+                Tagging=f"UserId={user_id}&FolderType=hr_managed&FolderName={safe_folder_name}"
+            )
+            return folder_key
+        except ClientError as e:
+            raise Exception(f"Failed to create HR user folder: {str(e)}")
+
+    async def upload_file_to_hr_folder(
+        self, 
+        bucket_name: str, 
+        user_id: str, 
+        folder_name: str, 
+        file_data: BinaryIO, 
+        filename: str,
+        content_type: str = None
+    ) -> str:
+        """Upload a file to a specific HR-managed user folder"""
+        if self.use_mock:
+            return await self.mock_service.upload_file_to_hr_folder(
+                bucket_name, user_id, folder_name, file_data, filename, content_type
+            )
+            
+        # Sanitize folder name and filename
+        safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name)
+        safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
+        
+        # Create the S3 key
+        s3_key = f"users/{user_id}/hr_folders/{safe_folder_name}/{safe_filename}"
+        
+        # Prepare upload parameters
+        upload_params = {
+            'Bucket': bucket_name,
+            'Key': s3_key,
+            'Body': file_data,
+            'Tagging': f"UserId={user_id}&FolderType=hr_managed&FolderName={safe_folder_name}"
+        }
+        
+        if content_type:
+            upload_params['ContentType'] = content_type
+        
+        try:
+            self.s3_client.put_object(**upload_params)
+            return s3_key
+        except ClientError as e:
+            raise Exception(f"Failed to upload file to HR folder: {str(e)}")
+
+    async def list_hr_folder_contents(self, bucket_name: str, user_id: str, folder_name: str) -> list:
+        """List all files in a specific HR-managed user folder"""
+        if self.use_mock:
+            return await self.mock_service.list_hr_folder_contents(bucket_name, user_id, folder_name)
+            
+        # Sanitize folder name
+        safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name)
+        folder_prefix = f"users/{user_id}/hr_folders/{safe_folder_name}/"
+        
+        try:
+            response = self.s3_client.list_objects_v2(
+                Bucket=bucket_name,
+                Prefix=folder_prefix,
+                Delimiter='/'
+            )
+            
+            files = []
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    if obj['Key'] != folder_prefix:  # Skip the folder itself
+                        files.append({
+                            'key': obj['Key'],
+                            'size': obj['Size'],
+                            'last_modified': obj['LastModified'],
+                            'filename': obj['Key'].split('/')[-1]
+                        })
+            
+            return files
+        except ClientError as e:
+            raise Exception(f"Failed to list HR folder contents: {str(e)}")
+
+    async def delete_file_from_hr_folder(self, bucket_name: str, s3_key: str) -> bool:
+        """Delete a specific file from an HR-managed folder"""
+        if self.use_mock:
+            return await self.mock_service.delete_file_from_hr_folder(bucket_name, s3_key)
+            
+        try:
+            self.s3_client.delete_object(Bucket=bucket_name, Key=s3_key)
+            return True
+        except ClientError as e:
+            raise Exception(f"Failed to delete file from HR folder: {str(e)}")
+
+    async def delete_hr_user_folder(self, bucket_name: str, user_id: str, folder_name: str) -> bool:
+        """Delete an entire HR-managed user folder and all its contents"""
+        if self.use_mock:
+            return await self.mock_service.delete_hr_user_folder(bucket_name, user_id, folder_name)
+            
+        # Sanitize folder name
+        safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name)
+        folder_prefix = f"users/{user_id}/hr_folders/{safe_folder_name}/"
+        
+        try:
+            # List all objects in the folder
+            paginator = self.s3_client.get_paginator('list_objects_v2')
+            objects_to_delete = []
+            
+            for page in paginator.paginate(Bucket=bucket_name, Prefix=folder_prefix):
+                if 'Contents' in page:
+                    objects_to_delete.extend([{'Key': obj['Key']} for obj in page['Contents']])
+            
+            # Delete all objects if any exist
+            if objects_to_delete:
+                self.s3_client.delete_objects(
+                    Bucket=bucket_name,
+                    Delete={'Objects': objects_to_delete}
+                )
+            
+            return True
+        except ClientError as e:
+            raise Exception(f"Failed to delete HR user folder: {str(e)}")
+
+    async def get_file_url(self, bucket_name: str, s3_key: str, expires_in: int = 3600) -> str:
+        """Generate a presigned URL for file access"""
+        if self.use_mock:
+            return await self.mock_service.get_file_url(bucket_name, s3_key, expires_in)
+            
+        try:
+            url = self.s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket_name, 'Key': s3_key},
+                ExpiresIn=expires_in
+            )
+            return url
+        except ClientError as e:
+            raise Exception(f"Failed to generate file URL: {str(e)}")
+
+    async def copy_file_in_hr_folder(
+        self, 
+        bucket_name: str, 
+        source_key: str, 
+        destination_key: str
+    ) -> bool:
+        """Copy a file within the same bucket (useful for versioning)"""
+        if self.use_mock:
+            return await self.mock_service.copy_file_in_hr_folder(bucket_name, source_key, destination_key)
+            
+        try:
+            copy_source = {'Bucket': bucket_name, 'Key': source_key}
+            self.s3_client.copy_object(
+                CopySource=copy_source,
+                Bucket=bucket_name,
+                Key=destination_key
+            )
+            return True
+        except ClientError as e:
+            raise Exception(f"Failed to copy file: {str(e)}")
+
+# Create global instance
 aws_service = AWSService() 
