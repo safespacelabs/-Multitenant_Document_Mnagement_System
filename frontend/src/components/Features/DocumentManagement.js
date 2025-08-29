@@ -105,19 +105,22 @@ const DocumentManagement = () => {
       const preSelectedUser = location.state.selectedUserForDocuments;
       console.log('🚀 Pre-selected user from navigation:', preSelectedUser);
       
-      // Set the selected user and show HR User Folders
+      // Set the selected user and directly show HR User Folders section
       setSelectedUser(preSelectedUser);
-      setShowUserSearch(true);
-      
-      // Fetch folders and documents for this user
-      if (preSelectedUser.id) {
-        fetchUserFolders(preSelectedUser.id);
-      }
+      setShowUserSearch(false); // Don't show search modal
       
       // Clear the navigation state to prevent re-triggering
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
+
+  // Fetch folders when selectedUser changes
+  useEffect(() => {
+    if (selectedUser && selectedUser.id) {
+      console.log('🔄 Selected user changed, fetching folders for:', selectedUser.id);
+      fetchUserFolders(selectedUser.id);
+    }
+  }, [selectedUser]);
 
   const fetchDocuments = async () => {
     try {
@@ -983,6 +986,8 @@ const DocumentManagement = () => {
         {/* HR User Folders Section - Only visible for HR roles */}
         {(user?.role === 'hr_admin' || user?.role === 'hr_manager' || user?.role === 'system_admin') && (
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            {/* Debug info */}
+            {console.log('🔍 HR User Folders Section - User role:', user?.role, 'Selected user:', selectedUser)}
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-medium text-blue-900">HR User Document Management</h3>
@@ -1014,6 +1019,13 @@ const DocumentManagement = () => {
                    Search User
                  </button>
               </div>
+            </div>
+
+            {/* Debug State Display */}
+            <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+              <strong>Debug:</strong> selectedUser: {selectedUser ? `${selectedUser.full_name} (${selectedUser.id})` : 'null'}, 
+              showUserSearch: {showUserSearch.toString()}, 
+              userFolders count: {userFolders.length}
             </div>
 
             {/* Selected User Display */}
