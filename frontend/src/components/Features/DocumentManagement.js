@@ -85,7 +85,13 @@ const DocumentManagement = () => {
     fetchDocuments();
     fetchFolders();
     if (user?.role === 'hr_admin' || user?.role === 'hr_manager' || user?.role === 'system_admin') {
-      fetchCompanyUsers();
+      // Test backend connectivity first
+      testBackendConnection().then(() => {
+        fetchCompanyUsers();
+      }).catch(err => {
+        console.error('Backend connection test failed:', err);
+        setError('Cannot connect to backend server. Please check if the server is running.');
+      });
     }
   }, [selectedFolder, isSystemAdmin, user?.role]);
 
@@ -297,12 +303,36 @@ const DocumentManagement = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Test backend connectivity
+  const testBackendConnection = async () => {
+    try {
+      // Try to access a simple endpoint to test connectivity
+      const response = await fetch('/api/hr-admin/company/users', { 
+        method: 'HEAD',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      console.log('✅ Backend connection test successful');
+    } catch (err) {
+      console.error('❌ Backend connection test failed:', err);
+      throw new Error('Backend server is not accessible');
+    }
+  };
+
   // HR User Folders functions
   const fetchCompanyUsers = async () => {
     try {
+      const token = localStorage.getItem('access_token');
+      console.log('🔑 Token for API call:', token ? `${token.substring(0, 20)}...` : 'No token found');
+      
+      if (!token) {
+        throw new Error('No access token found. Please log in again.');
+      }
+      
       const response = await fetch('/api/hr-admin/company/users', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -312,11 +342,13 @@ const DocumentManagement = () => {
         setCompanyUsers(usersData);
         setFilteredUsers(usersData);
       } else {
-        throw new Error('Failed to load users');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API Error Response:', response.status, errorData);
+        throw new Error(`Failed to load users: ${response.status} ${errorData.detail || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Error loading users:', err);
-      setError('Failed to load company users');
+      setError(`Failed to load company users: ${err.message}`);
     }
   };
 
@@ -344,7 +376,7 @@ const DocumentManagement = () => {
     try {
       const response = await fetch(`/api/hr-user-folders/users/${userId}/folders`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -366,7 +398,7 @@ const DocumentManagement = () => {
     try {
       const response = await fetch(`/api/hr-user-folders/folders/${folder.id}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -390,7 +422,7 @@ const DocumentManagement = () => {
       const response = await fetch('/api/hr-user-folders/folders', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(newUserFolder)
@@ -424,7 +456,7 @@ const DocumentManagement = () => {
       const response = await fetch(`/api/hr-user-folders/folders/${selectedUserFolder.id}/documents`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         body: formData
       });
@@ -453,7 +485,7 @@ const DocumentManagement = () => {
       const response = await fetch(`/api/hr-user-folders/folders/${folderId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -484,7 +516,7 @@ const DocumentManagement = () => {
       const response = await fetch(`/api/hr-user-folders/documents/${documentId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -738,13 +770,29 @@ const DocumentManagement = () => {
                 <h3 className="text-lg font-medium text-blue-900">HR User Document Management</h3>
                 <p className="text-sm text-blue-700">Create folders and manage documents for any user in your company</p>
               </div>
-              <button
-                onClick={() => setShowUserSearch(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <Users className="h-4 w-4 mr-2" />
-                Search User
-              </button>
+              <div className="flex space-x-2">
+                {companyUsers.length === 0 && (
+                  <button
+                    onClick={() => fetchCompanyUsers()}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    🔄 Retry Load Users
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    if (companyUsers.length === 0) {
+                      // Retry loading users if none are loaded
+                      fetchCompanyUsers();
+                    }
+                    setShowUserSearch(true);
+                  }}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  Search User
+                </button>
+              </div>
             </div>
 
             {/* Selected User Display */}
