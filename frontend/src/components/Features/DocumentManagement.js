@@ -252,18 +252,18 @@ const DocumentManagement = () => {
   const handleSignDocument = async () => {
     try {
       // Call the e-signature API to sign the document directly
-      const response = await fetch(`/api/esignature/sign-document-directly/${selectedDocumentForSigning.id}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
-        body: JSON.stringify({
-          signature_text: `${user.full_name} - ${user.role}`,
-          ip_address: window.location.hostname || 'unknown',
-          user_agent: navigator.userAgent
-        })
-      });
+             const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/esignature/sign-document-directly/${selectedDocumentForSigning.id}`, {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+         },
+         body: JSON.stringify({
+           signature_text: `${user.full_name} - ${user.role}`,
+           ip_address: window.location.hostname || 'unknown',
+           user_agent: navigator.userAgent
+         })
+       });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -307,7 +307,7 @@ const DocumentManagement = () => {
   const testBackendConnection = async () => {
     try {
       // Try to access a simple endpoint to test connectivity
-      const response = await fetch('/api/hr-admin/company/users', { 
+      const response = await fetch('https://multitenant-backend-mlap.onrender.com/api/hr-admin/company/users', { 
         method: 'HEAD',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -330,7 +330,7 @@ const DocumentManagement = () => {
         throw new Error('No access token found. Please log in again.');
       }
       
-      const response = await fetch('/api/hr-admin/company/users', {
+      const response = await fetch('https://multitenant-backend-mlap.onrender.com/api/hr-admin/company/users', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -374,7 +374,7 @@ const DocumentManagement = () => {
 
   const fetchUserFolders = async (userId) => {
     try {
-      const response = await fetch(`/api/hr-user-folders/users/${userId}/folders`, {
+      const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/users/${userId}/folders`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
@@ -396,7 +396,7 @@ const DocumentManagement = () => {
   const openUserFolder = async (folder) => {
     setSelectedUserFolder(folder);
     try {
-      const response = await fetch(`/api/hr-user-folders/folders/${folder.id}`, {
+      const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders/${folder.id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
@@ -419,7 +419,7 @@ const DocumentManagement = () => {
     e.preventDefault();
     
     try {
-      const response = await fetch('/api/hr-user-folders/folders', {
+      const response = await fetch('https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -453,7 +453,7 @@ const DocumentManagement = () => {
 
   const uploadToUserFolder = async (formData) => {
     try {
-      const response = await fetch(`/api/hr-user-folders/folders/${selectedUserFolder.id}/documents`, {
+      const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders/${selectedUserFolder.id}/documents`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -482,7 +482,7 @@ const DocumentManagement = () => {
     }
     
     try {
-      const response = await fetch(`/api/hr-user-folders/folders/${folderId}`, {
+      const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders/${folderId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -513,7 +513,7 @@ const DocumentManagement = () => {
     }
     
     try {
-      const response = await fetch(`/api/hr-user-folders/documents/${documentId}`, {
+      const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/documents/${documentId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
