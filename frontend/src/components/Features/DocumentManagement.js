@@ -255,17 +255,17 @@ const DocumentManagement = () => {
     try {
       // Call the e-signature API to sign the document directly
              const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/esignature/sign-document-directly/${selectedDocumentForSigning.id}`, {
-         method: 'POST',
-         headers: {
-           'Content-Type': 'application/json',
-           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-         },
-         body: JSON.stringify({
-           signature_text: `${user.full_name} - ${user.role}`,
-           ip_address: window.location.hostname || 'unknown',
-           user_agent: navigator.userAgent
-         })
-       });
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify({
+          signature_text: `${user.full_name} - ${user.role}`,
+          ip_address: window.location.hostname || 'unknown',
+          user_agent: navigator.userAgent
+        })
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -345,6 +345,12 @@ const DocumentManagement = () => {
         // Filter out system_admin users - only show company users
         const companyUsersOnly = usersData.filter(user => user.role !== 'system_admin');
         console.log('👥 Company users loaded:', companyUsersOnly.length, 'users');
+        console.log('👥 Company users details:', companyUsersOnly.map(u => ({ 
+          id: u.id, 
+          name: u.full_name, 
+          role: u.role, 
+          company_id: u.company_id 
+        })));
         setCompanyUsers(companyUsersOnly);
         setFilteredUsers(companyUsersOnly);
         setError(''); // Clear any previous errors
@@ -376,9 +382,35 @@ const DocumentManagement = () => {
   };
 
   const selectUser = async (user) => {
+    console.log('👤 User selected:', user);
+    console.log('👤 User ID:', user.id);
+    console.log('👤 User name:', user.full_name);
+    console.log('👤 User company_id:', user.company_id);
+    
     setSelectedUser(user);
     setShowUserSearch(false);
     setUserSearchTerm(''); // Clear search term
+    
+    // Test the API endpoint before calling fetchUserFolders
+    try {
+      console.log('🧪 Testing API endpoint...');
+      const testResponse = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/users/${user.id}/folders`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log('🧪 Test response status:', testResponse.status);
+      console.log('🧪 Test response headers:', Object.fromEntries(testResponse.headers.entries()));
+      
+      if (!testResponse.ok) {
+        const testError = await testResponse.json().catch(() => ({}));
+        console.error('🧪 Test failed:', testResponse.status, testError);
+      }
+    } catch (testErr) {
+      console.error('🧪 Test error:', testErr);
+    }
+    
     await fetchUserFolders(user.id);
   };
 
@@ -400,12 +432,18 @@ const DocumentManagement = () => {
     try {
       setLoadingFolders(true);
       console.log('📁 Fetching folders for user:', userId);
+      console.log('🔐 Access token:', localStorage.getItem('access_token') ? 'Present' : 'Missing');
+      console.log('🌐 Full URL:', `https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/users/${userId}/folders`);
+      
       const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/users/${userId}/folders`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
+      
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (response.ok) {
         const data = await response.json();
@@ -415,6 +453,7 @@ const DocumentManagement = () => {
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ Failed to load folders:', response.status, errorData);
+        console.error('❌ Response text:', await response.text().catch(() => 'Could not read response'));
         throw new Error(`Failed to load user folders: ${response.status}`);
       }
     } catch (err) {
