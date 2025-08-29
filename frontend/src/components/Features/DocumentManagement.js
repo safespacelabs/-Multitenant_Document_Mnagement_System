@@ -453,22 +453,68 @@ const DocumentManagement = () => {
 
   const uploadToUserFolder = async (formData) => {
     try {
+      // Create a new FormData with the correct structure
+      const uploadFormData = new FormData();
+      
+      // Get the file from the original formData
+      const file = formData.get('file');
+      if (!file) {
+        throw new Error('No file selected');
+      }
+      
+      // Add the file
+      uploadFormData.append('file', file);
+      
+      // Create metadata object and convert to JSON string
+      const metadata = {
+        document_category: formData.get('document_category') || '',
+        document_subcategory: formData.get('document_subcategory') || '',
+        description: formData.get('description') || '',
+        tags: [],
+        is_public: false,
+        access_level: 'private',
+        version: '1.0',
+        status: 'active'
+      };
+      
+      // Add the metadata as a JSON string
+      uploadFormData.append('document_data', JSON.stringify(metadata));
+      
+      console.log('📤 Uploading file:', file.name, 'Size:', file.size, 'Type:', file.type);
+      console.log('📤 Metadata:', metadata);
+      
       const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders/${selectedUserFolder.id}/documents`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
-        body: formData
+        body: uploadFormData
       });
       
       if (response.ok) {
         const uploadedDoc = await response.json();
+        console.log('✅ Document uploaded successfully:', uploadedDoc);
         setUserDocuments(prev => [uploadedDoc, ...prev]);
         setShowUploadToUserFolder(false);
         setError('');
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to upload document');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Upload Error Response:', response.status, errorData);
+        
+        // Handle different error types
+        if (response.status === 422) {
+          // Validation error - show specific validation details
+          if (errorData.detail && Array.isArray(errorData.detail)) {
+            const validationErrors = errorData.detail.map(err => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+            throw new Error(`Validation failed: ${validationErrors}`);
+          } else if (errorData.detail) {
+            throw new Error(`Validation failed: ${errorData.detail}`);
+          } else {
+            throw new Error('Document validation failed. Please check file type, size, and required fields.');
+          }
+        } else {
+          throw new Error(errorData.detail || `Upload failed with status ${response.status}`);
+        }
       }
     } catch (err) {
       setError('Failed to upload document: ' + err.message);
