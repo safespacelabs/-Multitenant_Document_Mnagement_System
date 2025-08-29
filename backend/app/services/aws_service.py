@@ -375,6 +375,10 @@ class AWSService:
         except ClientError as e:
             raise Exception(f"Failed to delete file: {str(e)}")
     
+    async def delete_file_from_s3(self, bucket_name: str, file_key: str):
+        """Delete file from S3 (alias for delete_file for compatibility)"""
+        return await self.delete_file(bucket_name, file_key)
+    
     async def delete_company_bucket(self, bucket_name: str) -> bool:
         """Delete company S3 bucket and all contents"""
         if self.use_mock:
@@ -557,6 +561,10 @@ class AWSService:
             return url
         except ClientError as e:
             raise Exception(f"Failed to generate file URL: {str(e)}")
+
+    async def generate_presigned_url(self, bucket_name: str, s3_key: str, expiration: int = 3600) -> str:
+        """Generate a presigned URL for file access (alias for get_file_url for compatibility)"""
+        return await self.get_file_url(bucket_name, s3_key, expiration)
 
     async def copy_file_in_hr_folder(
         self, 

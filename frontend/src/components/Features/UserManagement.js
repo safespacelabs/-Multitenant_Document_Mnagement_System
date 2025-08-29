@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { userManagementAPI, usersAPI } from '../../services/api';
 
 const UserManagement = () => {
   const { user, company } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [invitations, setInvitations] = useState([]);
@@ -197,6 +199,16 @@ const UserManagement = () => {
     return manageable.includes(targetRole);
   };
 
+  const handleViewDocuments = (targetUser) => {
+    // Navigate to document management with the selected user pre-loaded
+    navigate('/dashboard/documents', { 
+      state: { 
+        selectedUserForDocuments: targetUser,
+        showHRUserFolders: true 
+      } 
+    });
+  };
+
 
 
   // Redirect system admins to their dedicated management interface
@@ -333,6 +345,13 @@ const UserManagement = () => {
                           </div>
                         </div>
                         <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleViewDocuments(user)}
+                            className="text-green-600 hover:text-green-800 text-sm font-medium mr-2"
+                            title="View all folders and documents for this user"
+                          >
+                            View Documents
+                          </button>
                           {canManageRole(user.role) && (
                             <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
                               Edit

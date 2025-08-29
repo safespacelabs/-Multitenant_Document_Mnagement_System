@@ -214,6 +214,10 @@ class MockAWSService:
         else:
             logger.warning(f"Mock: File '{file_key}' not found in bucket '{bucket_name}'")
     
+    async def delete_file_from_s3(self, bucket_name: str, file_key: str):
+        """Mock file deletion from S3 (alias for delete_file for compatibility)"""
+        return await self.delete_file(bucket_name, file_key)
+    
     async def delete_company_bucket(self, bucket_name: str) -> bool:
         """Mock deletion of entire S3 bucket and all its contents"""
         if bucket_name not in self.created_buckets:
@@ -239,6 +243,23 @@ class MockAWSService:
         if bucket_name not in self.created_buckets:
             return []
         return list(self.uploaded_files.get(bucket_name, set()))
+
+    async def get_file_url(self, bucket_name: str, s3_key: str, expires_in: int = 3600) -> str:
+        """Mock presigned URL generation"""
+        if bucket_name not in self.created_buckets:
+            raise Exception(f"Bucket {bucket_name} does not exist")
+        
+        if bucket_name not in self.uploaded_files or s3_key not in self.uploaded_files[bucket_name]:
+            raise Exception(f"File {s3_key} not found in bucket {bucket_name}")
+        
+        # Return a mock URL for testing
+        mock_url = f"https://mock-s3.amazonaws.com/{bucket_name}/{s3_key}?expires={expires_in}"
+        logger.info(f"Mock: Generated presigned URL for '{s3_key}' in bucket '{bucket_name}': {mock_url}")
+        return mock_url
+
+    async def generate_presigned_url(self, bucket_name: str, s3_key: str, expiration: int = 3600) -> str:
+        """Mock presigned URL generation (alias for get_file_url for compatibility)"""
+        return await self.get_file_url(bucket_name, s3_key, expiration)
 
 # Create mock instance
 mock_aws_service = MockAWSService() 

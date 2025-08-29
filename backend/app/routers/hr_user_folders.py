@@ -810,3 +810,111 @@ async def delete_document(
         
     finally:
         company_db.close()
+
+@router.get("/documents/{document_id}/view")
+async def view_document(
+    document_id: str,
+    current_user: CompanyUser = Depends(verify_hr_access),
+    management_db: Session = Depends(get_management_db)
+):
+    """Get a view/download URL for a specific document"""
+    
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Get the document
+        document = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.id == document_id,
+            HRManagedDocument.company_id == company_id,
+            HRManagedDocument.is_active == True
+        ).first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Generate a presigned URL for viewing/downloading
+        try:
+            download_url = await aws_service.generate_presigned_url(
+                company.s3_bucket_name,
+                document.s3_key,
+                expiration=3600  # 1 hour
+            )
+            return {"download_url": download_url}
+        except Exception as s3_error:
+            print(f"❌ Failed to generate presigned URL: {str(s3_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate download URL: {str(s3_error)}"
+            )
+        
+    finally:
+        company_db.close()
+
+@router.get("/documents/{document_id}/download")
+async def download_document(
+    document_id: str,
+    current_user: CompanyUser = Depends(verify_hr_access),
+    management_db: Session = Depends(get_management_db)
+):
+    """Download a specific document"""
+    
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Get the document
+        document = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.id == document_id,
+            HRManagedDocument.company_id == company_id,
+            HRManagedDocument.is_active == True
+        ).first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Download file from S3
+        try:
+            file_content = await aws_service.download_file(
+                company.s3_bucket_name,
+                document.s3_key
+            )
+            
+            # Return the file as a response
+            from fastapi.responses import Response
+            return Response(
+                content=file_content,
+                media_type=document.content_type or "application/octet-stream",
+                headers={
+                    "Content-Disposition": f"attachment; filename=\"{document.original_filename}\""
+                }
+            )
+        except Exception as s3_error:
+            print(f"❌ Failed to download file from S3: {str(s3_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to download file: {str(s3_error)}"
+            )
+        
+    finally:
+        company_db.close()

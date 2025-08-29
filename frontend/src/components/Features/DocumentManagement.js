@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { documentsAPI, systemDocumentsAPI } from '../../services/api';
 import DocumentESignatureIntegration from '../ESignature/DocumentESignatureIntegration';
@@ -29,6 +30,7 @@ import {
 
 const DocumentManagement = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [documents, setDocuments] = useState([]);
   const [folders, setFolders] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState('all');
@@ -96,6 +98,26 @@ const DocumentManagement = () => {
       });
     }
   }, [selectedFolder, isSystemAdmin, user?.role]);
+
+  // Handle navigation state for pre-selected user
+  useEffect(() => {
+    if (location.state?.selectedUserForDocuments && location.state?.showHRUserFolders) {
+      const preSelectedUser = location.state.selectedUserForDocuments;
+      console.log('🚀 Pre-selected user from navigation:', preSelectedUser);
+      
+      // Set the selected user and show HR User Folders
+      setSelectedUser(preSelectedUser);
+      setShowUserSearch(true);
+      
+      // Fetch folders and documents for this user
+      if (preSelectedUser.id) {
+        fetchUserFolders(preSelectedUser.id);
+      }
+      
+      // Clear the navigation state to prevent re-triggering
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const fetchDocuments = async () => {
     try {
@@ -674,6 +696,62 @@ const DocumentManagement = () => {
     }
   };
 
+  const viewUserDocument = async (document) => {
+    try {
+      // For PDFs and images, we can open them directly in a new tab
+      if (document.original_filename.toLowerCase().endsWith('.pdf') || 
+          document.original_filename.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i)) {
+        
+        // Get the document URL from the backend
+        const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/documents/${document.id}/view`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.download_url) {
+            // Open in new tab
+            window.open(data.download_url, '_blank');
+          } else {
+            throw new Error('No download URL provided');
+          }
+        } else {
+          throw new Error('Failed to get document URL');
+        }
+      } else {
+        // For other file types, trigger download
+        const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/documents/${document.id}/download`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = document.original_filename;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        } else {
+          throw new Error('Failed to download document');
+        }
+      }
+    } catch (err) {
+      setError('Failed to view document: ' + err.message);
+      console.error('Error viewing document:', err);
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -1061,13 +1139,22 @@ const DocumentManagement = () => {
                                 <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}</p>
                               </div>
                             </div>
-                            <button
-                              onClick={() => deleteUserDocument(doc.id)}
-                              className="text-red-600 hover:text-red-800 p-1"
-                              title="Delete document"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => viewUserDocument(doc)}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                title="View document"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteUserDocument(doc.id)}
+                                className="text-red-600 hover:text-red-800 p-1"
+                                title="Delete document"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
