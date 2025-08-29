@@ -141,16 +141,21 @@ async def invite_user(
 
 @router.post("/create", response_model=schemas.CompanyUserResponse)
 async def create_user(
-    user_data: schemas.UserCreate,
+    user_data: schemas.CompanyUserCreate,
     current_user: CompanyUser = Depends(auth.get_current_company_user),
     management_db: Session = Depends(get_management_db)
 ):
     """HR admins and managers can create new users directly in their company"""
     
+    print(f"🚀 Creating user with data: {user_data}")
+    print(f"👤 Current user: {current_user.username}, role: {current_user.role}, company_id: {getattr(current_user, 'company_id', None)}")
+    
     # Check if current user can manage the target role
     current_role = str(current_user.role)
     target_role = str(user_data.role.value)
     manageable_roles = get_manageable_roles(current_role)
+    print(f"🔐 Role check - Current: {current_role}, Target: {target_role}, Manageable: {manageable_roles}")
+    
     if target_role not in manageable_roles and current_role != "system_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

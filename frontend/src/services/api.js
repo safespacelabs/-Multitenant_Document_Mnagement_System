@@ -335,8 +335,25 @@ const usersAPI = {
     });
     
     if (!response.ok) {
-      const error = await response.json();
+      let error;
+      try {
+        error = await response.json();
+      } catch (e) {
+        error = { detail: `HTTP ${response.status}: ${response.statusText}` };
+      }
       console.error('❌ User creation failed:', response.status, error);
+      
+      // Handle validation errors more gracefully
+      if (response.status === 422 && error.detail) {
+        if (Array.isArray(error.detail)) {
+          // Pydantic validation errors
+          const validationErrors = error.detail.map(err => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+          throw new Error(`Validation error: ${validationErrors}`);
+        } else {
+          throw new Error(error.detail);
+        }
+      }
+      
       throw new Error(error.detail || `Failed to create user: ${response.status}`);
     }
     
