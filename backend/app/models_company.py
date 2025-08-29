@@ -500,6 +500,7 @@ class HRManagedDocument(CompanyBase):
     status = Column(String, default="active")  # active, archived, expired
     metadata_json = Column(JSON, nullable=True)
     processed = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)  # Add missing is_active field
     company_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
