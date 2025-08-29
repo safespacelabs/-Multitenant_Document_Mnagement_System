@@ -68,9 +68,11 @@ const DocumentManagement = () => {
   });
   const [showUploadToUserFolder, setShowUploadToUserFolder] = useState(false);
   const [selectedUserFolder, setSelectedUserFolder] = useState(null);
-  const [companyUsers, setCompanyUsers] = useState([]);
-  const [userSearchTerm, setUserSearchTerm] = useState('');
-  const [filteredUsers, setFilteredUsers] = useState([]);
+     const [companyUsers, setCompanyUsers] = useState([]);
+   const [userSearchTerm, setUserSearchTerm] = useState('');
+   const [filteredUsers, setFilteredUsers] = useState([]);
+   const [loadingUsers, setLoadingUsers] = useState(false);
+   const [loadingFolders, setLoadingFolders] = useState(false);
 
   // Determine if user is system admin
   const isSystemAdmin = user?.role === 'system_admin';
@@ -323,6 +325,7 @@ const DocumentManagement = () => {
   // HR User Folders functions
   const fetchCompanyUsers = async () => {
     try {
+      setLoadingUsers(true);
       const token = localStorage.getItem('access_token');
       console.log('🔑 Token for API call:', token ? `${token.substring(0, 20)}...` : 'No token found');
       
@@ -339,8 +342,12 @@ const DocumentManagement = () => {
       
       if (response.ok) {
         const usersData = await response.json();
-        setCompanyUsers(usersData);
-        setFilteredUsers(usersData);
+        // Filter out system_admin users - only show company users
+        const companyUsersOnly = usersData.filter(user => user.role !== 'system_admin');
+        console.log('👥 Company users loaded:', companyUsersOnly.length, 'users');
+        setCompanyUsers(companyUsersOnly);
+        setFilteredUsers(companyUsersOnly);
+        setError(''); // Clear any previous errors
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('API Error Response:', response.status, errorData);
@@ -349,6 +356,8 @@ const DocumentManagement = () => {
     } catch (err) {
       console.error('Error loading users:', err);
       setError(`Failed to load company users: ${err.message}`);
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
@@ -369,11 +378,28 @@ const DocumentManagement = () => {
   const selectUser = async (user) => {
     setSelectedUser(user);
     setShowUserSearch(false);
+    setUserSearchTerm(''); // Clear search term
     await fetchUserFolders(user.id);
+  };
+
+  const handleUserSearch = async (searchTerm) => {
+    if (!searchTerm.trim()) {
+      setFilteredUsers(companyUsers);
+      return;
+    }
+    
+    const filtered = companyUsers.filter(user => 
+      user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.username?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredUsers(filtered);
   };
 
   const fetchUserFolders = async (userId) => {
     try {
+      setLoadingFolders(true);
+      console.log('📁 Fetching folders for user:', userId);
       const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/users/${userId}/folders`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -383,19 +409,27 @@ const DocumentManagement = () => {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Folders loaded:', data);
         setUserFolders(data.folders || []);
+        setError(''); // Clear any previous errors
       } else {
-        throw new Error('Failed to load user folders');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Failed to load folders:', response.status, errorData);
+        throw new Error(`Failed to load user folders: ${response.status}`);
       }
     } catch (err) {
       console.error('Error loading user folders:', err);
+      setError(`Failed to load folders: ${err.message}`);
       setUserFolders([]);
+    } finally {
+      setLoadingFolders(false);
     }
   };
 
   const openUserFolder = async (folder) => {
     setSelectedUserFolder(folder);
     try {
+      console.log('📂 Opening folder:', folder.id, folder.display_name);
       const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders/${folder.id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -405,12 +439,17 @@ const DocumentManagement = () => {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Folder contents loaded:', data);
         setUserDocuments(data.documents || []);
+        setError(''); // Clear any previous errors
       } else {
-        throw new Error('Failed to load folder contents');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Failed to load folder contents:', response.status, errorData);
+        throw new Error(`Failed to load folder contents: ${response.status}`);
       }
     } catch (err) {
       console.error('Error loading folder contents:', err);
+      setError(`Failed to load folder contents: ${err.message}`);
       setUserDocuments([]);
     }
   };
@@ -418,7 +457,15 @@ const DocumentManagement = () => {
   const createUserFolder = async (e) => {
     e.preventDefault();
     
+    // Ensure user_id is set from selected user
+    if (!newUserFolder.user_id) {
+      setError('User ID is required. Please try again.');
+      return;
+    }
+    
     try {
+      console.log('📁 Creating folder with data:', newUserFolder);
+      
       const response = await fetch('https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders', {
         method: 'POST',
         headers: {
@@ -430,6 +477,7 @@ const DocumentManagement = () => {
       
       if (response.ok) {
         const createdFolder = await response.json();
+        console.log('✅ Folder created successfully:', createdFolder);
         setUserFolders(prev => [createdFolder, ...prev]);
         setShowCreateUserFolder(false);
         setNewUserFolder({
@@ -441,8 +489,12 @@ const DocumentManagement = () => {
           sort_order: 0
         });
         setError('');
+        
+        // Refresh folders to ensure data persistence
+        await fetchUserFolders(selectedUser.id);
       } else {
         const errorData = await response.json();
+        console.error('❌ Folder creation failed:', response.status, errorData);
         throw new Error(errorData.detail || 'Failed to create folder');
       }
     } catch (err) {
@@ -497,6 +549,9 @@ const DocumentManagement = () => {
         setUserDocuments(prev => [uploadedDoc, ...prev]);
         setShowUploadToUserFolder(false);
         setError('');
+        
+        // Refresh folder contents to ensure data persistence
+        await openUserFolder(selectedUserFolder);
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('Upload Error Response:', response.status, errorData);
@@ -817,55 +872,68 @@ const DocumentManagement = () => {
                 <p className="text-sm text-blue-700">Create folders and manage documents for any user in your company</p>
               </div>
               <div className="flex space-x-2">
-                {companyUsers.length === 0 && (
-                  <button
-                    onClick={() => fetchCompanyUsers()}
-                    className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    🔄 Retry Load Users
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    if (companyUsers.length === 0) {
-                      // Retry loading users if none are loaded
-                      fetchCompanyUsers();
-                    }
-                    setShowUserSearch(true);
-                  }}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Search User
-                </button>
+                                 {companyUsers.length === 0 && (
+                   <button
+                     onClick={() => fetchCompanyUsers()}
+                     disabled={loadingUsers}
+                     className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                   >
+                     {loadingUsers ? '🔄 Loading...' : '🔄 Retry Load Users'}
+                   </button>
+                 )}
+                                 <button
+                   onClick={() => {
+                     if (companyUsers.length === 0) {
+                       // Retry loading users if none are loaded
+                       fetchCompanyUsers();
+                     }
+                     setShowUserSearch(true);
+                     setUserSearchTerm(''); // Clear any previous search
+                     setFilteredUsers(companyUsers); // Show all users initially
+                   }}
+                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                 >
+                   <Users className="h-4 w-4 mr-2" />
+                   Search User
+                 </button>
               </div>
             </div>
 
             {/* Selected User Display */}
             {selectedUser && (
               <div className="bg-white rounded-lg p-4 border border-blue-200">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <User className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h4 className="text-lg font-medium text-gray-900">{selectedUser.full_name}</h4>
-                      <p className="text-sm text-gray-600">{selectedUser.email} • {selectedUser.role}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setSelectedUser(null);
-                      setUserFolders([]);
-                      setUserDocuments([]);
-                      setSelectedUserFolder(null);
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
+                                 <div className="flex items-center justify-between mb-4">
+                   <div className="flex items-center space-x-3">
+                     <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                       <User className="h-5 w-5 text-blue-600" />
+                     </div>
+                     <div>
+                       <h4 className="text-lg font-medium text-gray-900">{selectedUser.full_name}</h4>
+                       <p className="text-sm text-gray-600">{selectedUser.email} • {selectedUser.role}</p>
+                     </div>
+                   </div>
+                   <div className="flex items-center space-x-2">
+                     <button
+                       onClick={() => fetchUserFolders(selectedUser.id)}
+                       className="text-blue-600 hover:text-blue-800 p-1"
+                       title="Refresh user data"
+                     >
+                       🔄
+                     </button>
+                     <button
+                       onClick={() => {
+                         setSelectedUser(null);
+                         setUserFolders([]);
+                         setUserDocuments([]);
+                         setSelectedUserFolder(null);
+                       }}
+                       className="text-gray-400 hover:text-gray-600"
+                       title="Close user"
+                     >
+                       <X className="h-5 w-5" />
+                     </button>
+                   </div>
+                 </div>
 
                 {/* User Folders */}
                 <div className="space-y-4">
@@ -883,9 +951,14 @@ const DocumentManagement = () => {
                     </button>
                   </div>
 
-                  {userFolders.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">No folders created yet for this user.</p>
-                  ) : (
+                                     {loadingFolders ? (
+                     <div className="text-center py-4">
+                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                       <p className="text-sm text-gray-500">Loading folders...</p>
+                     </div>
+                   ) : userFolders.length === 0 ? (
+                     <p className="text-sm text-gray-500 text-center py-4">No folders created yet for this user.</p>
+                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {userFolders.map((folder) => (
                         <div key={folder.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:bg-gray-100">
@@ -1201,42 +1274,91 @@ const DocumentManagement = () => {
                 </button>
               </div>
               
-              <div className="mb-4">
-                <input
-                  type="text"
-                  placeholder="Search by name, email, or username..."
-                  value={userSearchTerm}
-                  onChange={(e) => {
-                    setUserSearchTerm(e.target.value);
-                    searchUsers(e.target.value);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+                             <div className="mb-4">
+                 <form onSubmit={(e) => {
+                   e.preventDefault();
+                   handleUserSearch(userSearchTerm);
+                 }}>
+                   <div className="flex space-x-2">
+                     <input
+                       type="text"
+                       placeholder="Search by name, email, or username..."
+                       value={userSearchTerm}
+                       onChange={(e) => setUserSearchTerm(e.target.value)}
+                       className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                     />
+                     <button
+                       type="submit"
+                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                     >
+                       🔍 Search
+                     </button>
+                   </div>
+                 </form>
+                 
+                 <div className="mt-2 flex justify-center">
+                   <button
+                     onClick={() => {
+                       setUserSearchTerm('');
+                       setFilteredUsers(companyUsers);
+                     }}
+                     className="text-sm text-blue-600 hover:text-blue-800 underline"
+                   >
+                     Show All Users
+                   </button>
+                 </div>
+               </div>
 
-              <div className="max-h-96 overflow-y-auto">
-                {filteredUsers.length === 0 ? (
-                  <p className="text-center text-gray-500 py-4">No users found</p>
-                ) : (
-                  <div className="space-y-2">
-                    {filteredUsers.map((user) => (
-                      <div
-                        key={user.id}
-                        onClick={() => selectUser(user)}
-                        className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                      >
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <User className="h-4 w-4 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
-                          <p className="text-xs text-gray-500">{user.email} • {user.role}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                             <div className="mb-3 flex justify-between items-center">
+                 <span className="text-sm text-gray-600">
+                   {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''} found
+                 </span>
+                 {userSearchTerm && (
+                   <button
+                     onClick={() => {
+                       setUserSearchTerm('');
+                       setFilteredUsers(companyUsers);
+                     }}
+                     className="text-sm text-blue-600 hover:text-blue-800"
+                   >
+                     Clear Search
+                   </button>
+                 )}
+               </div>
+               
+               <div className="max-h-96 overflow-y-auto">
+                 {loadingUsers ? (
+                   <div className="text-center py-4">
+                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                     <p className="text-sm text-gray-500">Loading users...</p>
+                   </div>
+                 ) : filteredUsers.length === 0 ? (
+                   <p className="text-center text-gray-500 py-4">
+                     {userSearchTerm ? 'No users found matching your search.' : 'No users available.'}
+                   </p>
+                 ) : (
+                   <div className="space-y-2">
+                     {filteredUsers.map((user) => (
+                       <div
+                         key={user.id}
+                         onClick={() => selectUser(user)}
+                         className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                       >
+                         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                           <User className="h-4 w-4 text-blue-600" />
+                         </div>
+                         <div className="flex-1">
+                           <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                           <p className="text-xs text-gray-500">{user.email} • {user.role}</p>
+                         </div>
+                         <div className="text-xs text-gray-400">
+                           Click to select
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 )}
+               </div>
             </div>
           </div>
         </div>
