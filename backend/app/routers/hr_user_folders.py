@@ -63,44 +63,78 @@ async def create_user_folder(
         if not target_user:
             raise HTTPException(status_code=404, detail="Target user not found")
         
-        # Create S3 folder
-        s3_folder_path = await aws_service.create_hr_user_folder(
-            company.s3_bucket_name,
-            folder_data.user_id,
-            folder_data.name
-        )
+        # Create S3 folder with proper error handling
+        try:
+            print(f"🔧 Creating S3 folder for user {folder_data.user_id}, folder: {folder_data.name}")
+            s3_folder_path = await aws_service.create_hr_user_folder(
+                company.s3_bucket_name,
+                folder_data.user_id,
+                folder_data.name
+            )
+            print(f"✅ S3 folder created successfully: {s3_folder_path}")
+        except Exception as s3_error:
+            print(f"❌ S3 folder creation failed: {str(s3_error)}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to create S3 folder: {str(s3_error)}"
+            )
         
-        # Create folder record in database
-        db_folder = UserFolder(
-            name=folder_data.name,
-            display_name=folder_data.display_name,
-            description=folder_data.description,
-            user_id=folder_data.user_id,
-            created_by_user_id=current_user.id,
-            s3_folder_path=s3_folder_path,
-            folder_type=folder_data.folder_type,
-            sort_order=folder_data.sort_order,
-            company_id=company_id
-        )
+        # Create folder record in database with proper error handling
+        try:
+            db_folder = UserFolder(
+                name=folder_data.name,
+                display_name=folder_data.display_name,
+                description=folder_data.description,
+                user_id=folder_data.user_id,
+                created_by_user_id=current_user.id,
+                s3_folder_path=s3_folder_path,
+                folder_type=folder_data.folder_type,
+                sort_order=folder_data.sort_order,
+                company_id=company_id
+            )
+            
+            company_db.add(db_folder)
+            company_db.commit()
+            company_db.refresh(db_folder)
+            print(f"✅ Database folder record created: {db_folder.id}")
+        except Exception as db_error:
+            print(f"❌ Database folder creation failed: {str(db_error)}")
+            company_db.rollback()
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to create database folder record: {str(db_error)}"
+            )
         
-        company_db.add(db_folder)
-        company_db.commit()
-        company_db.refresh(db_folder)
-        
-        # Log the action
-        audit_log = UserFolderAuditLog(
-            folder_id=db_folder.id,
-            user_id=current_user.id,
-            action="folder_created",
-            details={
-                "folder_name": folder_data.name,
-                "target_user_id": folder_data.user_id,
-                "target_user_name": target_user.full_name
-            },
-            company_id=company_id
-        )
-        company_db.add(audit_log)
-        company_db.commit()
+        # Log the action with proper error handling
+        try:
+            audit_log = UserFolderAuditLog(
+                folder_id=db_folder.id,
+                user_id=current_user.id,
+                action="folder_created",
+                details={
+                    "folder_name": folder_data.name,
+                    "target_user_id": folder_data.user_id,
+                    "target_user_name": target_user.full_name
+                },
+                company_id=company_id
+            )
+            company_db.add(audit_log)
+            company_db.commit()
+            print(f"✅ Audit log created for folder: {db_folder.id}")
+        except Exception as audit_error:
+            print(f"⚠️ Audit log creation failed (non-critical): {str(audit_error)}")
+            # Don't fail the entire operation for audit log issues
+            company_db.rollback()
+            # Try to commit just the folder again
+            try:
+                company_db.commit()
+                print(f"✅ Folder record committed after audit log failure")
+            except Exception as retry_error:
+                print(f"❌ Failed to commit folder after audit log failure: {str(retry_error)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to create folder: {str(retry_error)}"
+                )
         
         # Convert to response format
         response = schemas.UserFolderResponse(
@@ -122,6 +156,66 @@ async def create_user_folder(
         )
         
         return response
+        
+    finally:
+        company_db.close()
+
+@router.get("/test-db", response_model=Dict[str, Any])
+async def test_database_connection(
+    current_user: CompanyUser = Depends(verify_hr_access),
+    management_db: Session = Depends(get_management_db)
+):
+    """Test endpoint to check database connectivity and table existence"""
+    
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Test if tables exist
+        from sqlalchemy import text
+        
+        # Check if user_folders table exists
+        try:
+            folders_count = company_db.query(UserFolder).count()
+            folders_exist = True
+        except Exception as e:
+            folders_exist = False
+            folders_count = 0
+        
+        # Check if hr_managed_documents table exists
+        try:
+            docs_count = company_db.query(HRManagedDocument).count()
+            docs_exist = True
+        except Exception as e:
+            docs_exist = False
+            docs_count = 0
+        
+        return {
+            "company_id": company_id,
+            "company_name": company.name,
+            "database_url": company.database_url,
+            "tables": {
+                "user_folders": {
+                    "exists": folders_exist,
+                    "count": folders_count
+                },
+                "hr_managed_documents": {
+                    "exists": docs_exist,
+                    "count": docs_count
+                }
+            },
+            "test_time": datetime.utcnow().isoformat()
+        }
         
     finally:
         company_db.close()
@@ -365,59 +459,93 @@ async def upload_document_to_folder(
         file_content = await file.read()
         file_size = len(file_content)
         
-        # Upload file to S3
-        s3_key = await aws_service.upload_file_to_hr_folder(
-            company.s3_bucket_name,
-            folder.user_id,
-            folder.name,
-            file_content,
-            file.filename,
-            file.content_type
-        )
+        # Upload file to S3 with proper error handling
+        try:
+            print(f"🔧 Uploading file to S3: {file.filename}, size: {file_size}, folder: {folder.name}")
+            s3_key = await aws_service.upload_file_to_hr_folder(
+                company.s3_bucket_name,
+                folder.user_id,
+                folder.name,
+                file_content,
+                file.filename,
+                file.content_type
+            )
+            print(f"✅ File uploaded to S3 successfully: {s3_key}")
+        except Exception as s3_error:
+            print(f"❌ S3 file upload failed: {str(s3_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to upload file to S3: {str(s3_error)}"
+            )
         
-        # Create document record in database
-        db_document = HRManagedDocument(
-            filename=file.filename,
-            original_filename=file.filename,
-            file_path=s3_key,
-            file_size=file_size,
-            file_type=file.content_type or "application/octet-stream",
-            s3_key=s3_key,
-            folder_id=folder_id,
-            user_id=folder.user_id,
-            created_by_user_id=current_user.id,
-            document_category=metadata.get("document_category"),
-            document_subcategory=metadata.get("document_subcategory"),
-            tags=metadata.get("tags"),
-            description=metadata.get("description"),
-            is_public=metadata.get("is_public", False),
-            access_level=metadata.get("access_level", "private"),
-            expiry_date=metadata.get("expiry_date"),
-            version=metadata.get("version", "1.0"),
-            status=metadata.get("status", "active"),
+        # Create document record in database with proper error handling
+        try:
+            db_document = HRManagedDocument(
+                filename=file.filename,
+                original_filename=file.filename,
+                file_path=s3_key,
+                file_size=file_size,
+                file_type=file.content_type or "application/octet-stream",
+                s3_key=s3_key,
+                folder_id=folder_id,
+                user_id=folder.user_id,
+                created_by_user_id=current_user.id,
+                document_category=metadata.get("document_category"),
+                document_subcategory=metadata.get("document_subcategory"),
+                tags=metadata.get("tags"),
+                description=metadata.get("description"),
+                is_public=metadata.get("is_public", False),
+                access_level=metadata.get("access_level", "private"),
+                expiry_date=metadata.get("expiry_date"),
+                version=metadata.get("version", "1.0"),
+                status=metadata.get("status", "active"),
             metadata_json=metadata,
-            company_id=company_id
-        )
+                company_id=company_id
+            )
+            
+            company_db.add(db_document)
+            company_db.commit()
+            company_db.refresh(db_document)
+            print(f"✅ Database document record created: {db_document.id}")
+        except Exception as db_error:
+            print(f"❌ Database document creation failed: {str(db_error)}")
+            company_db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create database document record: {str(db_error)}"
+            )
         
-        company_db.add(db_document)
-        company_db.commit()
-        company_db.refresh(db_document)
-        
-        # Log the action
-        audit_log = UserFolderAuditLog(
-            folder_id=folder_id,
-            document_id=db_document.id,
-            user_id=current_user.id,
-            action="document_uploaded",
-            details={
-                "filename": file.filename,
-                "file_size": file_size,
-                "file_type": file.content_type
-            },
-            company_id=company_id
-        )
-        company_db.add(audit_log)
-        company_db.commit()
+        # Log the action with proper error handling
+        try:
+            audit_log = UserFolderAuditLog(
+                folder_id=folder_id,
+                document_id=db_document.id,
+                user_id=current_user.id,
+                action="document_uploaded",
+                details={
+                    "filename": file.filename,
+                    "file_size": file_size,
+                    "file_type": file.content_type
+                },
+                company_id=company_id
+            )
+            company_db.add(audit_log)
+            company_db.commit()
+            print(f"✅ Audit log created for document: {db_document.id}")
+        except Exception as audit_error:
+            print(f"⚠️ Audit log creation failed (non-critical): {str(audit_error)}")
+            # Don't fail the entire operation for audit log issues
+            company_db.rollback()
+            # Try to commit just the document again
+            try:
+                company_db.commit()
+                print(f"✅ Document record committed after audit log failure")
+            except Exception as retry_error:
+                print(f"❌ Failed to commit document after audit log failure: {str(retry_error)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to create document: {str(retry_error)}"
+                )
         
         # Convert to response format
         response = schemas.HRManagedDocumentResponse(
@@ -483,12 +611,18 @@ async def get_user_folders_summary(
         if not target_user:
             raise HTTPException(status_code=404, detail="Target user not found")
         
-        # Get all folders for this user
-        folders = company_db.query(UserFolder).filter(
+        # Get all folders for this user with detailed logging
+        print(f"🔍 Querying folders for user: {user_id}, company: {company_id}")
+        
+        folders_query = company_db.query(UserFolder).filter(
             UserFolder.user_id == user_id,
             UserFolder.company_id == company_id,
             UserFolder.is_active == True
-        ).order_by(UserFolder.sort_order, UserFolder.created_at.desc()).all()
+        ).order_by(UserFolder.sort_order, UserFolder.created_at.desc())
+        
+        print(f"🔍 SQL Query: {folders_query}")
+        folders = folders_query.all()
+        print(f"✅ Found {len(folders)} folders for user {user_id}")
         
         # Convert folders to response format with document counts
         folders_response = []
@@ -496,6 +630,7 @@ async def get_user_folders_summary(
         total_size = 0
         
         for folder in folders:
+            print(f"📁 Processing folder: {folder.id} - {folder.name}")
             # Get document count and size for this folder
             folder_docs = company_db.query(HRManagedDocument).filter(
                 HRManagedDocument.folder_id == folder.id,
@@ -506,6 +641,7 @@ async def get_user_folders_summary(
             folder_size = sum(doc.file_size for doc in folder_docs)
             total_documents += documents_count
             total_size += folder_size
+            print(f"📄 Folder {folder.name} has {documents_count} documents, size: {folder_size}")
             
             folder_response = schemas.UserFolderResponse(
                 id=folder.id,
