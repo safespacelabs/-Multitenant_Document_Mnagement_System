@@ -126,12 +126,17 @@ const UserManagement = () => {
         email: createForm.email,
         full_name: createForm.full_name,
         role: createForm.role,
-        password: createForm.password,
-        company_id: company.id
+        password: createForm.password
       };
       
+      console.log('🔧 Creating user with data:', userData);
+      console.log('🏢 Company ID:', company.id);
+      console.log('👤 Current user role:', user.role);
+      
       // Call the API to create user
-      await userManagementAPI.create(userData, company.id);
+      console.log('🚀 Calling usersAPI.create with:', userData, company.id);
+      const result = await usersAPI.create(userData, company.id);
+      console.log('✅ User creation result:', result);
       
       // Reset form and close modal
       setShowCreateModal(false);
@@ -149,7 +154,8 @@ const UserManagement = () => {
       
       alert('User created successfully!');
     } catch (error) {
-      console.error('Failed to create user:', error);
+      console.error('❌ Failed to create user:', error);
+      console.error('❌ Error details:', error.response, error.message);
       alert('Failed to create user: ' + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);

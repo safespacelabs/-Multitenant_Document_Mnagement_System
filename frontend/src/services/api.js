@@ -323,22 +323,26 @@ const usersAPI = {
   },
 
   create: async (userData, companyId) => {
+    console.log('🚀 Creating user with data:', userData);
+    
     const response = await fetch(buildApiUrl('/api/user-management/create'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        'X-Company-ID': companyId
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       },
       body: JSON.stringify(userData)
     });
     
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || 'Failed to create user');
+      console.error('❌ User creation failed:', response.status, error);
+      throw new Error(error.detail || `Failed to create user: ${response.status}`);
     }
     
-    return response.json();
+    const result = await response.json();
+    console.log('✅ User created successfully:', result);
+    return result;
   },
 
   delete: async (userId, companyId) => {
