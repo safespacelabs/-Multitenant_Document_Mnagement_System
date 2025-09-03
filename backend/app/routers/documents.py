@@ -18,7 +18,7 @@ from app import models, schemas
 from app import auth
 from app.models_company import Document as CompanyDocument, User as CompanyUser, DocumentCategory, DocumentFolder, DocumentAccess, DocumentAuditLog
 from app.services.aws_service import aws_service
-from app.services.groq_service import groq_service
+from app.services.document_analysis_service import document_analysis_service
 from app.services.email_extensions import get_extended_email_service
 from ..schemas import DocumentResponse, DocumentCreate, SystemDocumentResponse, SystemDocumentCreate
 from ..models import SystemDocument, SystemUser
@@ -443,6 +443,30 @@ async def upload_document(
         company_db.commit()
         
         print(f"✅ Company document uploaded successfully: {document.id}")
+        
+        # Process document with AI analysis
+        try:
+            print(f"🤖 Starting AI analysis for document: {document.id}")
+            analysis_result = await document_analysis_service.process_document_upload(
+                document_id=document.id,
+                file_content=file_content,
+                filename=file.filename,
+                folder_name=folder_name,
+                user_id=current_user.id,
+                user_name=current_user.username,
+                user_email=current_user.email,
+                company_db=company_db
+            )
+            
+            if analysis_result["success"]:
+                print(f"✅ AI analysis completed successfully for document: {document.id}")
+                if analysis_result.get("expiry_detected"):
+                    print(f"⚠️ Expiry date detected in document: {document.id}")
+            else:
+                print(f"❌ AI analysis failed for document: {document.id}, Error: {analysis_result.get('error')}")
+                
+        except Exception as e:
+            print(f"❌ AI analysis error for document {document.id}: {str(e)}")
         
         return document
         

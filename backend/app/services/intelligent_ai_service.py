@@ -5,15 +5,15 @@ import json
 import re
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
-from app.config import GROQ_API_KEY
-from app.services.groq_service import groq_service
+# Removed Groq dependencies
 from app import models
 from app.auth import get_password_hash
 
 
 class IntelligentAIService:
     def __init__(self):
-        self.has_groq_key = bool(GROQ_API_KEY)
+        # Removed Groq dependency
+        pass
         
     async def process_system_query(self, query: str, user_id: str, management_db: Session) -> Dict[str, Any]:
         """
@@ -40,20 +40,7 @@ class IntelligentAIService:
                     "actions_available": self._get_available_actions()
                 }
             
-            # If no task, provide intelligent response
-            if self.has_groq_key:
-                try:
-                    response = await self._generate_intelligent_response(query, context)
-                    return {
-                        "response": response,
-                        "task_executed": False,
-                        "task_result": None,
-                        "actions_available": self._get_available_actions()
-                    }
-                except Exception as e:
-                    print(f"Groq API error: {e}")
-                    # Fall back to enhanced basic response
-                    
+            # If no task, provide enhanced basic response (Groq removed)
             # Enhanced basic response with task suggestions
             response = self._generate_enhanced_response(query, context)
             return {
@@ -1574,44 +1561,7 @@ Would you like to create a folder, upload a file, or get specific guidance?""",
         
         return None
     
-    async def _generate_intelligent_response(self, query: str, context: dict) -> str:
-        """Generate intelligent response using Groq AI."""
-        system_prompt = f"""You are an Intelligent System Administrator Assistant with task execution capabilities.
-
-Current System Status:
-- Total Companies: {context.get('total_companies', 0)}
-- Active Companies: {context.get('active_companies', 0)}
-- Estimated Users: {context.get('total_users', 0)}
-- System Health: {context.get('system_health', 'operational')}
-
-You can both answer questions AND execute tasks. Available actions:
-• Create system administrators
-• List system administrators  
-• Create companies
-• Generate analytics reports
-• Test system components
-• Provide configuration guidance
-• Guide password changes
-• Assist with document management
-
-Provide detailed, helpful responses about any system administration topic."""
-
-        prompt = f"""
-{system_prompt}
-
-User Query: {query}
-
-Provide a comprehensive response as a System Administrator Assistant.
-"""
-
-        response = groq_service.client.chat.completions.create(
-            model=groq_service.model,
-            max_tokens=1000,
-            temperature=0.1,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        
-        return response.choices[0].message.content if response.choices else "I apologize, but I couldn't generate a response."
+    # Removed _generate_intelligent_response method (used Groq)
     
     def _generate_enhanced_response(self, query: str, context: dict) -> str:
         """Generate enhanced response with task execution hints."""
@@ -2042,19 +1992,8 @@ Ready for more detailed testing!""",
             except Exception as e:
                 results["aws_s3"] = {"status": f"❌ Failed: {str(e)}"}
             
-            # Test Groq API
-            try:
-                from app.config import GROQ_API_KEY
-                if GROQ_API_KEY:
-                    test_result = groq_service.test_connection()
-                    if test_result["success"]:
-                        results["groq"] = {"status": "✅ Connected"}
-                    else:
-                        results["groq"] = {"status": f"❌ Failed: {test_result.get('error', 'Unknown error')}"}
-                else:
-                    results["groq"] = {"status": "⚠️ No API key configured"}
-            except Exception as e:
-                results["groq"] = {"status": f"❌ Failed: {str(e)}"}
+            # Groq API removed
+            results["groq"] = {"status": "❌ Service removed"}
             
             response_text = f"🔐 **External API Credentials Test**\n\n"
             response_text += f"**Neon Database API:**\n   {results['neon_api']['status']}\n\n"

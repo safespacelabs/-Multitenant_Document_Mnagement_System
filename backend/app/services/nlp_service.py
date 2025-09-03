@@ -2,7 +2,7 @@ import spacy
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from app.models_company import User as CompanyUser, Document as CompanyDocument
-from app.services.groq_service import groq_service
+# Removed Groq dependency
 from app.services.intelligent_ai_service import intelligent_ai_service
 import json
 
@@ -18,7 +18,7 @@ class NLPService:
         """Process a query for company users with document context."""
         try:
             # For now, return a simple response
-            # In the future, this could use the groq service to provide more intelligent responses
+            # AI responses removed (Groq service was removed)
             
             context = self._get_document_context(user_id, company_id, db)
             
@@ -50,106 +50,9 @@ class NLPService:
             return f"I apologize, but I encountered an error processing your system query: {str(e)}"
 
     def _process_system_query_with_ai(self, query: str, context: dict) -> str:
-        """Process system query using Groq AI with system context."""
-        try:
-            system_prompt = f"""You are a System Administrator Assistant for a multi-tenant document management system with comprehensive knowledge of all system sections.
-
-Current System Status:
-- Total Companies: {context.get('total_companies', 0)}
-- Active Companies: {context.get('active_companies', 0)}
-- Estimated Users: {context.get('total_users', 0)}
-- System Health: {context.get('system_health', 'operational')}
-
-SYSTEM SECTIONS AND CAPABILITIES:
-
-🔹 **Overview Section**
-- System statistics and health monitoring
-- Company overview and activity tracking  
-- Real-time system metrics
-- Multi-tenant architecture status
-
-🔹 **System Admins Section**
-- Create and manage system administrator accounts
-- Configure admin privileges and permissions
-- Automatic S3 storage setup for new admins
-- Admin activity monitoring and security
-
-🔹 **Companies Section**
-- Multi-tenant company management with database isolation
-- Create companies with dedicated databases
-- Monitor company statistics and health
-- Test database connections and performance
-- Company activation/deactivation controls
-
-🔹 **Documents Section (System-Level)**
-- System administrator document management
-- Separate from company-specific documents
-- System-wide file storage and organization
-- Document processing and metadata extraction
-
-🔹 **AI Assistant Section**
-- Intelligent system administration guidance
-- Context-aware responses using real system data
-- Multi-topic assistance covering all system areas
-- Integration with Groq AI for advanced responses
-
-🔹 **Analytics Section**
-- System-wide analytics and reporting
-- Company performance metrics
-- User activity insights across all tenants
-- Storage usage and system resource monitoring
-- Custom time-range analysis (week/month/quarter/year)
-
-🔹 **Settings Section**
-- System configuration management
-- Profile and security settings
-- System-wide preferences and policies
-- Password and authentication controls
-- File upload and processing settings
-
-🔹 **Testing Section**
-- Comprehensive system testing interface
-- API endpoint testing and validation
-- Role-based access control testing
-- Database connection testing
-- Real-time test execution and reporting
-
-TECHNICAL CAPABILITIES:
-- True database isolation per company
-- Neon PostgreSQL database management
-- AWS S3 multi-tenant storage
-- Role-based access control (System Admin, HR Admin, HR Manager, Employee, Customer)
-- Real-time system monitoring and health checks
-- Automated company onboarding and setup
-
-Please provide helpful, accurate responses about any of these system areas. Be professional and specific.
-If asked about specific data or statistics, use the provided system status information.
-"""
-
-            # Create a simple prompt for the AI
-            prompt = f"""
-{system_prompt}
-
-User Query: {query}
-
-Please provide a helpful response as a System Administrator Assistant.
-"""
-
-            # Use the groq service to generate a response
-            response = groq_service.client.chat.completions.create(
-                model=groq_service.model,
-                max_tokens=1000,
-                temperature=0.1,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            
-            # Extract text from the response content
-            response_text = response.choices[0].message.content if response.choices else ""
-            return response_text or "I apologize, but I couldn't generate a response at this time."
-            
-        except Exception as e:
-            # Fall back to basic responses if AI fails
-            return self._get_fallback_system_response(query, context)
+        """Process system query with fallback responses (Groq removed)."""
+        # Fall back to basic responses since Groq was removed
+        return self._get_fallback_system_response(query, context)
 
     def _get_fallback_system_response(self, query: str, context: dict) -> str:
         """Fallback system responses when AI is unavailable."""
