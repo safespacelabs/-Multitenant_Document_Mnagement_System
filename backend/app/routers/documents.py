@@ -1037,6 +1037,175 @@ async def list_enhanced_documents(
         finally:
             company_db.close()
 
+@router.post("/{document_id}/process-ai")
+async def process_document_with_ai(
+    document_id: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """Manually process a document with AI analysis"""
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Get document
+        document = company_db.query(CompanyDocument).filter(
+            CompanyDocument.id == document_id
+        ).first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Check if already processed
+        existing_analysis = company_db.query(DocumentAnalysis).filter(
+            DocumentAnalysis.document_id == document_id
+        ).first()
+        
+        if existing_analysis:
+            return {
+                "message": "Document already processed by AI",
+                "analysis_id": existing_analysis.id,
+                "already_processed": True
+            }
+        
+        # Download file from S3
+        try:
+            file_content = s3_client.get_object(
+                Bucket=bucket_name,
+                Key=document.s3_key
+            )['Body'].read()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
+        
+        # Get user information
+        user = company_db.query(CompanyUser).filter(
+            CompanyUser.id == document.user_id
+        ).first()
+        
+        user_name = user.full_name if user else "Unknown User"
+        user_email = user.email if user else "unknown@example.com"
+        
+        # Process with AI
+        analysis_result = await document_analysis_service.process_document_upload(
+            document_id=document.id,
+            file_content=file_content,
+            filename=document.filename,
+            folder_name=document.folder_name,
+            user_id=document.user_id,
+            user_name=user_name,
+            user_email=user_email,
+            company_db=company_db
+        )
+        
+        if analysis_result["success"]:
+            return {
+                "message": "Document processed successfully with AI",
+                "analysis_id": analysis_result["analysis_id"],
+                "metadata": analysis_result["metadata"],
+                "expiry_detected": analysis_result["expiry_detected"],
+                "already_processed": False
+            }
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"AI processing failed: {analysis_result.get('error', 'Unknown error')}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing document with AI: {str(e)}")
+    finally:
+        company_db.close()
+
+@router.get("/{document_id}/ai-analysis")
+async def get_document_ai_analysis(
+    document_id: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """Get AI analysis for a specific document"""
+    # Get company information
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Get document
+        document = company_db.query(CompanyDocument).filter(
+            CompanyDocument.id == document_id
+        ).first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Check if document has AI analysis
+        analysis = company_db.query(DocumentAnalysis).filter(
+            DocumentAnalysis.document_id == document_id
+        ).first()
+        
+        if analysis:
+            return {
+                "document_id": document_id,
+                "filename": document.filename,
+                "ai_processed": True,
+                "analysis": {
+                    "id": analysis.id,
+                    "title": analysis.title,
+                    "summary": analysis.summary,
+                    "document_type": analysis.document_type,
+                    "expiry_detected": analysis.expiry_detected,
+                    "expiry_date": analysis.expiry_date.isoformat() if analysis.expiry_date else None,
+                    "urgency_level": analysis.urgency_level,
+                    "key_topics": analysis.key_topics,
+                    "entities": analysis.entities,
+                    "keywords": analysis.keywords,
+                    "language": analysis.language,
+                    "word_count": analysis.word_count,
+                    "sentiment": analysis.sentiment,
+                    "important_notes": analysis.important_notes,
+                    "compliance_requirements": analysis.compliance_requirements,
+                    "extracted_text": analysis.extracted_text,
+                    "ai_model": analysis.ai_model,
+                    "processing_status": analysis.processing_status,
+                    "created_at": analysis.created_at.isoformat()
+                }
+            }
+        else:
+            return {
+                "document_id": document_id,
+                "filename": document.filename,
+                "ai_processed": False,
+                "message": "Document has not been processed by AI yet"
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking AI analysis: {str(e)}")
+    finally:
+        company_db.close()
+
 @router.get("/{document_id}", response_model=schemas.DocumentResponse)
 async def get_document(
     document_id: str,

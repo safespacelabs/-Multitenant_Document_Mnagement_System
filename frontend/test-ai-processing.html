@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Document Processing Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen py-8">
+    <div class="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+        <h1 class="text-3xl font-bold text-gray-900 mb-6">🤖 AI Document Processing Test</h1>
+        
+        <div class="space-y-6">
+            <!-- Instructions -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h2 class="text-lg font-medium text-blue-900 mb-2">📋 Instructions:</h2>
+                <ol class="list-decimal list-inside text-sm text-blue-800 space-y-1">
+                    <li>Open your browser's Developer Tools (F12)</li>
+                    <li>Go to the Console tab</li>
+                    <li>Make sure you're logged into your application</li>
+                    <li>Copy your document ID from the HR User Folders page</li>
+                    <li>Paste it in the input field below</li>
+                    <li>Click the test buttons to test AI processing</li>
+                </ol>
+            </div>
+
+            <!-- Document ID Input -->
+            <div class="bg-white border border-gray-200 rounded-lg p-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Document ID:
+                </label>
+                <input 
+                    type="text" 
+                    id="documentId" 
+                    placeholder="Enter document ID here..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+            </div>
+
+            <!-- Test Buttons -->
+            <div class="flex space-x-4">
+                <button 
+                    onclick="testAIProcessing()"
+                    id="processBtn"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                >
+                    ⚡ Process with AI
+                </button>
+                
+                <button 
+                    onclick="checkAIAnalysis()"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                    🧠 Check AI Analysis
+                </button>
+            </div>
+
+            <!-- Results -->
+            <div id="results" class="hidden bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h3 class="text-lg font-medium text-gray-900 mb-3">📊 Results:</h3>
+                <pre id="resultContent" class="text-sm bg-white p-3 rounded border overflow-auto max-h-64"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function testAIProcessing() {
+            const documentId = document.getElementById('documentId').value;
+            if (!documentId) {
+                alert('Please enter a document ID');
+                return;
+            }
+
+            const btn = document.getElementById('processBtn');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Processing...';
+
+            try {
+                const response = await fetch(`/api/documents/${documentId}/process-ai`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.already_processed) {
+                        alert('✅ Document already processed by AI!');
+                    } else {
+                        alert('✅ Document processed successfully with AI!');
+                    }
+                    console.log('AI Processing Result:', data);
+                } else {
+                    alert(`❌ Error: ${data.detail}`);
+                }
+                
+                showResults(data);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Failed to process document with AI');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '⚡ Process with AI';
+            }
+        }
+
+        async function checkAIAnalysis() {
+            const documentId = document.getElementById('documentId').value;
+            if (!documentId) {
+                alert('Please enter a document ID');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/documents/${documentId}/ai-analysis`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.ai_processed) {
+                        alert('✅ AI Analysis found! Check console for details.');
+                    } else {
+                        alert('ℹ️ Document not processed by AI yet.');
+                    }
+                    console.log('AI Analysis Result:', data);
+                } else {
+                    alert(`❌ Error: ${data.detail}`);
+                }
+                
+                showResults(data);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Failed to check AI analysis');
+            }
+        }
+
+        function showResults(data) {
+            document.getElementById('resultContent').textContent = JSON.stringify(data, null, 2);
+            document.getElementById('results').classList.remove('hidden');
+        }
+
+        // Auto-focus on document ID input
+        document.getElementById('documentId').focus();
+    </script>
+</body>
+</html>

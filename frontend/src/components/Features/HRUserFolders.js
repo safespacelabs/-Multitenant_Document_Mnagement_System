@@ -42,7 +42,10 @@ import {
   Folder,
   FileText,
   Users,
-  BarChart3
+  BarChart3,
+  Bot,
+  Brain,
+  Zap
 } from 'lucide-react';
 
 const HRUserFolders = () => {
@@ -74,6 +77,11 @@ const HRUserFolders = () => {
   const [showDeleteFolderConfirm, setShowDeleteFolderConfirm] = useState(false);
   const [showDeleteDocumentConfirm, setShowDeleteDocumentConfirm] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
+  
+  // AI processing states
+  const [processingAI, setProcessingAI] = useState({});
+  const [aiAnalysisResults, setAiAnalysisResults] = useState({});
+  const [showAIAnalysis, setShowAIAnalysis] = useState({});
   
   // Search and filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -306,6 +314,11 @@ const HRUserFolders = () => {
       if (response.ok) {
         const folderData = await response.json();
         setDocuments(folderData.documents);
+        
+        // Check AI analysis status for all documents
+        folderData.documents.forEach(doc => {
+          checkAIAnalysis(doc.id);
+        });
       } else {
         throw new Error('Failed to load folder contents');
       }
@@ -325,6 +338,73 @@ const HRUserFolders = () => {
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  // AI Processing Functions
+  const processDocumentWithAI = async (documentId) => {
+    setProcessingAI(prev => ({ ...prev, [documentId]: true }));
+    
+    try {
+      const response = await fetch(`/api/documents/${documentId}/process-ai`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        if (result.already_processed) {
+          alert('Document already processed by AI!');
+        } else {
+          alert('Document processed successfully with AI!');
+          console.log('AI Analysis Result:', result);
+        }
+        
+        // Store the result
+        setAiAnalysisResults(prev => ({ ...prev, [documentId]: result }));
+        
+        // Refresh documents to show updated status
+        if (selectedFolder) {
+          await openFolder(selectedFolder);
+        }
+      } else {
+        alert(`Error: ${result.detail}`);
+      }
+    } catch (error) {
+      console.error('Error processing document with AI:', error);
+      alert('Failed to process document with AI');
+    } finally {
+      setProcessingAI(prev => ({ ...prev, [documentId]: false }));
+    }
+  };
+
+  const checkAIAnalysis = async (documentId) => {
+    try {
+      const response = await fetch(`/api/documents/${documentId}/ai-analysis`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      const result = await response.json();
+      setAiAnalysisResults(prev => ({ ...prev, [documentId]: result }));
+      return result;
+    } catch (error) {
+      console.error('Error checking AI analysis:', error);
+      return null;
+    }
+  };
+
+  const toggleAIAnalysis = (documentId) => {
+    setShowAIAnalysis(prev => ({ ...prev, [documentId]: !prev[documentId] }));
+    
+    // Load AI analysis if not already loaded
+    if (!aiAnalysisResults[documentId]) {
+      checkAIAnalysis(documentId);
+    }
   };
 
   if (loading) {
@@ -579,58 +659,205 @@ const HRUserFolders = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {documents.map((document) => (
-                    <tr key={document.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <FileText className="h-5 w-5 text-gray-400 mr-3" />
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">{document.original_filename}</div>
-                            {document.description && (
-                              <div className="text-sm text-gray-500">{document.description}</div>
+                    <React.Fragment key={document.id}>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <FileText className="h-5 w-5 text-gray-400 mr-3" />
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{document.original_filename}</div>
+                              {document.description && (
+                                <div className="text-sm text-gray-500">{document.description}</div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {document.document_category || 'N/A'}
+                          </div>
+                          {document.document_subcategory && (
+                            <div className="text-sm text-gray-500">{document.document_subcategory}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatFileSize(document.file_size)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex flex-col space-y-1">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              document.status === 'active' ? 'bg-green-100 text-green-800' :
+                              document.status === 'archived' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {document.status}
+                            </span>
+                            {aiAnalysisResults[document.id]?.ai_processed ? (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                                <Bot className="h-3 w-3 mr-1" />
+                                AI Processed
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">
+                                <Clock className="h-3 w-3 mr-1" />
+                                Not Processed
+                              </span>
                             )}
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {document.document_category || 'N/A'}
-                        </div>
-                        {document.document_subcategory && (
-                          <div className="text-sm text-gray-500">{document.document_subcategory}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatFileSize(document.file_size)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          document.status === 'active' ? 'bg-green-100 text-green-800' :
-                          document.status === 'archived' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {document.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(document.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <button className="text-blue-600 hover:text-blue-900">
-                            <Download className="h-4 w-4" />
-                          </button>
-                          <button className="text-green-600 hover:text-green-900">
-                            <Share className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteDocument(document.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(document.created_at)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button 
+                              className="text-blue-600 hover:text-blue-900"
+                              title="Download Document"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                            <button 
+                              className="text-green-600 hover:text-green-900"
+                              title="Share Document"
+                            >
+                              <Share className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => processDocumentWithAI(document.id)}
+                              disabled={processingAI[document.id]}
+                              className={`${processingAI[document.id] ? 'text-gray-400' : 'text-purple-600 hover:text-purple-900'}`}
+                              title="Process with AI"
+                            >
+                              {processingAI[document.id] ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                              ) : (
+                                <Bot className="h-4 w-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => toggleAIAnalysis(document.id)}
+                              className="text-indigo-600 hover:text-indigo-900"
+                              title="View AI Analysis"
+                            >
+                              <Brain className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteDocument(document.id)}
+                              className="text-red-600 hover:text-red-900"
+                              title="Delete Document"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {/* AI Analysis Section */}
+                      {showAIAnalysis[document.id] && (
+                        <tr>
+                          <td colSpan="6" className="px-6 py-4 bg-gray-50">
+                            <div className="bg-white border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                                  <Brain className="h-4 w-4 mr-2 text-indigo-600" />
+                                  AI Analysis Results
+                                </h4>
+                                <button
+                                  onClick={() => toggleAIAnalysis(document.id)}
+                                  className="text-gray-400 hover:text-gray-600"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                              
+                              {aiAnalysisResults[document.id] ? (
+                                aiAnalysisResults[document.id].ai_processed ? (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="text-xs font-medium text-gray-500">Title</label>
+                                        <p className="text-sm text-gray-900">{aiAnalysisResults[document.id].analysis.title}</p>
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-medium text-gray-500">Document Type</label>
+                                        <p className="text-sm text-gray-900">{aiAnalysisResults[document.id].analysis.document_type}</p>
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-medium text-gray-500">Language</label>
+                                        <p className="text-sm text-gray-900">{aiAnalysisResults[document.id].analysis.language}</p>
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-medium text-gray-500">Word Count</label>
+                                        <p className="text-sm text-gray-900">{aiAnalysisResults[document.id].analysis.word_count}</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div>
+                                      <label className="text-xs font-medium text-gray-500">Summary</label>
+                                      <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-md">
+                                        {aiAnalysisResults[document.id].analysis.summary}
+                                      </p>
+                                    </div>
+                                    
+                                    {aiAnalysisResults[document.id].analysis.expiry_detected && (
+                                      <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                                        <div className="flex items-center">
+                                          <AlertTriangle className="h-4 w-4 text-yellow-600 mr-2" />
+                                          <span className="text-sm font-medium text-yellow-800">Expiry Detected</span>
+                                        </div>
+                                        <p className="text-sm text-yellow-700 mt-1">
+                                          Expiry Date: {aiAnalysisResults[document.id].analysis.expiry_date}
+                                        </p>
+                                        <p className="text-sm text-yellow-700">
+                                          Urgency Level: {aiAnalysisResults[document.id].analysis.urgency_level}
+                                        </p>
+                                      </div>
+                                    )}
+                                    
+                                    <details className="mt-3">
+                                      <summary className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900">
+                                        View Full AI Analysis JSON
+                                      </summary>
+                                      <pre className="mt-2 text-xs bg-gray-100 p-3 rounded-md overflow-auto max-h-64">
+                                        {JSON.stringify(aiAnalysisResults[document.id].analysis, null, 2)}
+                                      </pre>
+                                    </details>
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-4">
+                                    <Bot className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                    <p className="text-sm text-gray-600 mb-3">
+                                      This document has not been processed by AI yet.
+                                    </p>
+                                    <button
+                                      onClick={() => processDocumentWithAI(document.id)}
+                                      disabled={processingAI[document.id]}
+                                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                                    >
+                                      {processingAI[document.id] ? (
+                                        <>
+                                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                          Processing...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Zap className="h-4 w-4 mr-2" />
+                                          Process with AI
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                )
+                              ) : (
+                                <div className="text-center py-4">
+                                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto"></div>
+                                  <p className="text-sm text-gray-600 mt-2">Loading AI analysis...</p>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
