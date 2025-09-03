@@ -1083,9 +1083,9 @@ async def process_document_with_ai(
         
         # Download file from S3
         try:
-            file_content = await aws_service.download_file_from_s3(
+            file_content = await aws_service.download_file(
                 bucket_name=company.s3_bucket_name,
-                s3_key=document.s3_key
+                file_key=document.s3_key
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
