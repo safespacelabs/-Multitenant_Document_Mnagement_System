@@ -25,7 +25,10 @@ import {
   FolderPlus,
   Users,
   Plus,
-  X
+  X,
+  Bot,
+  Brain,
+  Zap
 } from 'lucide-react';
 
 const DocumentManagement = () => {
@@ -75,6 +78,11 @@ const DocumentManagement = () => {
    const [filteredUsers, setFilteredUsers] = useState([]);
    const [loadingUsers, setLoadingUsers] = useState(false);
    const [loadingFolders, setLoadingFolders] = useState(false);
+   
+   // AI processing states
+   const [processingAI, setProcessingAI] = useState({});
+   const [aiAnalysisResults, setAiAnalysisResults] = useState({});
+   const [showAIAnalysis, setShowAIAnalysis] = useState({});
 
   // Determine if user is system admin
   const isSystemAdmin = user?.role === 'system_admin';
@@ -765,6 +773,68 @@ const DocumentManagement = () => {
     });
   };
 
+  // AI Processing Functions
+  const processDocumentWithAI = async (documentId) => {
+    setProcessingAI(prev => ({ ...prev, [documentId]: true }));
+    
+    try {
+      const response = await fetch(`/api/documents/${documentId}/process-ai`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        if (result.already_processed) {
+          alert('Document already processed by AI!');
+        } else {
+          alert('Document processed successfully with AI!');
+          console.log('AI Analysis Result:', result);
+        }
+        
+        // Store the result
+        setAiAnalysisResults(prev => ({ ...prev, [documentId]: result }));
+      } else {
+        alert(`Error: ${result.detail}`);
+      }
+    } catch (error) {
+      console.error('Error processing document with AI:', error);
+      alert('Failed to process document with AI');
+    } finally {
+      setProcessingAI(prev => ({ ...prev, [documentId]: false }));
+    }
+  };
+
+  const checkAIAnalysis = async (documentId) => {
+    try {
+      const response = await fetch(`/api/documents/${documentId}/ai-analysis`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      const result = await response.json();
+      setAiAnalysisResults(prev => ({ ...prev, [documentId]: result }));
+      return result;
+    } catch (error) {
+      console.error('Error checking AI analysis:', error);
+      return null;
+    }
+  };
+
+  const toggleAIAnalysis = (documentId) => {
+    setShowAIAnalysis(prev => ({ ...prev, [documentId]: !prev[documentId] }));
+    
+    // Load AI analysis if not already loaded
+    if (!aiAnalysisResults[documentId]) {
+      checkAIAnalysis(documentId);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1143,30 +1213,154 @@ const DocumentManagement = () => {
                     ) : (
                       <div className="space-y-2">
                         {userDocuments.map((doc) => (
-                          <div key={doc.id} className="flex items-center justify-between bg-white rounded p-2 border border-gray-200">
-                            <div className="flex items-center space-x-2">
-                              <FileText className="h-4 w-4 text-gray-400" />
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">{doc.original_filename}</p>
-                                <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}</p>
+                          <div key={doc.id}>
+                            <div className="flex items-center justify-between bg-white rounded p-2 border border-gray-200">
+                              <div className="flex items-center space-x-2">
+                                <FileText className="h-4 w-4 text-gray-400" />
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{doc.original_filename}</p>
+                                  <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <button
+                                  onClick={() => viewUserDocument(doc)}
+                                  className="text-blue-600 hover:text-blue-800 p-1"
+                                  title="View document"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => processDocumentWithAI(doc.id)}
+                                  disabled={processingAI[doc.id]}
+                                  className={`${processingAI[doc.id] ? 'text-gray-400' : 'text-purple-600 hover:text-purple-900'} p-1`}
+                                  title="Process with AI"
+                                >
+                                  {processingAI[doc.id] ? (
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                                  ) : (
+                                    <Bot className="h-4 w-4" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => toggleAIAnalysis(doc.id)}
+                                  className="text-indigo-600 hover:text-indigo-900 p-1"
+                                  title="View AI Analysis"
+                                >
+                                  <Brain className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => deleteUserDocument(doc.id)}
+                                  className="text-red-600 hover:text-red-800 p-1"
+                                  title="Delete document"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
                               </div>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => viewUserDocument(doc)}
-                                className="text-blue-600 hover:text-blue-800 p-1"
-                                title="View document"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => deleteUserDocument(doc.id)}
-                                className="text-red-600 hover:text-red-800 p-1"
-                                title="Delete document"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
+                            
+                            {/* AI Analysis Section */}
+                            {showAIAnalysis[doc.id] && (
+                              <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                                    <Brain className="h-4 w-4 mr-2 text-indigo-600" />
+                                    AI Analysis Results
+                                  </h4>
+                                  <button
+                                    onClick={() => toggleAIAnalysis(doc.id)}
+                                    className="text-gray-400 hover:text-gray-600"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                                
+                                {aiAnalysisResults[doc.id] ? (
+                                  aiAnalysisResults[doc.id].ai_processed ? (
+                                    <div className="space-y-3">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                          <label className="text-xs font-medium text-gray-500">Title</label>
+                                          <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.title}</p>
+                                        </div>
+                                        <div>
+                                          <label className="text-xs font-medium text-gray-500">Document Type</label>
+                                          <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.document_type}</p>
+                                        </div>
+                                        <div>
+                                          <label className="text-xs font-medium text-gray-500">Language</label>
+                                          <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.language}</p>
+                                        </div>
+                                        <div>
+                                          <label className="text-xs font-medium text-gray-500">Word Count</label>
+                                          <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.word_count}</p>
+                                        </div>
+                                      </div>
+                                      
+                                      <div>
+                                        <label className="text-xs font-medium text-gray-500">Summary</label>
+                                        <p className="text-sm text-gray-900 bg-white p-3 rounded-md border">
+                                          {aiAnalysisResults[doc.id].analysis.summary}
+                                        </p>
+                                      </div>
+                                      
+                                      {aiAnalysisResults[doc.id].analysis.expiry_detected && (
+                                        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                                          <div className="flex items-center">
+                                            <AlertCircle className="h-4 w-4 text-yellow-600 mr-2" />
+                                            <span className="text-sm font-medium text-yellow-800">Expiry Detected</span>
+                                          </div>
+                                          <p className="text-sm text-yellow-700 mt-1">
+                                            Expiry Date: {aiAnalysisResults[doc.id].analysis.expiry_date}
+                                          </p>
+                                          <p className="text-sm text-yellow-700">
+                                            Urgency Level: {aiAnalysisResults[doc.id].analysis.urgency_level}
+                                          </p>
+                                        </div>
+                                      )}
+                                      
+                                      <details className="mt-3">
+                                        <summary className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900">
+                                          View Full AI Analysis JSON
+                                        </summary>
+                                        <pre className="mt-2 text-xs bg-white p-3 rounded-md border overflow-auto max-h-64">
+                                          {JSON.stringify(aiAnalysisResults[doc.id].analysis, null, 2)}
+                                        </pre>
+                                      </details>
+                                    </div>
+                                  ) : (
+                                    <div className="text-center py-4">
+                                      <Bot className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                      <p className="text-sm text-gray-600 mb-3">
+                                        This document has not been processed by AI yet.
+                                      </p>
+                                      <button
+                                        onClick={() => processDocumentWithAI(doc.id)}
+                                        disabled={processingAI[doc.id]}
+                                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                                      >
+                                        {processingAI[doc.id] ? (
+                                          <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                            Processing...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Zap className="h-4 w-4 mr-2" />
+                                            Process with AI
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  )
+                                ) : (
+                                  <div className="text-center py-4">
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto"></div>
+                                    <p className="text-sm text-gray-600 mt-2">Loading AI analysis...</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
