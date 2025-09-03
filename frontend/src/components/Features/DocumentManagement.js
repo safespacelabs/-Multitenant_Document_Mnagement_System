@@ -781,7 +781,7 @@ const DocumentManagement = () => {
       const response = await fetch(`/api/documents/${documentId}/process-ai`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -813,7 +813,7 @@ const DocumentManagement = () => {
     try {
       const response = await fetch(`/api/documents/${documentId}/ai-analysis`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
       });
       

@@ -17,6 +17,7 @@ from app.database import get_management_db, get_company_db
 from app import models, schemas
 from app import auth
 from app.models_company import Document as CompanyDocument, User as CompanyUser, DocumentCategory, DocumentFolder, DocumentAccess, DocumentAuditLog
+from app.models_document_analysis import DocumentAnalysis
 from app.services.aws_service import aws_service
 from app.services.document_analysis_service import document_analysis_service
 from app.services.email_extensions import get_extended_email_service
@@ -1082,10 +1083,10 @@ async def process_document_with_ai(
         
         # Download file from S3
         try:
-            file_content = s3_client.get_object(
-                Bucket=bucket_name,
-                Key=document.s3_key
-            )['Body'].read()
+            file_content = await aws_service.download_file_from_s3(
+                bucket_name=company.s3_bucket_name,
+                s3_key=document.s3_key
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
         
