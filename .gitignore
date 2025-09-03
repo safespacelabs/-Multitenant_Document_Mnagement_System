@@ -188,3 +188,19 @@ test-cors.html
 simple-test.html
 CORS_TEST_INSTRUCTIONS.md
 backend/requirements-minimal.txt
+backend/test_*.py
+backend/test_hr_admin_access.py
+
+# Documentation files
+*.md
+!README.md
+AI_DOCUMENT_PROCESSING.md
+HR_ADMIN_DATABASE_ACCESS.md
+ENHANCED_DOCUMENT_MANAGEMENT.md
+HR_ADMIN_FEATURES.md
+HR_USER_FOLDERS_FEATURE.md
+PRODUCTION_DEPLOYMENT.md
+TROUBLESHOOTING_CORS_AND_API.md
+deploy-verification.md
+test-backend-local.md
+CLAUDE.md
