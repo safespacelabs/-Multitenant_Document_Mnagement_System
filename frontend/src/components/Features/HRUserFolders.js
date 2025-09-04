@@ -83,6 +83,11 @@ const HRUserFolders = () => {
   const [aiAnalysisResults, setAiAnalysisResults] = useState({});
   const [showAIAnalysis, setShowAIAnalysis] = useState({});
   
+  // E-signature states
+  const [showSigningModal, setShowSigningModal] = useState(false);
+  const [selectedDocumentForSigning, setSelectedDocumentForSigning] = useState(null);
+  const [signingDocument, setSigningDocument] = useState(false);
+  
   // Search and filters
   const [searchTerm, setSearchTerm] = useState('');
   const [userFilter, setUserFilter] = useState('');
@@ -299,6 +304,117 @@ const HRUserFolders = () => {
     }
   };
 
+  const viewDocument = async (documentId) => {
+    try {
+      const response = await fetch(`/api/hr-user-folders/documents/${documentId}/view`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to get document view URL');
+      }
+      
+      const data = await response.json();
+      
+      // Open document in new tab
+      window.open(data.download_url, '_blank');
+      
+    } catch (error) {
+      console.error('Error viewing document:', error);
+      alert(`Error viewing document: ${error.message}`);
+    }
+  };
+
+  const downloadDocument = async (documentId) => {
+    try {
+      const response = await fetch(`/api/hr-user-folders/documents/${documentId}/download`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to download document');
+      }
+      
+      // Get the filename from the response headers or use a default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'document';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      // Create blob and download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      alert(`Error downloading document: ${error.message}`);
+    }
+  };
+
+  const canSignDirectly = user?.role === 'system_admin' || user?.role === 'hr_admin' || user?.role === 'hr_manager';
+
+  const handleDirectSign = (document) => {
+    setSelectedDocumentForSigning(document);
+    setShowSigningModal(true);
+  };
+
+  const handleSignDocument = async () => {
+    if (!selectedDocumentForSigning) return;
+    
+    try {
+      setSigningDocument(true);
+      
+      // Call the e-signature API to sign the document directly
+      const response = await fetch(`/api/esignature/sign-document-directly/${selectedDocumentForSigning.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          signature_text: `${user.full_name} - ${user.role}`,
+          ip_address: window.location.hostname || 'unknown',
+          user_agent: navigator.userAgent
+        })
+      });
+
+      if (response.ok) {
+        alert('Document signed successfully!');
+        setShowSigningModal(false);
+        setSelectedDocumentForSigning(null);
+        // Refresh the documents list
+        if (selectedFolder) {
+          openFolder(selectedFolder);
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to sign document');
+      }
+    } catch (error) {
+      console.error('Error signing document:', error);
+      alert(`Error signing document: ${error.message}`);
+    } finally {
+      setSigningDocument(false);
+    }
+  };
+
   const openFolder = async (folder) => {
     setSelectedFolder(folder);
     setActiveTab('documents');
@@ -345,7 +461,7 @@ const HRUserFolders = () => {
     setProcessingAI(prev => ({ ...prev, [documentId]: true }));
     
     try {
-      const response = await fetch(`/api/documents/${documentId}/process-ai`, {
+      const response = await fetch(`/api/hr-user-folders/documents/${documentId}/process-ai`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -383,7 +499,7 @@ const HRUserFolders = () => {
 
   const checkAIAnalysis = async (documentId) => {
     try {
-      const response = await fetch(`/api/documents/${documentId}/ai-analysis`, {
+      const response = await fetch(`/api/hr-user-folders/documents/${documentId}/ai-analysis`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -711,16 +827,18 @@ const HRUserFolders = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex space-x-2">
                             <button 
+                              onClick={() => downloadDocument(document.id)}
                               className="text-blue-600 hover:text-blue-900"
                               title="Download Document"
                             >
                               <Download className="h-4 w-4" />
                             </button>
                             <button 
+                              onClick={() => viewDocument(document.id)}
                               className="text-green-600 hover:text-green-900"
-                              title="Share Document"
+                              title="View Document"
                             >
-                              <Share className="h-4 w-4" />
+                              <Eye className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => processDocumentWithAI(document.id)}
@@ -741,6 +859,15 @@ const HRUserFolders = () => {
                             >
                               <Brain className="h-4 w-4" />
                             </button>
+                            {canSignDirectly && (
+                              <button
+                                onClick={() => handleDirectSign(document)}
+                                className="text-green-600 hover:text-green-900"
+                                title="Sign Document"
+                              >
+                                <FileSignature className="h-4 w-4" />
+                              </button>
+                            )}
                             <button
                               onClick={() => deleteDocument(document.id)}
                               className="text-red-600 hover:text-red-900"
@@ -1062,6 +1189,42 @@ const HRUserFolders = () => {
                   className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
                 >
                   Delete Document
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* E-Signature Modal */}
+      {showSigningModal && selectedDocumentForSigning && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Sign Document</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                You are about to sign: <strong>{selectedDocumentForSigning.original_filename}</strong>
+              </p>
+              <p className="text-sm text-gray-600 mb-6">
+                Signature will be: <strong>{user.full_name} - {user.role}</strong>
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSigningModal(false);
+                    setSelectedDocumentForSigning(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSignDocument}
+                  disabled={signingDocument}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 disabled:opacity-50"
+                >
+                  {signingDocument ? 'Signing...' : 'Sign Document'}
                 </button>
               </div>
             </div>

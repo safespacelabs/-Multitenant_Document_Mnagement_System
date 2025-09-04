@@ -715,7 +715,7 @@ async def sign_document_directly(
                 detail="Direct document signing is only available for administrators and managers"
             )
         
-        # Check if document exists - handle both system documents and company documents
+        # Check if document exists - handle system documents, company documents, and HR documents
         document = None
         if document_id.startswith("sysdoc_"):
             # This is a system document, query from management database
@@ -729,6 +729,13 @@ async def sign_document_directly(
                 ).first()
             finally:
                 management_db.close()
+        elif document_id.startswith("hrdoc_"):
+            # This is an HR document, query from company database
+            from app.models_company import HRManagedDocument
+            document = db.query(HRManagedDocument).filter(
+                HRManagedDocument.id == document_id,
+                HRManagedDocument.is_active == True
+            ).first()
         else:
             # This is a company document, query from company database
             from app.models_company import Document
@@ -773,7 +780,7 @@ async def sign_document_directly(
         esign_doc = ESignatureDocument(
             document_id=document_id,
             title=f"Direct Signature: {document.original_filename}",
-            message="Document signed directly by system administrator",
+            message=f"Document signed directly by {user_role}",
             status="completed",
             created_by_user_id=system_admin_user_id,
             require_all_signatures=False,

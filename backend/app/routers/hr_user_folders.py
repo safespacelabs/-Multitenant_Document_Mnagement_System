@@ -904,7 +904,7 @@ async def download_document(
             from fastapi.responses import Response
             return Response(
                 content=file_content,
-                media_type=document.content_type or "application/octet-stream",
+                media_type=document.file_type or "application/octet-stream",
                 headers={
                     "Content-Disposition": f"attachment; filename=\"{document.original_filename}\""
                 }
@@ -915,6 +915,113 @@ async def download_document(
                 status_code=500,
                 detail=f"Failed to download file: {str(s3_error)}"
             )
+        
+    finally:
+        company_db.close()
+
+@router.post("/documents/{document_id}/process-ai")
+async def process_hr_document_with_ai(
+    document_id: str,
+    current_user: CompanyUser = Depends(verify_hr_access),
+    management_db: Session = Depends(get_management_db)
+):
+    """Process HR document with AI analysis"""
+    
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Get HR document
+        document = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.id == document_id,
+            HRManagedDocument.company_id == company_id,
+            HRManagedDocument.is_active == True
+        ).first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Import AI service
+        from app.services.ai_service import ai_service
+        
+        # Process document with AI
+        try:
+            analysis_result = await ai_service.analyze_document(
+                document.s3_key,
+                company.s3_bucket_name,
+                document.file_type
+            )
+            
+            # Update document with AI analysis results
+            document.processed = True
+            document.metadata_json = analysis_result
+            company_db.commit()
+            
+            return {
+                "message": "Document processed successfully",
+                "analysis": analysis_result,
+                "document_id": document_id
+            }
+            
+        except Exception as ai_error:
+            print(f"❌ AI processing failed: {str(ai_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"AI processing failed: {str(ai_error)}"
+            )
+        
+    finally:
+        company_db.close()
+
+@router.get("/documents/{document_id}/ai-analysis")
+async def get_hr_document_ai_analysis(
+    document_id: str,
+    current_user: CompanyUser = Depends(verify_hr_access),
+    management_db: Session = Depends(get_management_db)
+):
+    """Get AI analysis results for HR document"""
+    
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Get HR document
+        document = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.id == document_id,
+            HRManagedDocument.company_id == company_id,
+            HRManagedDocument.is_active == True
+        ).first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Return AI analysis results
+        return {
+            "document_id": document_id,
+            "ai_processed": document.processed,
+            "analysis": document.metadata_json if document.metadata_json else None,
+            "processed_at": document.updated_at if document.processed else None
+        }
         
     finally:
         company_db.close()
