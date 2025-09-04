@@ -868,10 +868,29 @@ async def view_document(
                 return {"download_url": download_url}
             except Exception as s3_error:
                 print(f"❌ Failed to generate presigned URL: {str(s3_error)}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to generate download URL: {str(s3_error)}"
-                )
+                
+                # Check if it's a NoSuchKey error (file doesn't exist in S3)
+                if "NoSuchKey" in str(s3_error) or "does not exist" in str(s3_error):
+                    print(f"🔍 File not found in S3, checking if AWS service is using mock...")
+                    
+                    # If using mock service, the file might not have been uploaded properly
+                    if aws_service.use_mock:
+                        print(f"🔍 Using mock AWS service, file should exist in mock storage")
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"File not found in storage. This might be due to an upload error. Please re-upload the document."
+                        )
+                    else:
+                        print(f"🔍 Using real AWS service, file genuinely doesn't exist")
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"File not found in storage. The document may have been deleted or never uploaded properly."
+                        )
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to generate download URL: {str(s3_error)}"
+                    )
             
         finally:
             company_db.close()
@@ -930,6 +949,37 @@ async def download_document(
             
             print(f"🔍 Document found: {document.original_filename}, S3 key: {document.s3_key}")
             
+            # Check if file exists in S3 first
+            try:
+                print(f"🔍 Checking if file exists in S3...")
+                if aws_service.use_mock:
+                    # For mock service, check if file exists in mock storage
+                    if (company.s3_bucket_name in aws_service.mock_service.uploaded_files and 
+                        document.s3_key in aws_service.mock_service.uploaded_files[company.s3_bucket_name]):
+                        print(f"✅ File exists in mock storage")
+                    else:
+                        print(f"❌ File not found in mock storage")
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"File not found in storage. This might be due to an upload error. Please re-upload the document."
+                        )
+                else:
+                    # For real S3, try to check if file exists
+                    try:
+                        aws_service.s3_client.head_object(Bucket=company.s3_bucket_name, Key=document.s3_key)
+                        print(f"✅ File exists in real S3")
+                    except aws_service.s3_client.exceptions.NoSuchKey:
+                        print(f"❌ File not found in real S3")
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"File not found in storage. The document may have been deleted or never uploaded properly."
+                        )
+            except HTTPException:
+                raise
+            except Exception as check_error:
+                print(f"⚠️ Could not check file existence: {str(check_error)}")
+                # Continue with download attempt
+            
             # Download file from S3
             try:
                 print(f"🔍 Downloading from S3: {company.s3_bucket_name}/{document.s3_key}")
@@ -950,10 +1000,29 @@ async def download_document(
                 )
             except Exception as s3_error:
                 print(f"❌ Failed to download file from S3: {str(s3_error)}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to download file: {str(s3_error)}"
-                )
+                
+                # Check if it's a NoSuchKey error (file doesn't exist in S3)
+                if "NoSuchKey" in str(s3_error) or "does not exist" in str(s3_error):
+                    print(f"🔍 File not found in S3, checking if AWS service is using mock...")
+                    
+                    # If using mock service, the file might not have been uploaded properly
+                    if aws_service.use_mock:
+                        print(f"🔍 Using mock AWS service, file should exist in mock storage")
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"File not found in storage. This might be due to an upload error. Please re-upload the document."
+                        )
+                    else:
+                        print(f"🔍 Using real AWS service, file genuinely doesn't exist")
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"File not found in storage. The document may have been deleted or never uploaded properly."
+                        )
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to download file: {str(s3_error)}"
+                    )
             
         finally:
             company_db.close()
@@ -1070,6 +1139,75 @@ async def get_hr_document_ai_analysis(
             "analysis": document.metadata_json if document.metadata_json else None,
             "processed_at": document.updated_at if document.processed else None
         }
+        
+    finally:
+        company_db.close()
+
+@router.post("/documents/{document_id}/re-upload")
+async def re_upload_document(
+    document_id: str,
+    file: UploadFile = File(...),
+    current_user: CompanyUser = Depends(verify_hr_access),
+    management_db: Session = Depends(get_management_db)
+):
+    """Re-upload a document that was missing from S3"""
+    
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Get the document
+        document = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.id == document_id,
+            HRManagedDocument.company_id == company_id,
+            HRManagedDocument.is_active == True
+        ).first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Read file content
+        file_content = await file.read()
+        file_size = len(file_content)
+        
+        # Upload file to S3
+        try:
+            print(f"🔧 Re-uploading file to S3: {document.original_filename}, size: {file_size}")
+            s3_key = await aws_service.upload_file_to_hr_folder(
+                company.s3_bucket_name,
+                document.user_id,
+                document.folder.name,  # Get folder name from relationship
+                file_content,
+                document.original_filename,
+                document.file_type
+            )
+            print(f"✅ File re-uploaded to S3 successfully: {s3_key}")
+            
+            # Update document record
+            document.file_path = s3_key
+            document.s3_key = s3_key
+            document.file_size = file_size
+            document.updated_at = datetime.utcnow()
+            company_db.commit()
+            
+            return {"message": "Document re-uploaded successfully", "s3_key": s3_key}
+            
+        except Exception as s3_error:
+            print(f"❌ S3 re-upload failed: {str(s3_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to re-upload file to S3: {str(s3_error)}"
+            )
         
     finally:
         company_db.close()
