@@ -120,7 +120,7 @@ const HRUserFolders = () => {
     try {
       const response = await fetch('/api/hr-admin/company/users', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -152,7 +152,7 @@ const HRUserFolders = () => {
       
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -176,7 +176,7 @@ const HRUserFolders = () => {
       const response = await fetch('/api/hr-user-folders/folders', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(newFolder)
@@ -212,7 +212,7 @@ const HRUserFolders = () => {
       const response = await fetch(`/api/hr-user-folders/folders/${selectedFolder.id}/documents`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         body: formData
       });
@@ -246,7 +246,7 @@ const HRUserFolders = () => {
       const response = await fetch(`/api/hr-user-folders/folders/${folderId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -283,7 +283,7 @@ const HRUserFolders = () => {
       const response = await fetch(`/api/hr-user-folders/documents/${documentId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -308,7 +308,7 @@ const HRUserFolders = () => {
     try {
       const response = await fetch(`/api/hr-user-folders/documents/${documentId}/view`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
       });
       
@@ -332,7 +332,7 @@ const HRUserFolders = () => {
     try {
       const response = await fetch(`/api/hr-user-folders/documents/${documentId}/download`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
       });
       
@@ -386,7 +386,7 @@ const HRUserFolders = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         body: JSON.stringify({
           signature_text: `${user.full_name} - ${user.role}`,
@@ -422,7 +422,7 @@ const HRUserFolders = () => {
     try {
       const response = await fetch(`/api/hr-user-folders/folders/${folder.id}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -464,7 +464,7 @@ const HRUserFolders = () => {
       const response = await fetch(`/api/hr-user-folders/documents/${documentId}/process-ai`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -501,7 +501,7 @@ const HRUserFolders = () => {
     try {
       const response = await fetch(`/api/hr-user-folders/documents/${documentId}/ai-analysis`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
       });
       
