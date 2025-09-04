@@ -471,6 +471,28 @@ async def upload_document_to_folder(
                 file.content_type
             )
             print(f"✅ File uploaded to S3 successfully: {s3_key}")
+            
+            # Verify the file was actually uploaded by checking if it exists
+            print(f"🔍 Verifying file upload by checking if file exists in S3...")
+            try:
+                if aws_service.use_mock:
+                    # For mock service, check if file exists in mock storage
+                    if (company.s3_bucket_name in aws_service.mock_service.uploaded_files and 
+                        s3_key in aws_service.mock_service.uploaded_files[company.s3_bucket_name]):
+                        print(f"✅ File verified in mock storage")
+                    else:
+                        raise Exception("File not found in mock storage after upload")
+                else:
+                    # For real S3, check if file exists
+                    aws_service.s3_client.head_object(Bucket=company.s3_bucket_name, Key=s3_key)
+                    print(f"✅ File verified in real S3")
+            except Exception as verify_error:
+                print(f"❌ File upload verification failed: {str(verify_error)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"File upload verification failed: {str(verify_error)}"
+                )
+                
         except Exception as s3_error:
             print(f"❌ S3 file upload failed: {str(s3_error)}")
             raise HTTPException(
@@ -1208,6 +1230,143 @@ async def re_upload_document(
                 status_code=500,
                 detail=f"Failed to re-upload file to S3: {str(s3_error)}"
             )
+        
+    finally:
+        company_db.close()
+
+@router.post("/documents/{document_id}/fix-missing-file")
+async def fix_missing_file(
+    document_id: str,
+    current_user: CompanyUser = Depends(verify_hr_access),
+    management_db: Session = Depends(get_management_db)
+):
+    """Fix a document that exists in DB but not in S3 by marking it as inactive"""
+    
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Get the document
+        document = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.id == document_id,
+            HRManagedDocument.company_id == company_id,
+            HRManagedDocument.is_active == True
+        ).first()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Check if file exists in S3
+        file_exists = False
+        try:
+            if aws_service.use_mock:
+                # For mock service, check if file exists in mock storage
+                if (company.s3_bucket_name in aws_service.mock_service.uploaded_files and 
+                    document.s3_key in aws_service.mock_service.uploaded_files[company.s3_bucket_name]):
+                    file_exists = True
+            else:
+                # For real S3, check if file exists
+                aws_service.s3_client.head_object(Bucket=company.s3_bucket_name, Key=document.s3_key)
+                file_exists = True
+        except Exception:
+            file_exists = False
+        
+        if file_exists:
+            return {"message": "File exists in S3, no action needed", "file_exists": True}
+        
+        # File doesn't exist in S3, mark document as inactive
+        document.is_active = False
+        document.updated_at = datetime.utcnow()
+        company_db.commit()
+        
+        return {
+            "message": "Document marked as inactive due to missing file in S3",
+            "file_exists": False,
+            "action": "marked_inactive"
+        }
+        
+    finally:
+        company_db.close()
+
+@router.get("/documents/check-missing-files")
+async def check_missing_files(
+    current_user: CompanyUser = Depends(verify_hr_access),
+    management_db: Session = Depends(get_management_db)
+):
+    """Check for documents that exist in DB but not in S3"""
+    
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+    
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+    
+    try:
+        # Get all active documents
+        documents = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.company_id == company_id,
+            HRManagedDocument.is_active == True
+        ).all()
+        
+        missing_files = []
+        existing_files = []
+        
+        for document in documents:
+            try:
+                if aws_service.use_mock:
+                    # For mock service, check if file exists in mock storage
+                    if (company.s3_bucket_name in aws_service.mock_service.uploaded_files and 
+                        document.s3_key in aws_service.mock_service.uploaded_files[company.s3_bucket_name]):
+                        existing_files.append({
+                            "id": document.id,
+                            "filename": document.original_filename,
+                            "s3_key": document.s3_key
+                        })
+                    else:
+                        missing_files.append({
+                            "id": document.id,
+                            "filename": document.original_filename,
+                            "s3_key": document.s3_key
+                        })
+                else:
+                    # For real S3, check if file exists
+                    aws_service.s3_client.head_object(Bucket=company.s3_bucket_name, Key=document.s3_key)
+                    existing_files.append({
+                        "id": document.id,
+                        "filename": document.original_filename,
+                        "s3_key": document.s3_key
+                    })
+            except Exception:
+                missing_files.append({
+                    "id": document.id,
+                    "filename": document.original_filename,
+                    "s3_key": document.s3_key
+                })
+        
+        return {
+            "total_documents": len(documents),
+            "existing_files": len(existing_files),
+            "missing_files": len(missing_files),
+            "missing_files_list": missing_files,
+            "existing_files_list": existing_files
+        }
         
     finally:
         company_db.close()
