@@ -261,5 +261,84 @@ class MockAWSService:
         """Mock presigned URL generation (alias for get_file_url for compatibility)"""
         return await self.get_file_url(bucket_name, s3_key, expiration)
 
+    async def upload_file_to_hr_folder(
+        self, 
+        bucket_name: str, 
+        user_id: str, 
+        folder_name: str, 
+        file_data: bytes, 
+        filename: str,
+        content_type: str = None
+    ) -> str:
+        """Mock upload file to HR folder"""
+        if bucket_name not in self.created_buckets:
+            raise Exception(f"Bucket {bucket_name} does not exist")
+        
+        # Sanitize folder name and filename
+        import re
+        safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name)
+        safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
+        
+        # Create the S3 key
+        s3_key = f"users/{user_id}/hr_folders/{safe_folder_name}/{safe_filename}"
+        
+        # Store the file
+        if bucket_name not in self.uploaded_files:
+            self.uploaded_files[bucket_name] = set()
+        if bucket_name not in self.file_contents:
+            self.file_contents[bucket_name] = {}
+            
+        self.uploaded_files[bucket_name].add(s3_key)
+        self.file_contents[bucket_name][s3_key] = file_data
+        
+        logger.info(f"Mock: Uploaded file '{s3_key}' ({len(file_data)} bytes) to bucket '{bucket_name}'")
+        return s3_key
+
+    async def delete_file_from_hr_folder(self, bucket_name: str, file_key: str):
+        """Mock delete file from HR folder"""
+        return await self.delete_file(bucket_name, file_key)
+
+    async def create_hr_user_folder(self, bucket_name: str, user_id: str, folder_name: str) -> str:
+        """Mock create HR user folder"""
+        if bucket_name not in self.created_buckets:
+            raise Exception(f"Bucket {bucket_name} does not exist")
+        
+        # Sanitize folder name
+        import re
+        safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name)
+        
+        # Create folder key
+        folder_key = f"users/{user_id}/hr_folders/{safe_folder_name}/"
+        
+        # Store the folder
+        if bucket_name not in self.uploaded_files:
+            self.uploaded_files[bucket_name] = set()
+        self.uploaded_files[bucket_name].add(folder_key)
+        
+        logger.info(f"Mock: Created HR folder '{folder_key}' in bucket '{bucket_name}'")
+        return folder_key
+
+    async def delete_hr_user_folder(self, bucket_name: str, user_id: str, folder_name: str):
+        """Mock delete HR user folder"""
+        if bucket_name not in self.created_buckets:
+            raise Exception(f"Bucket {bucket_name} does not exist")
+        
+        # Sanitize folder name
+        import re
+        safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name)
+        
+        # Create folder key
+        folder_key = f"users/{user_id}/hr_folders/{safe_folder_name}/"
+        
+        # Remove folder and all files in it
+        if bucket_name in self.uploaded_files:
+            files_to_remove = [key for key in self.uploaded_files[bucket_name] if key.startswith(folder_key)]
+            for file_key in files_to_remove:
+                self.uploaded_files[bucket_name].remove(file_key)
+                if bucket_name in self.file_contents and file_key in self.file_contents[bucket_name]:
+                    del self.file_contents[bucket_name][file_key]
+        
+        logger.info(f"Mock: Deleted HR folder '{folder_key}' from bucket '{bucket_name}'")
+
 # Create mock instance
 mock_aws_service = MockAWSService() 

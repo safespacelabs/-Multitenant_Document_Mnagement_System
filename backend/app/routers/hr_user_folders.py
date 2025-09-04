@@ -1004,10 +1004,10 @@ async def process_hr_document_with_ai(
         
         # Process document with AI
         try:
-            analysis_result = await ai_service.analyze_document(
-                document.s3_key,
-                company.s3_bucket_name,
-                document.file_type
+            analysis_result = ai_service.analyze_document(
+                document_id,
+                "general_analysis",
+                {"company_id": company_id, "document_type": document.file_type}
             )
             
             # Update document with AI analysis results
