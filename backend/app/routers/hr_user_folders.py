@@ -1090,27 +1090,57 @@ async def process_hr_document_with_ai(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
-        # Import AI service
-        from app.services.ai_service import ai_service
+        # Import document analysis service
+        from app.services.document_analysis_service import document_analysis_service
+        
+        # Download file from S3 for AI processing
+        try:
+            from app.services.aws_service import aws_service
+            file_content = await aws_service.download_file(
+                bucket_name=company.s3_bucket_name,
+                file_key=document.s3_key
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
+        
+        # Get user information
+        user = company_db.query(CompanyUser).filter(
+            CompanyUser.id == document.user_id
+        ).first()
+        
+        user_name = user.full_name if user else "Unknown User"
+        user_email = user.email if user else "unknown@example.com"
         
         # Process document with AI
         try:
-            analysis_result = ai_service.analyze_document(
-                document_id,
-                "general_analysis",
-                {"company_id": company_id, "document_type": document.file_type}
+            analysis_result = await document_analysis_service.process_document_upload(
+                document_id=document.id,
+                file_content=file_content,
+                filename=document.filename,
+                folder_name=document.folder_name,
+                user_id=document.user_id,
+                user_name=user_name,
+                user_email=user_email,
+                company_db=company_db
             )
             
-            # Update document with AI analysis results
-            document.processed = True
-            document.metadata_json = analysis_result
-            company_db.commit()
-            
-            return {
-                "message": "Document processed successfully",
-                "analysis": analysis_result,
-                "document_id": document_id
-            }
+            if analysis_result["success"]:
+                # Update document with AI analysis results
+                document.processed = True
+                document.metadata_json = analysis_result.get("metadata", {})
+                company_db.commit()
+                
+                return {
+                    "message": "Document processed successfully",
+                    "analysis": analysis_result.get("metadata", {}),
+                    "document_id": document_id,
+                    "analysis_id": analysis_result.get("analysis_id")
+                }
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"AI processing failed: {analysis_result.get('error', 'Unknown error')}"
+                )
             
         except Exception as ai_error:
             print(f"❌ AI processing failed: {str(ai_error)}")
