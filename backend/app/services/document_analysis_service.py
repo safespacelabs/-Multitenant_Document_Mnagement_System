@@ -20,7 +20,8 @@ class DocumentAnalysisService:
     async def process_document_upload(self, document_id: int, file_content: bytes, filename: str, folder_name: str, user_id: int, user_name: str, user_email: str, company_db: Session) -> Dict[str, Any]:
         """Process document upload with AI analysis"""
         try:
-            if not self.has_anthropic_key:
+            # Check API key dynamically
+            if not ANTHROPIC_API_KEY:
                 return {
                     "success": False,
                     "error": "Anthropic API key not configured",
@@ -31,6 +32,9 @@ class DocumentAnalysisService:
             metadata = await anthropic_service.extract_document_metadata(
                 file_content, filename, folder_name
             )
+            
+            # Debug: Print the metadata we're about to store
+            print(f"🔍 Metadata to store: {metadata}")
             
             # Store analysis in database
             analysis = DocumentAnalysis(
@@ -55,10 +59,18 @@ class DocumentAnalysisService:
                 extracted_text=metadata.get('extracted_text'),
                 important_notes=metadata.get('important_notes', []),
                 compliance_requirements=metadata.get('compliance_requirements', []),
+                document_sections=metadata.get('document_sections', []),
+                key_findings=metadata.get('key_findings', []),
+                data_points=metadata.get('data_points', []),
+                action_items=metadata.get('action_items', []),
+                extracted_at=datetime.utcnow(),
                 ai_model=metadata.get('ai_model'),
                 processing_status='success' if metadata.get('processing_status') == 'success' else 'failed',
                 error_message=metadata.get('error')
             )
+            
+            print(f"🔍 Analysis object created with ai_model: {analysis.ai_model}")
+            print(f"🔍 Analysis object created with processing_status: {analysis.processing_status}")
             
             company_db.add(analysis)
             company_db.commit()

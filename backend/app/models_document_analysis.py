@@ -14,8 +14,8 @@ class DocumentAnalysis(Base):
     __tablename__ = "document_analysis"
     
     id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, nullable=False, index=True)  # Reference to documents table
-    user_id = Column(Integer, nullable=False, index=True)  # User who uploaded the document
+    document_id = Column(String(255), nullable=False, index=True)  # Reference to documents table (UUID)
+    user_id = Column(String(255), nullable=False, index=True)  # User who uploaded the document (UUID)
     user_name = Column(String(255), index=True)  # Username for easy reference
     user_email = Column(String(255))  # User email for notifications
     title = Column(String(500))
@@ -35,7 +35,11 @@ class DocumentAnalysis(Base):
     extracted_text = Column(Text)
     important_notes = Column(ARRAY(String))  # Array of important notes
     compliance_requirements = Column(ARRAY(String))  # Array of compliance requirements
-    extracted_at = Column(DateTime, default=func.current_timestamp())
+    document_sections = Column(ARRAY(String))  # Array of document sections
+    key_findings = Column(ARRAY(String))  # Array of key findings
+    data_points = Column(ARRAY(String))  # Array of numerical data and statistics
+    action_items = Column(ARRAY(String))  # Array of action items and tasks
+    extracted_at = Column(DateTime)
     ai_model = Column(String(100))
     processing_status = Column(String(20), default='pending')
     error_message = Column(Text)
@@ -48,8 +52,8 @@ class ExpiryNotification(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     document_analysis_id = Column(Integer, nullable=False, index=True)  # Reference to document_analysis table
-    document_id = Column(Integer, nullable=False, index=True)  # Reference to documents table
-    user_id = Column(Integer, nullable=False, index=True)  # User who uploaded the document
+    document_id = Column(String(255), nullable=False, index=True)  # Reference to documents table (UUID)
+    user_id = Column(String(255), nullable=False, index=True)  # User who uploaded the document (UUID)
     user_name = Column(String(255), index=True)  # Username for easy reference
     user_email = Column(String(255))  # User email for notifications
     notification_type = Column(String(50), default='expiry_warning')
