@@ -1113,11 +1113,17 @@ async def process_hr_document_with_ai(
         
         # Process document with AI
         try:
+            # Resolve folder name from folder_id (HRManagedDocument does not have folder_name)
+            folder = company_db.query(UserFolder).filter(
+                UserFolder.id == document.folder_id
+            ).first()
+            folder_name = folder.name if folder else None
+
             analysis_result = await document_analysis_service.process_document_upload(
                 document_id=document.id,
                 file_content=file_content,
                 filename=document.filename,
-                folder_name=document.folder_name,
+                folder_name=folder_name,
                 user_id=document.user_id,
                 user_name=user_name,
                 user_email=user_email,
