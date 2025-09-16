@@ -14,7 +14,8 @@ class AnthropicService:
         self.client = anthropic.Anthropic(
             api_key=ANTHROPIC_API_KEY
         )
-        self.model = "claude-3-haiku-20240307"  # Claude Haiku model - more cost-effective
+        self.model = "claude-3-haiku-20240307"  # Primary model (cost-effective)
+        self.fallback_model = "claude-3-5-sonnet-20241022"  # Higher-accuracy fallback for tough OCR
     
     def _extract_text_from_pdf(self, file_content: bytes) -> str:
         """Extract text content from PDF file with multiple methods"""
@@ -67,7 +68,8 @@ class AnthropicService:
             import io
             
             # Convert PDF to images (first page only for efficiency)
-            images = convert_from_bytes(file_content, first_page=1, last_page=1, dpi=200)
+            # Use higher DPI to improve OCR/vision accuracy
+            images = convert_from_bytes(file_content, first_page=1, last_page=1, dpi=300)
             
             if images:
                 # Convert PIL image to bytes
@@ -183,6 +185,8 @@ class AnthropicService:
             - Extract all names, dates, numbers, addresses, and details
             - Create a comprehensive summary that mentions everything
             - Don't summarize - provide complete details
+            - For government IDs (passport, military id, green card, driver license), PAY SPECIAL ATTENTION to expiry and issue dates and card numbers
+            - On US Permanent Resident Cards ("Green Card"), specifically extract fields labeled "Card Expires", "Resident Since", "Category", and the A-number (Alien Registration Number)
             
             Please provide a JSON response with the following structure:
             {{
@@ -294,6 +298,8 @@ class AnthropicService:
                         metadata['expiry_detected'] = False
                         metadata['urgency_level'] = 'low'
                 
+                # Post-process dates if green card-like document
+                metadata = self._normalize_and_enhance_metadata(metadata)
                 return metadata
                 
             except json.JSONDecodeError as e:
@@ -311,6 +317,7 @@ class AnthropicService:
                     cleaned_response = re.sub(r',(\s*[}\]])', r'\1', cleaned_response)
                     metadata = json.loads(cleaned_response)
                     print(f"🔍 JSON parsed after cleaning!")
+                    metadata = self._normalize_and_enhance_metadata(metadata)
                     return metadata
                 except Exception as clean_error:
                     print(f"❌ JSON cleaning failed: {clean_error}")
@@ -349,6 +356,7 @@ class AnthropicService:
             - Extract all names, dates, numbers, addresses, and details
             - Create a comprehensive summary that mentions everything
             - Don't summarize - provide complete details
+            - For government IDs and forms, ensure you extract clearly labeled fields (expiry, issue date, ID numbers)
             
             Please provide a JSON response with the following structure:
             {{
@@ -447,6 +455,7 @@ class AnthropicService:
                         metadata['expiry_detected'] = False
                         metadata['urgency_level'] = 'low'
                 
+                metadata = self._normalize_and_enhance_metadata(metadata)
                 return metadata
                 
             except json.JSONDecodeError as e:
@@ -464,6 +473,7 @@ class AnthropicService:
                     cleaned_response = re.sub(r',(\s*[}\]])', r'\1', cleaned_response)
                     metadata = json.loads(cleaned_response)
                     print(f"🔍 JSON parsed after cleaning!")
+                    metadata = self._normalize_and_enhance_metadata(metadata)
                     return metadata
                 except Exception as clean_error:
                     print(f"❌ JSON cleaning failed: {clean_error}")
@@ -475,6 +485,69 @@ class AnthropicService:
             import traceback
             traceback.print_exc()
             return self._create_fallback_metadata(filename, folder_name, str(e), str(e))
+
+    def _normalize_and_enhance_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Improve metadata by extracting dates from text when model misses them, and set urgency.
+        Keeps existing values if already provided.
+        """
+        try:
+            # Ensure processing flags
+            metadata.setdefault('processing_status', 'success')
+            extracted_text = metadata.get('extracted_text') or ''
+
+            # If expiry not detected, try simple regex over text
+            if not metadata.get('expiry_detected'):
+                import re
+                # Match common US date formats
+                date_candidates = re.findall(r"\b(\d{2}[\/-]\d{2}[\/-]\d{4})\b", extracted_text)
+                # Prefer lines containing keywords
+                labelled = re.findall(r"(Card\s*Expires|Expiration|Expiry)[^\n\r]*?(\d{2}[\/-]\d{2}[\/-]\d{4})", extracted_text, flags=re.IGNORECASE)
+                chosen = None
+                if labelled:
+                    chosen = labelled[0][1]
+                elif date_candidates:
+                    # Heuristic: take the latest date as expiry
+                    from datetime import datetime
+                    def parse_date(d):
+                        for fmt in ("%m/%d/%Y", "%m-%d-%Y"):
+                            try:
+                                return datetime.strptime(d, fmt)
+                            except Exception:
+                                continue
+                        return None
+                    parsed = [(d, parse_date(d)) for d in date_candidates]
+                    parsed = [p for p in parsed if p[1] is not None]
+                    if parsed:
+                        chosen = max(parsed, key=lambda x: x[1])[0]
+                if chosen:
+                    # Normalize to YYYY-MM-DD
+                    from datetime import datetime
+                    for fmt in ("%m/%d/%Y", "%m-%d-%Y"):
+                        try:
+                            dt = datetime.strptime(chosen, fmt)
+                            metadata['expiry_date'] = dt.date().isoformat()
+                            metadata['expiry_detected'] = True
+                            break
+                        except Exception:
+                            continue
+
+            # Set urgency if we have an expiry date
+            if metadata.get('expiry_detected') and metadata.get('expiry_date'):
+                from datetime import date, datetime as dtt
+                try:
+                    exp = dtt.strptime(metadata['expiry_date'], "%Y-%m-%d").date()
+                    days = (exp - date.today()).days
+                    if days < 30:
+                        metadata['urgency_level'] = 'high'
+                    elif days < 90:
+                        metadata['urgency_level'] = 'medium'
+                    else:
+                        metadata['urgency_level'] = 'low'
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Normalization error: {e}")
+        return metadata
     
     def _create_fallback_metadata(self, filename: str, folder_name: str, text_content: str, error: str) -> Dict[str, Any]:
         """Create fallback metadata when AI extraction fails"""
