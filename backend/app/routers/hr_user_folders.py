@@ -1093,66 +1093,56 @@ async def process_hr_document_with_ai(
         # Import document analysis service
         from app.services.document_analysis_service import document_analysis_service
         
-        # Download file from S3 for AI processing
-        try:
-            from app.services.aws_service import aws_service
-            # Try multiple possible keys (some legacy records may have different fields)
-            candidate_keys = []
-            # Primary key from record
-            if getattr(document, 's3_key', None):
-                candidate_keys.append(document.s3_key.strip('/'))
-            # Secondary: file_path
-            if getattr(document, 'file_path', None) and document.file_path not in candidate_keys:
-                candidate_keys.append(document.file_path.strip('/'))
-            # Reconstructed key from folder/name rules
-            import re
-            folder = company_db.query(UserFolder).filter(UserFolder.id == document.folder_id).first()
-            folder_name = folder.name if folder else ""
-            safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name or "")
-            safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', document.original_filename)
-            reconstructed_key = f"users/{document.user_id}/hr_folders/{safe_folder_name}/{safe_filename}"
-            if reconstructed_key not in candidate_keys:
-                candidate_keys.append(reconstructed_key)
+        # Download file for AI processing (prefer presigned URL fetch for cross-account/ACL cases)
+        from app.services.aws_service import aws_service
+        import re
+        candidate_keys = []
+        if getattr(document, 's3_key', None):
+            candidate_keys.append(document.s3_key.strip('/'))
+        if getattr(document, 'file_path', None) and document.file_path not in candidate_keys:
+            candidate_keys.append(document.file_path.strip('/'))
+        folder = company_db.query(UserFolder).filter(UserFolder.id == document.folder_id).first()
+        folder_name = folder.name if folder else ""
+        safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name or "")
+        safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', document.original_filename)
+        reconstructed_key = f"users/{document.user_id}/hr_folders/{safe_folder_name}/{safe_filename}"
+        if reconstructed_key not in candidate_keys:
+            candidate_keys.append(reconstructed_key)
 
-            last_error = None
-            for key in candidate_keys:
-                try:
-                    # Debug log
-                    print(f"🔍 Attempting S3 download: bucket={company.s3_bucket_name}, key={key}")
-                    file_content = await aws_service.download_file(
-                        bucket_name=company.s3_bucket_name,
-                        file_key=key
-                    )
-                    # Persist canonical key if different
+        file_content = None
+        for key in candidate_keys:
+            try:
+                print(f"🔍 Primary attempt via presigned URL: bucket={company.s3_bucket_name}, key={key}")
+                presigned = await aws_service.generate_presigned_url(company.s3_bucket_name, key, 300)
+                import requests
+                http_resp = requests.get(presigned, timeout=30)
+                if http_resp.status_code == 200 and http_resp.content:
+                    file_content = http_resp.content
                     if key != document.s3_key:
                         document.s3_key = key
                         document.file_path = key
                         document.updated_at = datetime.utcnow()
                         company_db.commit()
                     break
-                except Exception as dl_err:
-                    last_error = dl_err
-                    # As a fallback, try presigned URL + HTTP GET (handles some IAM/object ACL quirks)
-                    try:
-                        print(f"🔍 Fallback: fetching via presigned URL for key={key}")
-                        presigned = await aws_service.generate_presigned_url(company.s3_bucket_name, key, 300)
-                        import requests
-                        http_resp = requests.get(presigned, timeout=30)
-                        if http_resp.status_code == 200:
-                            file_content = http_resp.content
-                            if key != document.s3_key:
-                                document.s3_key = key
-                                document.file_path = key
-                                document.updated_at = datetime.utcnow()
-                                company_db.commit()
-                            break
-                    except Exception as http_err:
-                        last_error = http_err
-                        continue
-            else:
-                raise HTTPException(status_code=500, detail=f"Failed to download file from S3. Bucket: {company.s3_bucket_name}. Tried keys: {candidate_keys}")
-        except HTTPException:
-            raise
+                print(f"❌ Presigned fetch failed: status={http_resp.status_code}")
+            except Exception as http_err:
+                print(f"❌ Presigned fetch error for key={key}: {http_err}")
+            # Fallback to direct S3 get
+            try:
+                print(f"🔍 Secondary attempt via S3 get_object: bucket={company.s3_bucket_name}, key={key}")
+                file_content = await aws_service.download_file(company.s3_bucket_name, key)
+                if key != document.s3_key:
+                    document.s3_key = key
+                    document.file_path = key
+                    document.updated_at = datetime.utcnow()
+                    company_db.commit()
+                break
+            except Exception as dl_err:
+                print(f"❌ S3 get_object failed for key={key}: {dl_err}")
+                continue
+
+        if not file_content:
+            raise HTTPException(status_code=500, detail=f"Failed to download file from S3. Bucket: {company.s3_bucket_name}. Tried keys: {candidate_keys}")
         
         # Get user information
         user = company_db.query(CompanyUser).filter(
