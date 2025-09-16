@@ -31,6 +31,9 @@ import {
   Zap
 } from 'lucide-react';
 
+// Backend base URL used throughout this component to avoid frontend proxy
+const BACKEND_BASE = 'https://multitenant-backend-mlap.onrender.com';
+
 const DocumentManagement = () => {
   const { user } = useAuth();
   const location = useLocation();
@@ -778,7 +781,13 @@ const DocumentManagement = () => {
     setProcessingAI(prev => ({ ...prev, [documentId]: true }));
     
     try {
-      const response = await fetch(`/api/documents/${documentId}/process-ai`, {
+      // Decide endpoint based on document type/context
+      const isHRDoc = (typeof documentId === 'string' && documentId.startsWith('hrdoc_')) || !!selectedUserFolder;
+      const url = isHRDoc
+        ? `${BACKEND_BASE}/api/hr-user-folders/documents/${documentId}/process-ai`
+        : `${BACKEND_BASE}/api/documents/${documentId}/process-ai`;
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -786,7 +795,7 @@ const DocumentManagement = () => {
         }
       });
       
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
       
       if (response.ok) {
         if (result.already_processed) {
@@ -799,7 +808,7 @@ const DocumentManagement = () => {
         // Store the result
         setAiAnalysisResults(prev => ({ ...prev, [documentId]: result }));
       } else {
-        alert(`Error: ${result.detail}`);
+        alert(`Error: ${result.detail || 'AI processing failed'}`);
       }
     } catch (error) {
       console.error('Error processing document with AI:', error);
@@ -811,7 +820,12 @@ const DocumentManagement = () => {
 
   const checkAIAnalysis = async (documentId) => {
     try {
-      const response = await fetch(`/api/documents/${documentId}/ai-analysis`, {
+      const isHRDoc = (typeof documentId === 'string' && documentId.startsWith('hrdoc_')) || !!selectedUserFolder;
+      const url = isHRDoc
+        ? `${BACKEND_BASE}/api/hr-user-folders/documents/${documentId}/ai-analysis`
+        : `${BACKEND_BASE}/api/documents/${documentId}/ai-analysis`;
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
