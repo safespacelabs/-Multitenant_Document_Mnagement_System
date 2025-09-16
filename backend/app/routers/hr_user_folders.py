@@ -1096,34 +1096,47 @@ async def process_hr_document_with_ai(
         # Download file from S3 for AI processing
         try:
             from app.services.aws_service import aws_service
-            file_content = await aws_service.download_file(
-                bucket_name=company.s3_bucket_name,
-                file_key=document.s3_key
-            )
-        except Exception as e:
-            # Fallback: reconstruct expected S3 key based on folder/name rules used on upload
-            try:
-                import re
-                # Resolve folder name first
-                folder = company_db.query(UserFolder).filter(
-                    UserFolder.id == document.folder_id
-                ).first()
-                folder_name = folder.name if folder else ""
-                safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name or "")
-                safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', document.original_filename)
-                reconstructed_key = f"users/{document.user_id}/hr_folders/{safe_folder_name}/{safe_filename}"
-                # Try the reconstructed key
-                file_content = await aws_service.download_file(
-                    bucket_name=company.s3_bucket_name,
-                    file_key=reconstructed_key
-                )
-                # If successful, persist the corrected key for future operations
-                document.s3_key = reconstructed_key
-                document.file_path = reconstructed_key
-                document.updated_at = datetime.utcnow()
-                company_db.commit()
-            except Exception as fallback_error:
-                raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
+            # Try multiple possible keys (some legacy records may have different fields)
+            candidate_keys = []
+            # Primary key from record
+            if getattr(document, 's3_key', None):
+                candidate_keys.append(document.s3_key.strip('/'))
+            # Secondary: file_path
+            if getattr(document, 'file_path', None) and document.file_path not in candidate_keys:
+                candidate_keys.append(document.file_path.strip('/'))
+            # Reconstructed key from folder/name rules
+            import re
+            folder = company_db.query(UserFolder).filter(UserFolder.id == document.folder_id).first()
+            folder_name = folder.name if folder else ""
+            safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name or "")
+            safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', document.original_filename)
+            reconstructed_key = f"users/{document.user_id}/hr_folders/{safe_folder_name}/{safe_filename}"
+            if reconstructed_key not in candidate_keys:
+                candidate_keys.append(reconstructed_key)
+
+            last_error = None
+            for key in candidate_keys:
+                try:
+                    # Debug log
+                    print(f"🔍 Attempting S3 download: bucket={company.s3_bucket_name}, key={key}")
+                    file_content = await aws_service.download_file(
+                        bucket_name=company.s3_bucket_name,
+                        file_key=key
+                    )
+                    # Persist canonical key if different
+                    if key != document.s3_key:
+                        document.s3_key = key
+                        document.file_path = key
+                        document.updated_at = datetime.utcnow()
+                        company_db.commit()
+                    break
+                except Exception as dl_err:
+                    last_error = dl_err
+                    continue
+            else:
+                raise HTTPException(status_code=500, detail=f"Failed to download file from S3. Tried keys: {candidate_keys}")
+        except HTTPException:
+            raise
         
         # Get user information
         user = company_db.query(CompanyUser).filter(
