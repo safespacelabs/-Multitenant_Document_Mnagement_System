@@ -188,6 +188,12 @@ class AnthropicService:
             - For government IDs (passport, military id, green card, driver license), PAY SPECIAL ATTENTION to expiry and issue dates and card numbers
             - On US Permanent Resident Cards ("Green Card"), specifically extract fields labeled "Card Expires", "Resident Since", "Category", and the A-number (Alien Registration Number)
             
+            HARD CONSTRAINTS (no exceptions):
+            - Never invent values. Only return fields that are visibly present.
+            - Transcribe text VERBATIM, including letter-case, hyphens and spacing.
+            - If a field is not clearly visible, set it to null and add a warning in "warnings".
+            - Prefer machine-readable values but do not convert numbers that appear with separators.
+
             Please provide a JSON response with the following structure:
             {{
                 "title": "exact document title or main subject",
@@ -217,7 +223,11 @@ class AnthropicService:
                 "document_sections": ["list of all sections, fields, and content blocks visible in the document"],
                 "key_findings": ["ALL key findings, important details, and significant information visible in the document"],
                 "data_points": ["ALL numerical data, statistics, measurements, and quantitative information visible"],
-                "action_items": ["ALL action items, tasks, requirements, and next steps visible"]
+                "action_items": ["ALL action items, tasks, requirements, and next steps visible"],
+                "verbatim_extracted_text": "ALL text transcribed line-by-line as seen",
+                "key_value_pairs": {"Auto-detected labeled fields mapped to values (e.g., 'Surname': 'STEVENS')"},
+                "tables": [{"caption": "optional", "headers": ["..."], "rows": [["..."]] }],
+                "warnings": ["list any uncertainty or missing fields"]
             }}
             
             CRITICAL INSTRUCTIONS: 
@@ -240,7 +250,7 @@ class AnthropicService:
             message = self.client.messages.create(
                 model=self.model,
                 max_tokens=4000,
-                temperature=0.1,
+                temperature=0.0,
                 messages=[
                     {
                         "role": "user",
