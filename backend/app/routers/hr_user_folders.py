@@ -1132,9 +1132,25 @@ async def process_hr_document_with_ai(
                     break
                 except Exception as dl_err:
                     last_error = dl_err
-                    continue
+                    # As a fallback, try presigned URL + HTTP GET (handles some IAM/object ACL quirks)
+                    try:
+                        print(f"🔍 Fallback: fetching via presigned URL for key={key}")
+                        presigned = await aws_service.generate_presigned_url(company.s3_bucket_name, key, 300)
+                        import requests
+                        http_resp = requests.get(presigned, timeout=30)
+                        if http_resp.status_code == 200:
+                            file_content = http_resp.content
+                            if key != document.s3_key:
+                                document.s3_key = key
+                                document.file_path = key
+                                document.updated_at = datetime.utcnow()
+                                company_db.commit()
+                            break
+                    except Exception as http_err:
+                        last_error = http_err
+                        continue
             else:
-                raise HTTPException(status_code=500, detail=f"Failed to download file from S3. Tried keys: {candidate_keys}")
+                raise HTTPException(status_code=500, detail=f"Failed to download file from S3. Bucket: {company.s3_bucket_name}. Tried keys: {candidate_keys}")
         except HTTPException:
             raise
         
