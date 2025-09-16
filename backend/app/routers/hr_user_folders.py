@@ -1101,7 +1101,29 @@ async def process_hr_document_with_ai(
                 file_key=document.s3_key
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
+            # Fallback: reconstruct expected S3 key based on folder/name rules used on upload
+            try:
+                import re
+                # Resolve folder name first
+                folder = company_db.query(UserFolder).filter(
+                    UserFolder.id == document.folder_id
+                ).first()
+                folder_name = folder.name if folder else ""
+                safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name or "")
+                safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', document.original_filename)
+                reconstructed_key = f"users/{document.user_id}/hr_folders/{safe_folder_name}/{safe_filename}"
+                # Try the reconstructed key
+                file_content = await aws_service.download_file(
+                    bucket_name=company.s3_bucket_name,
+                    file_key=reconstructed_key
+                )
+                # If successful, persist the corrected key for future operations
+                document.s3_key = reconstructed_key
+                document.file_path = reconstructed_key
+                document.updated_at = datetime.utcnow()
+                company_db.commit()
+            except Exception as fallback_error:
+                raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
         
         # Get user information
         user = company_db.query(CompanyUser).filter(
