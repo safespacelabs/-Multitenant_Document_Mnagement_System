@@ -188,8 +188,7 @@ async def create_user(
             raise HTTPException(status_code=400, detail="Email already registered")
         
         # Create user in company database
-        from app import auth_utils
-        hashed_password = auth_utils.get_password_hash(user_data.password)
+        hashed_password = auth.get_password_hash(user_data.password)
         db_user = CompanyUser(
             username=user_data.username,
             email=user_data.email,
