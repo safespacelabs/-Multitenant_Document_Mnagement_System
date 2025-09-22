@@ -100,6 +100,15 @@ class DocumentAnalysisService:
             if not analysis.expiry_date:
                 return
             
+            # Some company schemas use string IDs (e.g., 'hrdoc_...').
+            # Skip notification if the documents table expects an integer ID.
+            try:
+                # Attempt a lightweight cast check; if it fails, skip gracefully
+                _ = int(str(analysis.document_id))
+            except Exception:
+                print("Skipping expiry notification: non-integer document_id detected; schema may require INT.")
+                return
+            
             # Calculate days until expiry
             today = date.today()
             days_until_expiry = (analysis.expiry_date - today).days
@@ -140,6 +149,11 @@ class DocumentAnalysisService:
             await self._send_expiry_notification(notification, analysis, company_db)
             
         except Exception as e:
+            # Ensure failed insert does not poison the outer transaction
+            try:
+                company_db.rollback()
+            except Exception:
+                pass
             print(f"Error creating expiry notification: {str(e)}")
     
     async def _send_expiry_notification(self, notification: ExpiryNotification, analysis: DocumentAnalysis, company_db: Session):
