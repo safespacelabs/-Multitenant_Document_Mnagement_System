@@ -162,7 +162,27 @@ class AnthropicService:
             traceback.print_exc()
             return self._create_fallback_metadata(filename, folder_name, str(e), str(e))
     
-    async def _extract_from_image(self, file_base64: str, filename: str, folder_name: str = None) -> Dict[str, Any]:
+    def _is_sparse_metadata(self, metadata: Dict[str, Any]) -> bool:
+        """Heuristic to detect weak/empty extraction results."""
+        try:
+            extracted_text = (metadata or {}).get("extracted_text") or ""
+            word_count = (metadata or {}).get("word_count") or 0
+            entities = (metadata or {}).get("entities") or {}
+            key_value_pairs = (metadata or {}).get("key_value_pairs") or {}
+            # Sparse if no words, no entities, or extremely short text
+            if isinstance(word_count, str):
+                try:
+                    word_count = int(word_count)
+                except Exception:
+                    word_count = 0
+            no_entities = all(not v for v in entities.values()) if isinstance(entities, dict) else True
+            too_short = len(extracted_text.strip()) < 50
+            no_kv = len(key_value_pairs) == 0
+            return (word_count == 0 or too_short) and no_entities and no_kv
+        except Exception:
+            return True
+
+    async def _extract_from_image(self, file_base64: str, filename: str, folder_name: str = None, *, model_override: str = None) -> Dict[str, Any]:
         """Extract metadata from image and PDF documents using vision API"""
         try:
             prompt = f"""
@@ -247,8 +267,9 @@ class AnthropicService:
             print(f"🔍 Making vision API call to Anthropic with model: {self.model}")
             print(f"🔍 Prompt length: {len(prompt)} characters")
             
+            selected_model = model_override or self.model
             message = self.client.messages.create(
-                model=self.model,
+                model=selected_model,
                 max_tokens=4000,
                 temperature=0.0,
                 messages=[
@@ -284,7 +305,7 @@ class AnthropicService:
                 
                 # Add extraction timestamp and processing info
                 metadata['extracted_at'] = datetime.utcnow().isoformat()
-                metadata['ai_model'] = self.model
+                metadata['ai_model'] = selected_model
                 metadata['processing_status'] = 'success'
                 
                 # Validate and clean expiry date
@@ -310,6 +331,60 @@ class AnthropicService:
                 
                 # Post-process dates if green card-like document
                 metadata = self._normalize_and_enhance_metadata(metadata)
+                # If result is sparse, retry with fallback model and stricter schema (esp. for IDs/passports)
+                if self._is_sparse_metadata(metadata):
+                    strict_extra = """
+                    IMPORTANT: The initial pass returned sparse data. You MUST extract detailed, verbatim content.
+                    When the document appears to be an ID (passport, driver license, green card, military ID), populate key_value_pairs with:
+                    - passport_number / id_number
+                    - surname
+                    - given_names
+                    - nationality
+                    - date_of_birth (YYYY-MM-DD)
+                    - sex
+                    - place_of_birth
+                    - date_of_issue (YYYY-MM-DD)
+                    - date_of_expiry (YYYY-MM-DD)
+                    - issuing_country / authority
+                    - mrz_lines (array of MRZ lines if present)
+                    Do NOT omit fields if visible. Transcribe exactly as printed.
+                    """
+                    retry_prompt = prompt + "\n\n" + strict_extra
+                    retry_msg = self.client.messages.create(
+                        model=self.fallback_model,
+                        max_tokens=4000,
+                        temperature=0.0,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": retry_prompt},
+                                    {
+                                        "type": "image",
+                                        "source": {
+                                            "type": "base64",
+                                            "media_type": "image/jpeg" if filename.lower().endswith((".jpg", ".jpeg")) else "image/png",
+                                            "data": file_base64
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    )
+                    retry_text = retry_msg.content[0].text.strip()
+                    try:
+                        retry_metadata = json.loads(retry_text)
+                    except Exception:
+                        # attempt minimal cleanup
+                        import re
+                        cleaned = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', retry_text)
+                        cleaned = re.sub(r',\s*([}\]])', r'\1', cleaned)
+                        retry_metadata = json.loads(cleaned)
+                    retry_metadata['extracted_at'] = datetime.utcnow().isoformat()
+                    retry_metadata['ai_model'] = self.fallback_model
+                    retry_metadata['processing_status'] = 'success'
+                    retry_metadata = self._normalize_and_enhance_metadata(retry_metadata)
+                    return retry_metadata
                 return metadata
                 
             except json.JSONDecodeError as e:
