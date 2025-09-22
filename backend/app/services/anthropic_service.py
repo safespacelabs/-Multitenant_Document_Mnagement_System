@@ -64,28 +64,38 @@ class AnthropicService:
         """Convert PDF to image for vision API processing"""
         try:
             print(f"🔍 Converting PDF to image...")
-            from pdf2image import convert_from_bytes
             import io
-            
-            # Convert PDF to images (first page only for efficiency)
-            # Use higher DPI to improve OCR/vision accuracy
-            images = convert_from_bytes(file_content, first_page=1, last_page=1, dpi=300)
-            
-            if images:
-                # Convert PIL image to bytes
-                img_buffer = io.BytesIO()
-                images[0].save(img_buffer, format='PNG')
-                img_data = img_buffer.getvalue()
-                
-                print(f"🔍 PDF converted to image: {len(img_data)} bytes")
-                return img_data
-            else:
-                print(f"❌ No images generated from PDF")
+            # First try PyMuPDF (no external poppler dependency)
+            try:
+                import fitz  # PyMuPDF
+                doc = fitz.open(stream=file_content, filetype="pdf")
+                if doc.page_count > 0:
+                    page = doc.load_page(0)
+                    pix = page.get_pixmap(dpi=300)
+                    img_data = pix.tobytes("png")
+                    print(f"🔍 PDF converted to image via PyMuPDF: {len(img_data)} bytes")
+                    return img_data
+            except ImportError:
+                print("❌ PyMuPDF not installed, will try pdf2image")
+            except Exception as e:
+                print(f"❌ PyMuPDF conversion failed: {e}")
+
+            # Fallback to pdf2image (requires poppler)
+            try:
+                from pdf2image import convert_from_bytes
+                images = convert_from_bytes(file_content, first_page=1, last_page=1, dpi=300)
+                if images:
+                    img_buffer = io.BytesIO()
+                    images[0].save(img_buffer, format='PNG')
+                    img_data = img_buffer.getvalue()
+                    print(f"🔍 PDF converted to image via pdf2image: {len(img_data)} bytes")
+                    return img_data
+                else:
+                    print(f"❌ No images generated from PDF (pdf2image)")
+                    return None
+            except ImportError:
+                print(f"❌ pdf2image not installed, cannot convert PDF to image")
                 return None
-                
-        except ImportError:
-            print(f"❌ pdf2image not installed, cannot convert PDF to image")
-            return None
         except Exception as e:
             print(f"❌ Error converting PDF to image: {e}")
             return None
