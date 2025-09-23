@@ -4,6 +4,7 @@ Handles both text and image document processing with comprehensive extraction
 """
 
 import json
+from string import Template
 import anthropic
 from datetime import datetime, date
 from typing import Dict, Any
@@ -195,11 +196,12 @@ class AnthropicService:
     async def _extract_from_image(self, file_base64: str, filename: str, folder_name: str = None, *, model_override: str = None) -> Dict[str, Any]:
         """Extract metadata from image and PDF documents using vision API"""
         try:
-            prompt = f"""
+            prompt_template = Template(
+                """
             You are an advanced document analysis AI. Your task is to analyze this document (image or PDF) and extract ALL information visible in the document.
             
-            Filename: {filename}
-            Folder: {folder_name or 'Unknown'}
+            Filename: ${filename}
+            Folder: ${folder_name}
             
             MANDATORY REQUIREMENTS:
             1. SCAN EVERY ELEMENT: Look at every part of the document
@@ -223,22 +225,22 @@ class AnthropicService:
             - Transcribe text VERBATIM, including letter-case, hyphens and spacing.
             - If a field is not clearly visible, set it to null and add a warning in "warnings".
             - Prefer machine-readable values but do not convert numbers that appear with separators.
-
+            
             Please provide a JSON response with the following structure:
-            {{
+            {
                 "title": "exact document title or main subject",
                 "summary": "COMPREHENSIVE summary that covers EVERY detail visible in the document. Include all text, data, names, dates, and information. This should be a complete overview of everything in the document.",
                 "document_type": "type of document (passport, military_id, green_card, driver_license, contract, report, email, etc.)",
-                "folder_name": "{folder_name or 'Unknown'}",
+                "folder_name": "${folder_name}",
                 "key_topics": ["ALL main topics, sections, and subjects visible in the document"],
-                "entities": {{
+                "entities": {
                     "people": ["ALL person names visible in the document"],
                     "organizations": ["ALL organization names visible"],
                     "locations": ["ALL locations, addresses, and places visible"],
                     "dates": ["ALL important dates visible in the document"],
                     "expiry_dates": ["ALL expiry dates if any"],
                     "issue_dates": ["ALL issue dates if any"]
-                }},
+                },
                 "keywords": ["ALL relevant keywords, terms, and phrases visible in the document"],
                 "language": "detected language",
                 "word_count": "exact word count of all text visible",
@@ -258,7 +260,7 @@ class AnthropicService:
                 "key_value_pairs": {"Auto-detected labeled fields mapped to values (e.g., 'Surname': 'STEVENS')"},
                 "tables": [{"caption": "optional", "headers": ["..."], "rows": [["..."]] }],
                 "warnings": ["list any uncertainty or missing fields"]
-            }}
+            }
             
             CRITICAL INSTRUCTIONS: 
             - Look at the ENTIRE document image
@@ -272,6 +274,11 @@ class AnthropicService:
             - Extract all important dates and categorize them properly
             - Only respond with valid JSON, no additional text.
             """
+            )
+            prompt = prompt_template.substitute(
+                filename=filename,
+                folder_name=(folder_name or 'Unknown')
+            )
             
             # Create message for Anthropic API with image
             print(f"🔍 Making vision API call to Anthropic with model: {self.model}")
@@ -428,14 +435,15 @@ class AnthropicService:
     async def _extract_from_text(self, text_content: str, filename: str, folder_name: str = None) -> Dict[str, Any]:
         """Extract metadata from text documents"""
         try:
-            prompt = f"""
+            prompt_template = Template(
+                """
             You are an advanced document analysis AI. Your task is to scan and analyze the ENTIRE document content and extract comprehensive information.
             
-            Filename: {filename}
-            Folder: {folder_name or 'Unknown'}
+            Filename: ${filename}
+            Folder: ${folder_name}
             
             DOCUMENT CONTENT TO ANALYZE:
-            {text_content}
+            ${text_content}
             
             MANDATORY REQUIREMENTS:
             1. SCAN EVERY WORD: Read and analyze the ENTIRE document content word by word
@@ -454,20 +462,20 @@ class AnthropicService:
             - For government IDs and forms, ensure you extract clearly labeled fields (expiry, issue date, ID numbers)
             
             Please provide a JSON response with the following structure:
-            {{
+            {
                 "title": "exact document title or main subject",
                 "summary": "COMPREHENSIVE summary that covers EVERY detail in the document. Include all sections, paragraphs, data, names, dates, and information. This should be a complete overview of everything in the document.",
                 "document_type": "type of document (passport, military_id, green_card, driver_license, contract, report, email, etc.)",
-                "folder_name": "{folder_name or 'Unknown'}",
+                "folder_name": "${folder_name}",
                 "key_topics": ["ALL main topics, sections, and subjects covered in the document"],
-                "entities": {{
+                "entities": {
                     "people": ["ALL person names mentioned in the document"],
                     "organizations": ["ALL organization names mentioned"],
                     "locations": ["ALL locations, addresses, and places mentioned"],
                     "dates": ["ALL important dates found in the document"],
                     "expiry_dates": ["ALL expiry dates if any"],
                     "issue_dates": ["ALL issue dates if any"]
-                }},
+                },
                 "keywords": ["ALL relevant keywords, terms, and phrases from the document"],
                 "language": "detected language",
                 "word_count": "exact word count of the document",
@@ -483,7 +491,7 @@ class AnthropicService:
                 "key_findings": ["ALL key findings, important details, and significant information from the document"],
                 "data_points": ["ALL numerical data, statistics, measurements, and quantitative information"],
                 "action_items": ["ALL action items, tasks, requirements, and next steps mentioned"]
-            }}
+            }
             
             CRITICAL INSTRUCTIONS: 
             - Scan the ENTIRE document content
@@ -497,6 +505,12 @@ class AnthropicService:
             - Extract all important dates and categorize them properly
             - Only respond with valid JSON, no additional text.
             """
+            )
+            prompt = prompt_template.substitute(
+                filename=filename,
+                folder_name=(folder_name or 'Unknown'),
+                text_content=text_content
+            )
             
             # Create message for Anthropic API
             print(f"🔍 Making API call to Anthropic with model: {self.model}")
