@@ -1,6 +1,11 @@
+// Align with production backend base like api.js
+const API_BASE_URL = 'https://multitenant-backend-mlap.onrender.com';
+const buildApiUrl = (endpoint) => `${API_BASE_URL}${endpoint}`;
+
 // Helper function to make HTTP requests
 const makeRequest = async (url, options = {}) => {
-  const response = await fetch(url, {
+  const fullUrl = url.startsWith('http') ? url : buildApiUrl(url);
+  const response = await fetch(fullUrl, {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
