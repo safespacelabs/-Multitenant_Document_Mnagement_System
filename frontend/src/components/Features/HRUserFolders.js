@@ -479,8 +479,21 @@ const HRUserFolders = () => {
           console.log('AI Analysis Result:', result);
         }
         
-        // Store the result
-        setAiAnalysisResults(prev => ({ ...prev, [documentId]: result }));
+        // Normalize state by fetching canonical analysis status from GET endpoint
+        const refreshed = await checkAIAnalysis(documentId);
+        if (refreshed && refreshed.ai_processed !== undefined) {
+          setAiAnalysisResults(prev => ({ ...prev, [documentId]: refreshed }));
+        } else {
+          // Fallback: mark as processed locally to avoid UI saying "Not Processed"
+          setAiAnalysisResults(prev => ({
+            ...prev,
+            [documentId]: {
+              ai_processed: true,
+              analysis: result.analysis,
+              processed_at: new Date().toISOString()
+            }
+          }));
+        }
         
         // Refresh documents to show updated status
         if (selectedFolder) {
@@ -519,6 +532,9 @@ const HRUserFolders = () => {
     
     // Load AI analysis if not already loaded
     if (!aiAnalysisResults[documentId]) {
+      checkAIAnalysis(documentId);
+    } else if (aiAnalysisResults[documentId] && aiAnalysisResults[documentId].ai_processed === undefined) {
+      // If we only have a raw POST response (no ai_processed flag), refresh from GET
       checkAIAnalysis(documentId);
     }
   };
