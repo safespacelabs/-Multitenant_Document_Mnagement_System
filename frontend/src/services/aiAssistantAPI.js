@@ -15,8 +15,16 @@ const makeRequest = async (url, options = {}) => {
   });
   
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Request failed');
+    let errorBody;
+    try {
+      errorBody = await response.json();
+    } catch (_) {
+      errorBody = { detail: response.statusText };
+    }
+    const err = new Error(errorBody.detail || 'Request failed');
+    err.status = response.status;
+    err.body = errorBody;
+    throw err;
   }
   
   return response.json();
@@ -32,6 +40,16 @@ export const aiAssistantAPI = {
       return response;
     } catch (error) {
       console.error('Failed to create chat session:', error);
+      // Fallback: create a local pseudo-session if the assistant router is unavailable
+      if (error.status === 404) {
+        return {
+          id: 'default-session',
+          session_name: sessionData.session_name || 'General Assistant',
+          created_at: new Date().toISOString(),
+          last_activity: new Date().toISOString(),
+          message_count: 0
+        };
+      }
       throw error;
     }
   },
@@ -42,6 +60,18 @@ export const aiAssistantAPI = {
       return response;
     } catch (error) {
       console.error('Failed to get chat sessions:', error);
+      // Fallback: use a single default session
+      if (error.status === 404) {
+        return [
+          {
+            id: 'default-session',
+            session_name: 'Document Review Session',
+            created_at: new Date().toISOString(),
+            last_activity: new Date().toISOString(),
+            message_count: 0
+          }
+        ];
+      }
       throw error;
     }
   },
@@ -63,6 +93,22 @@ export const aiAssistantAPI = {
       return response;
     } catch (error) {
       console.error('Failed to send chat message:', error);
+      // Fallback: use existing chatbot endpoint /api/chat/
+      if (error.status === 404) {
+        const chatResp = await makeRequest('/api/chat/', {
+          method: 'POST',
+          body: JSON.stringify({ question: messageData.message })
+        });
+        return {
+          id: `${Date.now()}`,
+          session_id: messageData.session_id || 'default-session',
+          message: messageData.message,
+          response: chatResp.answer,
+          message_type: messageData.message_type || 'text',
+          timestamp: chatResp.created_at,
+          ai_response_time: 1.0
+        };
+      }
       throw error;
     }
   },
@@ -73,6 +119,19 @@ export const aiAssistantAPI = {
       return response;
     } catch (error) {
       console.error('Failed to get chat messages:', error);
+      // Fallback: map /api/chat/history to assistant message format
+      if (error.status === 404) {
+        const history = await makeRequest('/api/chat/history');
+        return history.map((h, idx) => ({
+          id: `${idx}`,
+          session_id: sessionId,
+          message: h.question,
+          response: h.answer,
+          message_type: 'text',
+          timestamp: h.created_at,
+          ai_response_time: 1.0
+        }));
+      }
       throw error;
     }
   },
