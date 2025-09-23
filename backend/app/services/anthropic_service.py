@@ -715,5 +715,39 @@ class AnthropicService:
                 "model": self.model
             }
 
+    async def process_hr_admin_query(self, query: str, context: Dict[str, Any]) -> str:
+        """Answer HR admin queries using provided structured context without external DB calls."""
+        try:
+            # Build compact context summary to control token usage
+            context_json = json.dumps(context, default=str)[:12000]
+            prompt = Template(
+                """
+            You are an AI assistant for an HR administrator. Use the provided COMPANY CONTEXT only.
+            Answer clearly with bullet points where helpful. If data is missing, say so.
+
+            COMPANY CONTEXT (JSON):
+            ${context_json}
+
+            QUESTION:
+            ${question}
+
+            INSTRUCTIONS:
+            - Base answers strictly on the context JSON.
+            - If asked for counts or lists, compute from the provided fields.
+            - If asked for actions, outline exact steps and reference existing endpoints where applicable.
+            - Keep responses concise and factual.
+            """
+            ).substitute(context_json=context_json, question=query)
+
+            message = self.client.messages.create(
+                model=self.model,
+                max_tokens=800,
+                temperature=0.0,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return message.content[0].text.strip()
+        except Exception as e:
+            return f"Error processing your query: {str(e)}"
+
 # Create service instance
 anthropic_service = AnthropicService()
