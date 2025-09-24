@@ -479,21 +479,28 @@ const HRUserFolders = () => {
           console.log('AI Analysis Result:', result);
         }
         
-        // Normalize state by fetching canonical analysis status from GET endpoint
-        const refreshed = await checkAIAnalysis(documentId);
-        if (refreshed && refreshed.ai_processed !== undefined) {
-          setAiAnalysisResults(prev => ({ ...prev, [documentId]: refreshed }));
-        } else {
-          // Fallback: mark as processed locally to avoid UI saying "Not Processed"
-          setAiAnalysisResults(prev => ({
-            ...prev,
-            [documentId]: {
-              ai_processed: true,
-              analysis: result.analysis,
-              processed_at: new Date().toISOString()
+        // Store the successful result immediately to show processing completed
+        setAiAnalysisResults(prev => ({
+          ...prev,
+          [documentId]: {
+            ai_processed: true,
+            analysis: result.analysis,
+            processed_at: new Date().toISOString(),
+            document_id: result.document_id
+          }
+        }));
+        
+        // Also refresh from GET endpoint after a small delay to ensure DB consistency
+        setTimeout(async () => {
+          try {
+            const refreshed = await checkAIAnalysis(documentId);
+            if (refreshed && refreshed.ai_processed !== undefined) {
+              setAiAnalysisResults(prev => ({ ...prev, [documentId]: refreshed }));
             }
-          }));
-        }
+          } catch (error) {
+            console.warn('Failed to refresh AI analysis status:', error);
+          }
+        }, 1000);
         
         // Refresh documents to show updated status
         if (selectedFolder) {

@@ -805,8 +805,16 @@ const DocumentManagement = () => {
           console.log('AI Analysis Result:', result);
         }
         
-        // Store the result
-        setAiAnalysisResults(prev => ({ ...prev, [documentId]: result }));
+        // Store the successful result immediately to show processing completed
+        setAiAnalysisResults(prev => ({
+          ...prev,
+          [documentId]: {
+            ai_processed: true,
+            analysis: result.analysis,
+            processed_at: new Date().toISOString(),
+            document_id: result.document_id
+          }
+        }));
       } else {
         alert(`Error: ${result.detail || 'AI processing failed'}`);
       }
