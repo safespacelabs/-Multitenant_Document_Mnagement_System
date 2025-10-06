@@ -290,7 +290,7 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
                 'https://raw.githubusercontent.com/safespacelabs/-Multitenant_Document_Mnagement_System/development/frontend/icons/SafespaceLogo.png'
               } 
               alt="Safe Space Labs" 
-              className="w-10 h-10 rounded-xl object-contain bg-white" 
+              className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-xl object-contain bg-white" 
             />
             {!collapsed && (
               <div>
