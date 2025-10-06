@@ -1397,6 +1397,32 @@ const DocumentManagement = () => {
       </div>
       )}
 
+      {/* HR User Search - visible */}
+      {(user?.role === 'hr_admin' || user?.role === 'hr_manager' || user?.role === 'system_admin') && (
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium text-blue-900">HR User Document Management</h3>
+              <p className="text-sm text-blue-700">Open the user search to manage user folders and documents</p>
+            </div>
+            <button
+              onClick={() => {
+                if (companyUsers.length === 0) {
+                  fetchCompanyUsers();
+                }
+                setShowUserSearch(true);
+                setUserSearchTerm('');
+                setFilteredUsers(companyUsers);
+              }}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Search User
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Current Folder Indicator */}
       {selectedFolder !== 'all' && (
         <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
