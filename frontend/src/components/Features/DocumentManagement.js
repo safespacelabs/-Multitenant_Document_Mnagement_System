@@ -955,7 +955,8 @@ const DocumentManagement = () => {
         </div>
       )}
 
-      {/* Controls */}
+      {/* Controls - temporarily disabled */}
+      {false && (
       <div className="bg-white rounded-lg shadow p-6">
         {/* File Upload */}
         <div className="mb-6">
@@ -1394,6 +1395,7 @@ const DocumentManagement = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* Current Folder Indicator */}
       {selectedFolder !== 'all' && (
@@ -1407,7 +1409,8 @@ const DocumentManagement = () => {
         </div>
       )}
 
-      {/* Documents List */}
+      {/* Documents List - temporarily disabled */}
+      {false && (
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">
@@ -1574,6 +1577,7 @@ const DocumentManagement = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* Admin Signing Modal */}
       {showSigningModal && selectedDocumentForSigning && (
