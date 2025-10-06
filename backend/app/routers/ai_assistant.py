@@ -162,6 +162,7 @@ async def get_chat_messages(
 async def ask_about_document(
     file: UploadFile = File(...),
     question: str = Form(...),
+    read_content: bool = Form(False),
     current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
@@ -170,7 +171,7 @@ async def ask_about_document(
     """
     try:
         content = await file.read()
-        result = await anthropic_service.answer_question_about_file(content, file.filename, question)
+        result = await anthropic_service.answer_question_about_file(content, file.filename, question, read_content=read_content)
         return {
             "answer": result.get("answer"),
             "filename": file.filename,

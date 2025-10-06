@@ -137,11 +137,12 @@ export const aiAssistantAPI = {
   },
 
   // Ask about a document (uploads a file and a question)
-  askAboutDocument: async (file, question) => {
+  askAboutDocument: async (file, question, { readContent = true } = {}) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('question', question);
+      formData.append('read_content', readContent ? 'true' : 'false');
 
       // Try dedicated assistant endpoint first
       const uploadUrl = `${AI_ASSISTANT_BASE_URL}/chat/ask-about-document`;

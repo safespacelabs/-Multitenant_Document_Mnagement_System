@@ -52,6 +52,7 @@ const AIAssistant = () => {
   const qaFileInputRef = useRef(null);
   const [qaUploading, setQaUploading] = useState(false);
   const [qaFileName, setQaFileName] = useState('');
+  const [qaReadContent, setQaReadContent] = useState(false);
 
   useEffect(() => {
     if (user && company) {
@@ -187,7 +188,7 @@ const AIAssistant = () => {
     setQaUploading(true);
 
     try {
-      const result = await aiAssistantAPI.askAboutDocument(file, question);
+      const result = await aiAssistantAPI.askAboutDocument(file, question, { readContent: qaReadContent });
       const answer = result.answer || result.response || 'No answer returned.';
       setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, response: answer, ai_response_time: 1.0 } : m));
     } catch (err) {
@@ -566,6 +567,15 @@ const AIAssistant = () => {
                       {qaFileName ? `Selected: ${qaFileName}` : 'Attach document'}
                     </button>
                     <span className="text-xs text-gray-500">PDF, TXT, DOC up to 10MB</span>
+                    <label className="flex items-center space-x-2 ml-4 text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300"
+                        checked={qaReadContent}
+                        onChange={(e) => setQaReadContent(e.target.checked)}
+                      />
+                      <span>Read inner content</span>
+                    </label>
                   </div>
 
                   <div className="flex space-x-2">

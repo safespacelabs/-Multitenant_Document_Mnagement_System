@@ -745,9 +745,35 @@ class AnthropicService:
         except Exception as e:
             return f"Error answering question: {str(e)}"
 
-    async def answer_question_about_file(self, file_content: bytes, filename: str, question: str) -> Dict[str, Any]:
-        """Extract content from file, then answer a question grounded in that content."""
+    async def answer_question_about_file(self, file_content: bytes, filename: str, question: str, *, read_content: bool = False) -> Dict[str, Any]:
+        """Answer a question about an uploaded file.
+        If read_content is False, DO NOT read inner content; ground the answer only on filename and basic metadata.
+        If True, extract content and answer grounded in that content.
+        """
         try:
+            if not read_content:
+                # Metadata-only mode: do not parse document internals
+                meta = {"title": filename, "processing": "metadata_only"}
+                prompt = Template(
+                    """
+                The user uploaded a file named "${fname}" but requests that you DO NOT read inner content.
+                Answer the question using general knowledge and the filename only; never claim details from the file.
+                If the filename hints at a topic, you may provide a general overview with clear disclaimers.
+
+                FILENAME: ${fname}
+                QUESTION: ${question}
+                """
+                ).substitute(fname=filename, question=question)
+                msg = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=800,
+                    temperature=0.2,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                answer = msg.content[0].text.strip()
+                return {"answer": answer, "metadata": meta}
+
+            # Full-content mode
             metadata = await self.extract_document_metadata(file_content, filename)
             extracted_text = (metadata or {}).get("extracted_text") or ""
             answer = await self.answer_question(extracted_text, question)
