@@ -647,7 +647,7 @@ const Dashboard = () => {
                   'https://raw.githubusercontent.com/safespacelabs/-Multitenant_Document_Mnagement_System/development/frontend/icons/SafespaceLogo.png'
                 } 
                 alt="Safe Space Labs" 
-                className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-xl object-contain bg-white" 
+                className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-xl object-contain bg-white" 
               />
               <div>
                 <span className="font-bold text-xl text-gray-900">Document Manager</span>
