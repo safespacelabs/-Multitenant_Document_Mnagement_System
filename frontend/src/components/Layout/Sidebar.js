@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import SafespaceLogo from '../../icons/SafespaceLogo.png';
+import SafespaceLogo from '../../../icons/SafespaceLogo.png';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { documentsAPI, systemDocumentsAPI } from '../../services/api';

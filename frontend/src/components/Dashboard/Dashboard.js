@@ -9,7 +9,7 @@ import { Analytics } from '../Features';
 import ESignatureManager from '../ESignature/ESignatureManager';
 import TestingInterface from '../Testing/TestingInterface';
 import Sidebar from '../Layout/Sidebar';
-import SafespaceLogo from '../../icons/SafespaceLogo.png';
+import SafespaceLogo from '../../../icons/SafespaceLogo.png';
 import Header from '../Layout/Header';
 import { 
   Home, 
