@@ -1397,29 +1397,317 @@ const DocumentManagement = () => {
       </div>
       )}
 
-      {/* HR User Search - visible */}
+      {/* HR User Folders Section - visible */}
       {(user?.role === 'hr_admin' || user?.role === 'hr_manager' || user?.role === 'system_admin') && (
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center justify-between">
+          {/* Debug info */}
+          {console.log('🔍 HR User Folders Section - User role:', user?.role, 'Selected user:', selectedUser)}
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-medium text-blue-900">HR User Document Management</h3>
-              <p className="text-sm text-blue-700">Open the user search to manage user folders and documents</p>
+              <p className="text-sm text-blue-700">Create folders and manage documents for any user in your company</p>
             </div>
-            <button
-              onClick={() => {
-                if (companyUsers.length === 0) {
-                  fetchCompanyUsers();
-                }
-                setShowUserSearch(true);
-                setUserSearchTerm('');
-                setFilteredUsers(companyUsers);
-              }}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <Users className="h-4 w-4 mr-2" />
-              Search User
-            </button>
+            <div className="flex space-x-2">
+              {companyUsers.length === 0 && (
+                <button
+                  onClick={() => fetchCompanyUsers()}
+                  disabled={loadingUsers}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {loadingUsers ? '🔄 Loading...' : '🔄 Retry Load Users'}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (companyUsers.length === 0) {
+                    // Retry loading users if none are loaded
+                    fetchCompanyUsers();
+                  }
+                  setShowUserSearch(true);
+                  setUserSearchTerm(''); // Clear any previous search
+                  setFilteredUsers(companyUsers); // Show all users initially
+                }}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Search User
+              </button>
+            </div>
           </div>
+
+          {/* Debug State Display */}
+          <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+            <strong>Debug:</strong> selectedUser: {selectedUser ? `${selectedUser.full_name} (${selectedUser.id})` : 'null'}, 
+            showUserSearch: {showUserSearch.toString()}, 
+            userFolders count: {userFolders.length}
+          </div>
+
+          {/* Selected User Display */}
+          {selectedUser && (
+            <div className="bg-white rounded-lg p-4 border border-blue-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <User className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-medium text-gray-900">{selectedUser.full_name}</h4>
+                    <p className="text-sm text-gray-600">{selectedUser.email} • {selectedUser.role}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => fetchUserFolders(selectedUser.id)}
+                    className="text-blue-600 hover:text-blue-800 p-1"
+                    title="Refresh user data"
+                  >
+                    🔄
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedUser(null);
+                      setUserFolders([]);
+                      setUserDocuments([]);
+                      setSelectedUserFolder(null);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                    title="Close user"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* User Folders */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-md font-medium text-gray-900">User Folders ({userFolders.length})</h5>
+                  <button
+                    onClick={() => {
+                      setNewUserFolder(prev => ({ ...prev, user_id: selectedUser.id }));
+                      setShowCreateUserFolder(true);
+                    }}
+                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Create Folder
+                  </button>
+                </div>
+
+                {loadingFolders ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-sm text-gray-500">Loading folders...</p>
+                  </div>
+                ) : userFolders.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No folders created yet for this user.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {userFolders.map((folder) => (
+                      <div key={folder.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:bg-gray-100">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Folder className="h-4 w-4 text-blue-500" />
+                            <div>
+                              <h6 className="text-sm font-medium text-gray-900">{folder.display_name}</h6>
+                              <p className="text-xs text-gray-500">{folder.documents_count || 0} documents</p>
+                            </div>
+                          </div>
+                          <div className="flex space-x-1">
+                            <button
+                              onClick={() => openUserFolder(folder)}
+                              className="text-blue-600 hover:text-blue-800 p-1"
+                              title="View folder contents"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteUserFolder(folder.id)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="Delete folder"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Selected Folder Documents */}
+              {selectedUserFolder && (
+                <div className="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h6 className="text-md font-medium text-gray-900">
+                      Documents in {selectedUserFolder.display_name} ({userDocuments.length})
+                    </h6>
+                    <button
+                      onClick={() => setShowUploadToUserFolder(true)}
+                      className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                    >
+                      <Upload className="h-4 w-4 mr-1" />
+                      Upload Document
+                    </button>
+                  </div>
+
+                  {userDocuments.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-2">No documents in this folder.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {userDocuments.map((doc) => (
+                        <div key={doc.id}>
+                          <div className="flex items-center justify-between bg-white rounded p-2 border border-gray-200">
+                            <div className="flex items-center space-x-2">
+                              <FileText className="h-4 w-4 text-gray-400" />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{doc.original_filename}</p>
+                                <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => viewUserDocument(doc)}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                title="View document"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => processDocumentWithAI(doc.id)}
+                                disabled={processingAI[doc.id]}
+                                className={`${processingAI[doc.id] ? 'text-gray-400' : 'text-purple-600 hover:text-purple-900'} p-1`}
+                                title="Process with AI"
+                              >
+                                {processingAI[doc.id] ? (
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                                ) : (
+                                  <Bot className="h-4 w-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => toggleAIAnalysis(doc.id)}
+                                className="text-indigo-600 hover:text-indigo-900 p-1"
+                                title="View AI Analysis"
+                              >
+                                <Brain className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteUserDocument(doc.id)}
+                                className="text-red-600 hover:text-red-800 p-1"
+                                title="Delete document"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          {/* AI Analysis Section */}
+                          {showAIAnalysis[doc.id] && (
+                            <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                                  <Brain className="h-4 w-4 mr-2 text-indigo-600" />
+                                  AI Analysis Results
+                                </h4>
+                                <button
+                                  onClick={() => toggleAIAnalysis(doc.id)}
+                                  className="text-gray-400 hover:text-gray-600"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                              {aiAnalysisResults[doc.id] ? (
+                                aiAnalysisResults[doc.id].ai_processed ? (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="text-xs font-medium text-gray-500">Title</label>
+                                        <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.title}</p>
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-medium text-gray-500">Document Type</label>
+                                        <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.document_type}</p>
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-medium text-gray-500">Language</label>
+                                        <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.language}</p>
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-medium text-gray-500">Word Count</label>
+                                        <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.word_count}</p>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="text-xs font-medium text-gray-500">Summary</label>
+                                      <p className="text-sm text-gray-900 bg-white p-3 rounded-md border">
+                                        {aiAnalysisResults[doc.id].analysis.summary}
+                                      </p>
+                                    </div>
+                                    {aiAnalysisResults[doc.id].analysis.expiry_detected && (
+                                      <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                                        <div className="flex items-center">
+                                          <AlertCircle className="h-4 w-4 text-yellow-600 mr-2" />
+                                          <span className="text-sm font-medium text-yellow-800">Expiry Detected</span>
+                                        </div>
+                                        <p className="text-sm text-yellow-700 mt-1">
+                                          Expiry Date: {aiAnalysisResults[doc.id].analysis.expiry_date}
+                                        </p>
+                                        <p className="text-sm text-yellow-700">
+                                          Urgency Level: {aiAnalysisResults[doc.id].analysis.urgency_level}
+                                        </p>
+                                      </div>
+                                    )}
+                                    <details className="mt-3">
+                                      <summary className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900">
+                                        View Full AI Analysis JSON
+                                      </summary>
+                                      <pre className="mt-2 text-xs bg-white p-3 rounded-md border overflow-auto max-h-64">
+                                        {JSON.stringify(aiAnalysisResults[doc.id].analysis, null, 2)}
+                                      </pre>
+                                    </details>
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-4">
+                                    <Bot className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                    <p className="text-sm text-gray-600 mb-3">
+                                      This document has not been processed by AI yet.
+                                    </p>
+                                    <button
+                                      onClick={() => processDocumentWithAI(doc.id)}
+                                      disabled={processingAI[doc.id]}
+                                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                                    >
+                                      {processingAI[doc.id] ? (
+                                        <>
+                                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                          Processing...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Zap className="h-4 w-4 mr-2" />
+                                          Process with AI
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                )
+                              ) : (
+                                <div className="text-center py-4">
+                                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto"></div>
+                                  <p className="text-sm text-gray-600 mt-2">Loading AI analysis...</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
