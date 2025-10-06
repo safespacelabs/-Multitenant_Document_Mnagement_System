@@ -9,6 +9,7 @@ import { Analytics } from '../Features';
 import ESignatureManager from '../ESignature/ESignatureManager';
 import TestingInterface from '../Testing/TestingInterface';
 import Sidebar from '../Layout/Sidebar';
+import SafespaceLogo from '../../icons/SafespaceLogo.png';
 import Header from '../Layout/Header';
 import { 
   Home, 
@@ -642,9 +643,7 @@ const Dashboard = () => {
           {/* Logo/Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-lg">DM</span>
-              </div>
+              <img src={SafespaceLogo} alt="Safe Space Labs" className="w-10 h-10 rounded-xl object-contain bg-white" />
               <div>
                 <span className="font-bold text-xl text-gray-900">Document Manager</span>
                 <p className="text-xs text-gray-500">Enterprise Solution</p>

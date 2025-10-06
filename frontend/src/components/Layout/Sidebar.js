@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SafespaceLogo from '../../icons/SafespaceLogo.png';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { documentsAPI, systemDocumentsAPI } from '../../services/api';
@@ -285,12 +286,10 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
         {/* Logo/Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">P</span>
-            </div>
+            <img src={SafespaceLogo} alt="Safe Space Labs" className="w-10 h-10 rounded-xl object-contain bg-white" />
             {!collapsed && (
               <div>
-                <span className="font-bold text-xl text-gray-900">PFile</span>
+                <span className="font-bold text-xl text-gray-900">Document Manager</span>
               </div>
             )}
           </div>
