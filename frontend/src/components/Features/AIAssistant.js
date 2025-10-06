@@ -49,6 +49,9 @@ const AIAssistant = () => {
   
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const qaFileInputRef = useRef(null);
+  const [qaUploading, setQaUploading] = useState(false);
+  const [qaFileName, setQaFileName] = useState('');
 
   useEffect(() => {
     if (user && company) {
@@ -162,6 +165,36 @@ const AIAssistant = () => {
       ));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAskAboutDocument = async () => {
+    if (!currentSession || !qaFileInputRef.current?.files?.[0] || !newMessage.trim()) return;
+    const file = qaFileInputRef.current.files[0];
+    const question = newMessage;
+
+    const userMessage = {
+      id: Date.now(),
+      message: `Q: ${question}\n(File: ${file.name})`,
+      response: '',
+      message_type: 'doc_qa',
+      timestamp: new Date(),
+      ai_response_time: 0,
+      isUser: true
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setNewMessage('');
+    setQaUploading(true);
+
+    try {
+      const result = await aiAssistantAPI.askAboutDocument(file, question);
+      const answer = result.answer || result.response || 'No answer returned.';
+      setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, response: answer, ai_response_time: 1.0 } : m));
+    } catch (err) {
+      console.error('Ask about document failed:', err);
+      setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, response: 'Sorry, could not process the document.', isError: true } : m));
+    } finally {
+      setQaUploading(false);
     }
   };
 
@@ -516,8 +549,27 @@ const AIAssistant = () => {
 
               {/* Message Input */}
               <div className="p-4 border-t border-gray-200">
-                <div className="flex space-x-2">
-                  <input
+                <div className="flex flex-col space-y-2">
+                  {/* Upload-any-doc and ask QA */}
+                  <div className="flex items-center space-x-2">
+                    <input
+                      ref={qaFileInputRef}
+                      type="file"
+                      accept=".pdf,.txt,.md,.csv,.json,.doc,.docx"
+                      className="hidden"
+                      onChange={(e) => setQaFileName(e.target.files?.[0]?.name || '')}
+                    />
+                    <button
+                      onClick={() => qaFileInputRef.current?.click()}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                    >
+                      {qaFileName ? `Selected: ${qaFileName}` : 'Attach document'}
+                    </button>
+                    <span className="text-xs text-gray-500">PDF, TXT, DOC up to 10MB</span>
+                  </div>
+
+                  <div className="flex space-x-2">
+                    <input
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
@@ -533,6 +585,15 @@ const AIAssistant = () => {
                   >
                     <Send className="h-4 w-4" />
                   </button>
+                  <button
+                    onClick={handleAskAboutDocument}
+                    disabled={!newMessage.trim() || !currentSession || !qaFileInputRef.current?.files?.[0] || qaUploading}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Ask about the attached document"
+                  >
+                    {qaUploading ? 'Processing…' : 'Ask from document'}
+                  </button>
+                  </div>
                 </div>
               </div>
             </div>
