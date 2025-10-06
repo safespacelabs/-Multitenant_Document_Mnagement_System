@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import json
@@ -21,6 +21,7 @@ from ..schemas import (
 )
 from ..auth import get_current_user, get_current_company_user
 from ..services.ai_service import AIService
+from ..services.anthropic_service import anthropic_service
 
 router = APIRouter(prefix="/api/ai-assistant", tags=["AI Assistant"])
 
@@ -155,6 +156,31 @@ async def get_chat_messages(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get chat messages"
+        )
+
+@router.post("/chat/ask-about-document")
+async def ask_about_document(
+    file: UploadFile = File(...),
+    question: str = Form(...),
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
+):
+    """Upload a document and ask a question grounded in its content using Anthropic.
+    Returns a simple JSON with the assistant's answer and minimal metadata.
+    """
+    try:
+        content = await file.read()
+        result = await anthropic_service.answer_question_about_file(content, file.filename, question)
+        return {
+            "answer": result.get("answer"),
+            "filename": file.filename,
+            "metadata": result.get("metadata")
+        }
+    except Exception as e:
+        logging.error(f"ask_about_document failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process the uploaded document"
         )
 
 @router.post("/documents/analyze", response_model=DocumentAnalysisResponse)

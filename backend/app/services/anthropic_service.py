@@ -715,6 +715,49 @@ class AnthropicService:
                 "model": self.model
             }
 
+    async def answer_question(self, text_content: str, question: str) -> str:
+        """Answer a user question grounded strictly in the provided text content."""
+        try:
+            # Trim to reasonable size for token limits
+            if len(text_content) > 120000:
+                text_content = text_content[:120000] + "..."
+
+            prompt = Template(
+                """
+            You are an expert document assistant. Use ONLY the content inside <document> tags to answer the question.
+            If the answer is not present, say you cannot find it in the document.
+
+            <document>
+            ${doc}
+            </document>
+
+            QUESTION: ${question}
+            """
+            ).substitute(doc=text_content, question=question)
+
+            msg = self.client.messages.create(
+                model=self.model,
+                max_tokens=1200,
+                temperature=0.0,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return msg.content[0].text.strip()
+        except Exception as e:
+            return f"Error answering question: {str(e)}"
+
+    async def answer_question_about_file(self, file_content: bytes, filename: str, question: str) -> Dict[str, Any]:
+        """Extract content from file, then answer a question grounded in that content."""
+        try:
+            metadata = await self.extract_document_metadata(file_content, filename)
+            extracted_text = (metadata or {}).get("extracted_text") or ""
+            answer = await self.answer_question(extracted_text, question)
+            return {
+                "answer": answer,
+                "metadata": metadata,
+            }
+        except Exception as e:
+            return {"answer": f"Error processing document: {str(e)}"}
+
     async def process_hr_admin_query(self, query: str, context: Dict[str, Any]) -> str:
         """Answer HR admin queries using provided structured context without external DB calls."""
         try:
