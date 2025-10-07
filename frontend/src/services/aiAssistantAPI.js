@@ -136,55 +136,27 @@ export const aiAssistantAPI = {
     }
   },
 
-  // Ask about a document (uploads a file and a question)
+  // Ask about a document (upload, parse, store, answer in one call)
   askAboutDocument: async (file, question, { readContent = true } = {}) => {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('question', question);
-      formData.append('read_content', readContent ? 'true' : 'false');
-
-      // Try dedicated assistant endpoint first
-      const uploadUrl = `${AI_ASSISTANT_BASE_URL}/chat/ask-about-document`;
-      const response = await fetch(buildApiUrl(uploadUrl), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw Object.assign(new Error('Upload QA failed'), { status: response.status });
-      }
-      return await response.json();
-    } catch (error) {
-      // Fallback: embed extracted text into existing chat endpoint
-      try {
-        let docText = '';
-        // Best-effort text extraction for plain text and markdown; otherwise use filename only
-        if (file && /\.(txt|md|csv|json)$/i.test(file.name)) {
-          docText = await file.text();
-        }
-
-        const prompt = docText
-          ? `You are given the following document content between <document> tags. Answer the user question strictly using that content.\n\n<document>\n${docText.slice(0, 15000)}\n</document>\n\nQuestion: ${question}`
-          : `The user attached a file named "${file?.name}". If possible, answer the question using general knowledge. Question: ${question}`;
-
-        const chatResp = await makeRequest('/api/chat/', {
-          method: 'POST',
-          body: JSON.stringify({ question: prompt })
-        });
-
-        return {
-          answer: chatResp.answer,
-          created_at: chatResp.created_at,
-        };
-      } catch (fallbackErr) {
-        console.error('askAboutDocument fallback failed:', fallbackErr);
-        throw error;
-      }
+    // readContent flag kept for UI compatibility; backend always parses
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('question', question);
+    const uploadUrl = `${AI_ASSISTANT_BASE_URL}/chat/upload-and-ask`;
+    const response = await fetch(buildApiUrl(uploadUrl), {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+      body: formData
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const err = new Error(body.detail || 'Upload-and-ask failed');
+      err.status = response.status;
+      err.body = body;
+      throw err;
     }
+    // Normalize to { answer }
+    return { answer: body.answer, document_id: body.document_id };
   },
 
   // Document Analysis
