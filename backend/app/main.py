@@ -243,8 +243,8 @@ print("✅ User Management router included")
 app.include_router(esignature.router, prefix="/api", tags=["E-Signature"])
 print("✅ E-Signature router included")
 
-# AI Assistant routes
-app.include_router(ai_assistant.router, prefix="/api/ai-assistant", tags=["AI Assistant"])
+# AI Assistant routes (router already defines its own prefix)
+app.include_router(ai_assistant.router)
 print("✅ AI Assistant router included")
 
 # Import and include HR admin router
