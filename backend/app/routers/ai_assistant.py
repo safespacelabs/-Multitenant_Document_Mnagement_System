@@ -275,13 +275,13 @@ async def get_ai_assistant_stats(
         )
         
         return AIAssistantStats(
-            total_chat_sessions=stats.total_chat_sessions,
-            total_messages=stats.total_messages,
-            documents_analyzed=stats.documents_analyzed,
-            suggestions_generated=stats.suggestions_generated,
-            average_response_time=stats.average_response_time,
-            most_used_features=stats.most_used_features,
-            company_usage_trend=stats.company_usage_trend
+            total_chat_sessions=stats.get("total_chat_sessions", 0),
+            total_messages=stats.get("total_messages", 0),
+            documents_analyzed=stats.get("documents_analyzed", 0),
+            suggestions_generated=stats.get("suggestions_generated", 0),
+            average_response_time=stats.get("average_response_time", 0.0),
+            most_used_features=stats.get("most_used_features", []),
+            company_usage_trend=stats.get("company_usage_trend", {})
         )
     except Exception as e:
         logging.error(f"Failed to get AI stats: {str(e)}")
