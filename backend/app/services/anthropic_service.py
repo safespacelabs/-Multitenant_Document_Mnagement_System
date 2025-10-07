@@ -100,6 +100,27 @@ class AnthropicService:
         except Exception as e:
             print(f"❌ Error converting PDF to image: {e}")
             return None
+
+    def _ocr_image_bytes(self, image_bytes: bytes) -> str:
+        """Perform OCR on image bytes using Tesseract if available. Returns extracted text or empty string.
+        This is a best-effort helper and will not raise if OCR stack is missing.
+        """
+        try:
+            from PIL import Image
+            import io
+            try:
+                import pytesseract
+            except Exception:
+                print("⚠️ pytesseract not installed; skipping OCR fallback")
+                return ""
+
+            img = Image.open(io.BytesIO(image_bytes))
+            # Use a configuration that improves OCR for documents
+            ocr_text = pytesseract.image_to_string(img, config="--psm 6")
+            return ocr_text or ""
+        except Exception as e:
+            print(f"⚠️ OCR failed: {e}")
+            return ""
     
     async def extract_document_metadata(self, file_content: bytes, filename: str, folder_name: str = None) -> Dict[str, Any]:
         """Extract comprehensive metadata from document using Anthropic API"""
@@ -140,6 +161,14 @@ class AnthropicService:
                     try:
                         image_data = self._convert_pdf_to_image(file_content)
                         if image_data:
+                            # Try local OCR first to cheaply extract verbatim text
+                            ocr_text = self._ocr_image_bytes(image_data)
+                            if len(ocr_text.strip()) > 30:
+                                print("🔍 Using OCR text from PDF image prior to AI...")
+                                # Limit size
+                                if len(ocr_text) > 100000:
+                                    ocr_text = ocr_text[:100000] + "..."
+                                return await self._extract_from_text(ocr_text, filename, folder_name)
                             import base64
                             image_base64 = base64.b64encode(image_data).decode('utf-8')
                             print(f"🔍 PDF converted to image, using vision API...")
@@ -594,6 +623,52 @@ class AnthropicService:
             import traceback
             traceback.print_exc()
             return self._create_fallback_metadata(filename, folder_name, str(e), str(e))
+
+    async def chat_with_document(self, question: str, metadata: Dict[str, Any]) -> str:
+        """Answer a question grounded ONLY in provided metadata/extracted_text.
+        Expects keys like 'title', 'summary', 'document_type', 'extracted_text'.
+        """
+        try:
+            text_content = (metadata or {}).get("extracted_text") or ""
+            # Provide some structure as context to improve grounding
+            context_json = json.dumps({
+                "title": metadata.get("title"),
+                "summary": metadata.get("summary"),
+                "document_type": metadata.get("document_type"),
+                "folder_name": metadata.get("folder_name"),
+                "expiry_detected": metadata.get("expiry_detected"),
+                "expiry_date": metadata.get("expiry_date"),
+            }, default=str)
+
+            if len(text_content) > 120000:
+                text_content = text_content[:120000] + "..."
+
+            prompt = Template(
+                """
+            You are a precise assistant answering questions using ONLY the document content.
+            Use the structured METADATA and the full EXTRACTED_TEXT below. If the answer
+            is not present, state that it cannot be found in the document.
+
+            METADATA(JSON):
+            ${meta}
+
+            <document>
+            ${doc}
+            </document>
+
+            QUESTION: ${question}
+            """
+            ).substitute(meta=context_json, doc=text_content, question=question)
+
+            msg = self.client.messages.create(
+                model=self.model,
+                max_tokens=1200,
+                temperature=0.0,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return msg.content[0].text.strip()
+        except Exception as e:
+            return f"Error processing your question: {str(e)}"
 
     def _normalize_and_enhance_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Improve metadata by extracting dates from text when model misses them, and set urgency.
