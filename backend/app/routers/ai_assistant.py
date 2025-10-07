@@ -24,6 +24,7 @@ from ..services.ai_service import AIService
 from ..services.anthropic_service import anthropic_service
 from ..services.document_analysis_service import document_analysis_service
 from ..services.database_manager import db_manager
+from ..services.aws_service import aws_service
 
 router = APIRouter(prefix="/api/ai-assistant", tags=["AI Assistant"])
 
@@ -407,3 +408,105 @@ async def upload_and_ask(
     except Exception as e:
         logging.error(f"upload_and_ask failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to process document and answer question")
+
+@router.post("/chat/multipart/initiate")
+async def initiate_multipart_upload(
+    filename: str = Form(...),
+    content_type: str = Form(None),
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
+):
+    """Initiate a multipart upload to S3 for very large files and return upload parameters."""
+    try:
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        if not company.s3_bucket_name:
+            # You may create bucket on demand here if desired
+            raise HTTPException(status_code=400, detail="Company S3 bucket not configured")
+
+        # Sanitize and generate a key
+        import uuid
+        file_id = str(uuid.uuid4())
+        ext = filename.split('.')[-1].lower() if '.' in filename else ''
+        s3_key = f"company-documents/{company.id}/chat-uploads/{file_id}.{ext}" if ext else f"company-documents/{company.id}/chat-uploads/{file_id}"
+
+        init = await aws_service.create_multipart_upload(company.s3_bucket_name, s3_key, content_type)
+        return {"uploadId": init["UploadId"], "key": init["Key"], "bucket": company.s3_bucket_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"initiate_multipart_upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to initiate multipart upload")
+
+@router.get("/chat/multipart/part-url")
+async def get_multipart_part_url(
+    key: str,
+    uploadId: str,
+    partNumber: int,
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        url = await aws_service.generate_presigned_part_url(company.s3_bucket_name, key, uploadId, partNumber)
+        return {"url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"get_multipart_part_url failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get part URL")
+
+@router.post("/chat/multipart/complete")
+async def complete_multipart(
+    key: str = Form(...),
+    uploadId: str = Form(...),
+    parts_json: str = Form(...),  # JSON: [{"ETag":"...","PartNumber":1},...]
+    question: str = Form(...),
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        import json as _json
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        parts = _json.loads(parts_json)
+        await aws_service.complete_multipart_upload(company.s3_bucket_name, key, uploadId, parts)
+
+        # Download the object to process
+        file_bytes = await aws_service.download_file(company.s3_bucket_name, key)
+        filename = key.split('/')[-1]
+        metadata = await anthropic_service.extract_document_metadata(file_bytes, filename)
+        extracted_text = (metadata or {}).get("extracted_text") or ""
+
+        # Store and answer
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+        try:
+            chat_doc = await document_analysis_service.upsert_chat_document(
+                user_id=current_user.id,
+                user_name=getattr(current_user, "username", ""),
+                filename=filename,
+                content_type=None,
+                file_size=len(file_bytes or b""),
+                extracted_text=extracted_text,
+                metadata=metadata,
+                company_db=company_db
+            )
+            msg = await document_analysis_service.answer_and_store_chat(
+                document_id=chat_doc.id,
+                user_id=current_user.id,
+                question=question,
+                company_db=company_db
+            )
+            return {"document_id": chat_doc.id, "answer": msg.answer}
+        finally:
+            company_db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"complete_multipart failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to complete upload and process document")

@@ -566,6 +566,66 @@ class AWSService:
         """Generate a presigned URL for file access (alias for get_file_url for compatibility)"""
         return await self.get_file_url(bucket_name, s3_key, expiration)
 
+    # Multipart upload helpers for large/resumable uploads
+    async def create_multipart_upload(self, bucket_name: str, s3_key: str, content_type: str = None) -> dict:
+        """Initiate a multipart upload and return UploadId and key."""
+        if self.use_mock:
+            # Mock: return a pseudo upload id and rely on subsequent calls as no-ops
+            return {"UploadId": str(uuid.uuid4()), "Key": s3_key}
+        try:
+            params = {"Bucket": bucket_name, "Key": s3_key}
+            if content_type:
+                params["ContentType"] = content_type
+            resp = self.s3_client.create_multipart_upload(**params)
+            return {"UploadId": resp["UploadId"], "Key": resp["Key"]}
+        except ClientError as e:
+            raise Exception(f"Failed to create multipart upload: {str(e)}")
+
+    async def generate_presigned_part_url(self, bucket_name: str, s3_key: str, upload_id: str, part_number: int, expires_in: int = 3600) -> str:
+        """Generate a presigned URL for uploading a single part."""
+        if self.use_mock:
+            # Return a dummy URL in mock
+            return f"https://mock-s3/{bucket_name}/{s3_key}?partNumber={part_number}&uploadId={upload_id}"
+        try:
+            url = self.s3_client.generate_presigned_url(
+                ClientMethod='upload_part',
+                Params={
+                    'Bucket': bucket_name,
+                    'Key': s3_key,
+                    'UploadId': upload_id,
+                    'PartNumber': part_number,
+                },
+                ExpiresIn=expires_in,
+            )
+            return url
+        except ClientError as e:
+            raise Exception(f"Failed to generate presigned part URL: {str(e)}")
+
+    async def complete_multipart_upload(self, bucket_name: str, s3_key: str, upload_id: str, parts: list) -> str:
+        """Complete multipart upload with a list of {'ETag','PartNumber'} parts."""
+        if self.use_mock:
+            # Pretend success and return the key
+            return f"s3://{bucket_name}/{s3_key}"
+        try:
+            resp = self.s3_client.complete_multipart_upload(
+                Bucket=bucket_name,
+                Key=s3_key,
+                UploadId=upload_id,
+                MultipartUpload={'Parts': parts}
+            )
+            return resp.get('Location') or f"s3://{bucket_name}/{s3_key}"
+        except ClientError as e:
+            raise Exception(f"Failed to complete multipart upload: {str(e)}")
+
+    async def abort_multipart_upload(self, bucket_name: str, s3_key: str, upload_id: str) -> bool:
+        if self.use_mock:
+            return True
+        try:
+            self.s3_client.abort_multipart_upload(Bucket=bucket_name, Key=s3_key, UploadId=upload_id)
+            return True
+        except ClientError as e:
+            raise Exception(f"Failed to abort multipart upload: {str(e)}")
+
     async def copy_file_in_hr_folder(
         self, 
         bucket_name: str, 
