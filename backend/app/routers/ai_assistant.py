@@ -361,9 +361,9 @@ async def upload_and_ask(
     """Upload any document, parse locally, store as ChatDocument, and answer question using stored text only."""
     try:
         content = await file.read()
-        # Enforce backend size limit up to 200MB
-        if len(content) > 200 * 1024 * 1024:
-            raise HTTPException(status_code=400, detail="File too large. Maximum size is 200MB")
+        # Enforce backend size limit up to 1GB
+        if len(content) > 1024 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 1GB")
         filename = file.filename or "uploaded"
         content_type = file.content_type or "application/octet-stream"
 
