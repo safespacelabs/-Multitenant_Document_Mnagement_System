@@ -22,6 +22,8 @@ from ..schemas import (
 from ..auth import get_current_user, get_current_company_user
 from ..services.ai_service import AIService
 from ..services.anthropic_service import anthropic_service
+from ..services.document_analysis_service import document_analysis_service
+from ..services.database_manager import db_manager
 
 router = APIRouter(prefix="/api/ai-assistant", tags=["AI Assistant"])
 
@@ -117,13 +119,13 @@ async def send_chat_message(
         )
         
         return ChatMessageResponse(
-            id=response.id,
-            session_id=response.session_id,
-            message=response.message,
-            response=response.response,
-            message_type=response.message_type,
-            timestamp=response.timestamp,
-            ai_response_time=response.ai_response_time
+            id=response.get("id"),
+            session_id=response.get("session_id"),
+            message=response.get("message"),
+            response=response.get("response"),
+            message_type=response.get("message_type"),
+            timestamp=response.get("timestamp"),
+            ai_response_time=response.get("ai_response_time")
         )
     except Exception as e:
         logging.error(f"Failed to process chat message: {str(e)}")
@@ -315,3 +317,31 @@ async def delete_chat_session(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete chat session"
         )
+
+@router.post("/chat/ask-about-document-id")
+async def ask_about_document_id(
+    payload: dict,
+    current_user: User = Depends(get_current_company_user)
+):
+    """Answer a question grounded in a previously uploaded document using stored extracted text.
+    Body: { "document_id": str, "question": str }
+    """
+    try:
+        document_id = payload.get("document_id")
+        question = payload.get("question")
+        if not document_id or not question:
+            raise HTTPException(status_code=400, detail="document_id and question are required")
+
+        # Open company database session
+        company_db_gen = db_manager.get_company_db(current_user.company_id)
+        company_db = next(company_db_gen)
+        try:
+            answer = await document_analysis_service.chat_with_document(document_id, question, company_db)
+            return {"answer": answer, "document_id": document_id}
+        finally:
+            company_db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"ask_about_document_id failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to answer question for the document")
