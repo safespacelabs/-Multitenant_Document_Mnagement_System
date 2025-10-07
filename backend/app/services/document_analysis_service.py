@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from app.services.anthropic_service import anthropic_service
 from app.services.email_service import email_service
-from app.models_document_analysis import DocumentAnalysis, ExpiryNotification
+from app.models_document_analysis import DocumentAnalysis, ExpiryNotification, ChatDocument, ChatMessage
 from app.models_company import User as CompanyUser, Document as CompanyDocument
 from app.config import ANTHROPIC_API_KEY
 
@@ -355,6 +355,47 @@ class DocumentAnalysisService:
             
         except Exception as e:
             return f"Error processing your question: {str(e)}"
+
+    async def upsert_chat_document(self, *, user_id: str, user_name: str, filename: str, content_type: str, file_size: int, extracted_text: str, metadata: Dict[str, Any], company_db: Session) -> ChatDocument:
+        """Create a ChatDocument row for ad-hoc chatbot storage."""
+        import uuid
+        doc = ChatDocument(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            user_name=user_name,
+            filename=filename,
+            content_type=content_type,
+            file_size=file_size,
+            extracted_text=extracted_text,
+            metadata_json=metadata,
+        )
+        company_db.add(doc)
+        company_db.commit()
+        company_db.refresh(doc)
+        return doc
+
+    async def answer_and_store_chat(self, *, document_id: str, user_id: str, question: str, company_db: Session) -> ChatMessage:
+        """Answer a question using ChatDocument.extracted_text and store the Q&A."""
+        try:
+            chat_doc = company_db.query(ChatDocument).filter(ChatDocument.id == document_id).first()
+            if not chat_doc:
+                raise ValueError("Chat document not found")
+            answer = await anthropic_service.answer_question(chat_doc.extracted_text or "", question)
+            import uuid
+            msg = ChatMessage(
+                id=str(uuid.uuid4()),
+                document_id=document_id,
+                user_id=user_id,
+                question=question,
+                answer=answer,
+                model=getattr(anthropic_service, "model", "claude")
+            )
+            company_db.add(msg)
+            company_db.commit()
+            company_db.refresh(msg)
+            return msg
+        except Exception as e:
+            raise e
 
 # Create a global instance
 document_analysis_service = DocumentAnalysisService()

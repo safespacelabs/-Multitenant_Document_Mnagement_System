@@ -345,3 +345,53 @@ async def ask_about_document_id(
     except Exception as e:
         logging.error(f"ask_about_document_id failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to answer question for the document")
+
+@router.post("/chat/upload-and-ask")
+async def upload_and_ask(
+    file: UploadFile = File(...),
+    question: str = Form(...),
+    current_user: User = Depends(get_current_company_user)
+):
+    """Upload any document, parse locally, store as ChatDocument, and answer question using stored text only."""
+    try:
+        content = await file.read()
+        filename = file.filename or "uploaded"
+        content_type = file.content_type or "application/octet-stream"
+
+        # Extract using existing service (text/pdf/ocr/vision)
+        metadata = await anthropic_service.extract_document_metadata(content, filename)
+        extracted_text = (metadata or {}).get("extracted_text") or ""
+
+        # Store in per-company ChatDocument
+        company_db_gen = db_manager.get_company_db(current_user.company_id)
+        company_db = next(company_db_gen)
+        try:
+            chat_doc = await document_analysis_service.upsert_chat_document(
+                user_id=current_user.id,
+                user_name=getattr(current_user, "username", ""),
+                filename=filename,
+                content_type=content_type,
+                file_size=len(content or b"") or 0,
+                extracted_text=extracted_text,
+                metadata=metadata,
+                company_db=company_db
+            )
+
+            # Answer and store message
+            msg = await document_analysis_service.answer_and_store_chat(
+                document_id=chat_doc.id,
+                user_id=current_user.id,
+                question=question,
+                company_db=company_db
+            )
+            return {
+                "document_id": chat_doc.id,
+                "answer": msg.answer,
+                "question": msg.question,
+                "model": msg.model
+            }
+        finally:
+            company_db.close()
+    except Exception as e:
+        logging.error(f"upload_and_ask failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to process document and answer question")

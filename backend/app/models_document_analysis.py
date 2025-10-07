@@ -66,3 +66,32 @@ class ExpiryNotification(Base):
     notification_message = Column(Text)
     created_at = Column(DateTime, default=func.current_timestamp())
     updated_at = Column(DateTime, default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+
+class ChatDocument(Base):
+    """Minimal per-company table for chatbot document parsing results."""
+    __tablename__ = "chat_documents"
+
+    id = Column(String(255), primary_key=True, index=True)
+    user_id = Column(String(255), nullable=False, index=True)
+    user_name = Column(String(255), index=True)
+    filename = Column(String(500))
+    content_type = Column(String(100))
+    file_size = Column(Integer)
+    extracted_text = Column(Text)
+    metadata_json = Column(JSON)
+    created_at = Column(DateTime, default=func.current_timestamp())
+    updated_at = Column(DateTime, default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+
+class ChatMessage(Base):
+    """Per-company chat history for questions/answers over a parsed document."""
+    __tablename__ = "chat_messages"
+
+    id = Column(String(255), primary_key=True, index=True)
+    document_id = Column(String(255), index=True)
+    user_id = Column(String(255), index=True)
+    question = Column(Text)
+    answer = Column(Text)
+    model = Column(String(100))
+    created_at = Column(DateTime, default=func.current_timestamp())
