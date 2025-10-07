@@ -321,7 +321,8 @@ async def delete_chat_session(
 @router.post("/chat/ask-about-document-id")
 async def ask_about_document_id(
     payload: dict,
-    current_user: User = Depends(get_current_company_user)
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
 ):
     """Answer a question grounded in a previously uploaded document using stored extracted text.
     Body: { "document_id": str, "question": str }
@@ -332,8 +333,12 @@ async def ask_about_document_id(
         if not document_id or not question:
             raise HTTPException(status_code=400, detail="document_id and question are required")
 
+        # Resolve company DB url
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
         # Open company database session
-        company_db_gen = db_manager.get_company_db(current_user.company_id)
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
         company_db = next(company_db_gen)
         try:
             answer = await document_analysis_service.chat_with_document(document_id, question, company_db)
@@ -350,11 +355,15 @@ async def ask_about_document_id(
 async def upload_and_ask(
     file: UploadFile = File(...),
     question: str = Form(...),
-    current_user: User = Depends(get_current_company_user)
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
 ):
     """Upload any document, parse locally, store as ChatDocument, and answer question using stored text only."""
     try:
         content = await file.read()
+        # Enforce backend size limit up to 200MB
+        if len(content) > 200 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 200MB")
         filename = file.filename or "uploaded"
         content_type = file.content_type or "application/octet-stream"
 
@@ -363,7 +372,10 @@ async def upload_and_ask(
         extracted_text = (metadata or {}).get("extracted_text") or ""
 
         # Store in per-company ChatDocument
-        company_db_gen = db_manager.get_company_db(current_user.company_id)
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
         company_db = next(company_db_gen)
         try:
             chat_doc = await document_analysis_service.upsert_chat_document(
