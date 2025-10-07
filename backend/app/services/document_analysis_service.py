@@ -17,6 +17,17 @@ class DocumentAnalysisService:
     def __init__(self):
         self.has_anthropic_key = bool(ANTHROPIC_API_KEY)
     
+    def ensure_chat_tables(self, company_db: Session) -> None:
+        """Create chat tables if they do not exist for this company DB."""
+        try:
+            engine = company_db.get_bind()
+            # Create only these two tables lazily
+            ChatDocument.__table__.create(bind=engine, checkfirst=True)
+            ChatMessage.__table__.create(bind=engine, checkfirst=True)
+        except Exception as e:
+            # Don't crash normal flow; log and continue (insert may still fail if schema issues)
+            print(f"ensure_chat_tables warning: {e}")
+
     async def process_document_upload(self, document_id: int, file_content: bytes, filename: str, folder_name: str, user_id: int, user_name: str, user_email: str, company_db: Session) -> Dict[str, Any]:
         """Process document upload with AI analysis"""
         try:
@@ -359,6 +370,8 @@ class DocumentAnalysisService:
     async def upsert_chat_document(self, *, user_id: str, user_name: str, filename: str, content_type: str, file_size: int, extracted_text: str, metadata: Dict[str, Any], company_db: Session) -> ChatDocument:
         """Create a ChatDocument row for ad-hoc chatbot storage."""
         import uuid
+        # Ensure tables exist
+        self.ensure_chat_tables(company_db)
         doc = ChatDocument(
             id=str(uuid.uuid4()),
             user_id=user_id,
@@ -377,6 +390,8 @@ class DocumentAnalysisService:
     async def answer_and_store_chat(self, *, document_id: str, user_id: str, question: str, company_db: Session) -> ChatMessage:
         """Answer a question using ChatDocument.extracted_text and store the Q&A."""
         try:
+            # Ensure tables exist
+            self.ensure_chat_tables(company_db)
             chat_doc = company_db.query(ChatDocument).filter(ChatDocument.id == document_id).first()
             if not chat_doc:
                 raise ValueError("Chat document not found")
