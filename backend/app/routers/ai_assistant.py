@@ -368,9 +368,9 @@ async def upload_and_ask(
         filename = file.filename or "uploaded"
         content_type = file.content_type or "application/octet-stream"
 
-        # Extract using existing service (text/pdf/ocr/vision)
-        metadata = await anthropic_service.extract_document_metadata(content, filename)
-        extracted_text = (metadata or {}).get("extracted_text") or ""
+        # Extract plain text only; no structured JSON needed for QA
+        extracted_text = anthropic_service.extract_plain_text(content, filename)
+        metadata = {"title": filename, "processing_status": "plain_text", "extracted_at": datetime.utcnow().isoformat()}
 
         # Store in per-company ChatDocument
         company = db.query(Company).filter(Company.id == current_user.company_id).first()
@@ -390,19 +390,12 @@ async def upload_and_ask(
                 company_db=company_db
             )
 
-            # Answer and store message
-            msg = await document_analysis_service.answer_and_store_chat(
-                document_id=chat_doc.id,
-                user_id=current_user.id,
-                question=question,
-                company_db=company_db
-            )
-            return {
-                "document_id": chat_doc.id,
-                "answer": msg.answer,
-                "question": msg.question,
-                "model": msg.model
-            }
+            # Answer from extracted text only and store
+            answer_text = await anthropic_service.answer_question(chat_doc.extracted_text or "", question)
+            msg = await document_analysis_service.answer_and_store_chat(document_id=chat_doc.id, user_id=current_user.id, question=question, company_db=company_db)
+            msg.answer = answer_text
+            company_db.commit()
+            return {"document_id": chat_doc.id, "answer": answer_text}
         finally:
             company_db.close()
     except Exception as e:
@@ -479,8 +472,8 @@ async def complete_multipart(
         # Download the object to process
         file_bytes = await aws_service.download_file(company.s3_bucket_name, key)
         filename = key.split('/')[-1]
-        metadata = await anthropic_service.extract_document_metadata(file_bytes, filename)
-        extracted_text = (metadata or {}).get("extracted_text") or ""
+        extracted_text = anthropic_service.extract_plain_text(file_bytes, filename)
+        metadata = {"title": filename, "processing_status": "plain_text", "extracted_at": datetime.utcnow().isoformat()}
 
         # Store and answer
         company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
@@ -496,13 +489,11 @@ async def complete_multipart(
                 metadata=metadata,
                 company_db=company_db
             )
-            msg = await document_analysis_service.answer_and_store_chat(
-                document_id=chat_doc.id,
-                user_id=current_user.id,
-                question=question,
-                company_db=company_db
-            )
-            return {"document_id": chat_doc.id, "answer": msg.answer}
+            answer_text = await anthropic_service.answer_question(chat_doc.extracted_text or "", question)
+            msg = await document_analysis_service.answer_and_store_chat(document_id=chat_doc.id, user_id=current_user.id, question=question, company_db=company_db)
+            msg.answer = answer_text
+            company_db.commit()
+            return {"document_id": chat_doc.id, "answer": answer_text}
         finally:
             company_db.close()
     except HTTPException:

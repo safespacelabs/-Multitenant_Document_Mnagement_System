@@ -101,6 +101,38 @@ class AnthropicService:
             print(f"❌ Error converting PDF to image: {e}")
             return None
 
+    def extract_plain_text(self, file_content: bytes, filename: str) -> str:
+        """Extract plain text only. No JSON, no structured metadata.
+        - PDFs: PyPDF2 text; if empty, OCR first page image as fallback
+        - Images: Tesseract OCR
+        - Other: decode as UTF-8 best-effort
+        """
+        try:
+            lower = (filename or "").lower()
+            if lower.endswith('.pdf'):
+                text = self._extract_text_from_pdf(file_content)
+                if text and not text.startswith("PDF Document - text extraction failed") and len(text.strip()) > 10:
+                    return text
+                image_data = self._convert_pdf_to_image(file_content)
+                if image_data:
+                    ocr = self._ocr_image_bytes(image_data)
+                    return ocr or text or ""
+                return text or ""
+            if lower.endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')):
+                image_bytes = file_content
+                ocr = self._ocr_image_bytes(image_bytes)
+                return ocr or ""
+            # fallback: text file
+            try:
+                return file_content.decode('utf-8')
+            except UnicodeDecodeError:
+                return file_content.decode('utf-8', errors='ignore')
+        except Exception:
+            try:
+                return file_content.decode('utf-8', errors='ignore')
+            except Exception:
+                return ""
+
     def _ocr_image_bytes(self, image_bytes: bytes) -> str:
         """Perform OCR on image bytes using Tesseract if available. Returns extracted text or empty string.
         This is a best-effort helper and will not raise if OCR stack is missing.
