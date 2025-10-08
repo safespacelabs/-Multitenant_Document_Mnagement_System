@@ -280,41 +280,42 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
   };
 
   return (
-    <aside className={`${collapsed ? 'w-16' : 'w-64'} bg-white shadow-lg border-r border-gray-200 min-h-screen transition-all duration-300`}>
+    <aside className={`${collapsed ? 'w-12 sm:w-16' : 'w-64 sm:w-72 lg:w-80'} bg-white shadow-lg border-r border-gray-200 min-h-screen transition-all duration-300 fixed lg:relative z-40`}>
       <div className="flex flex-col h-full">
         {/* Logo/Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-between p-2 sm:p-4 border-b border-gray-200">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             <img 
               src={
                 'https://raw.githubusercontent.com/safespacelabs/-Multitenant_Document_Mnagement_System/development/frontend/icons/SafespaceLogo.png'
               } 
               alt="Safe Space Labs" 
-              className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-xl object-contain bg-white" 
+              className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 xl:w-28 xl:h-28 rounded-xl object-contain bg-white flex-shrink-0" 
             />
             {!collapsed && (
-              <div>
-                <span className="font-bold text-xl text-gray-900">Document Manager</span>
+              <div className="min-w-0 flex-1">
+                <span className="font-bold text-xs sm:text-sm text-gray-900 block truncate">Document Manager</span>
+                <div className="text-xs text-gray-500 truncate">Enterprise Solution</div>
               </div>
             )}
           </div>
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+            className="p-1 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex-shrink-0"
           >
-            <ChevronLeft className={`h-5 w-5 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
+            <ChevronLeft className={`h-4 w-4 sm:h-5 sm:w-5 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
           </button>
         </div>
 
         {/* Navigation Section */}
-        <div className="flex-1 px-4 py-4">
+        <div className="flex-1 px-2 sm:px-4 py-2 sm:py-4 overflow-y-auto">
           {!collapsed && (
-            <div className="mb-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">NAVIGATION</h3>
+            <div className="mb-4 sm:mb-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 sm:mb-3">NAVIGATION</h3>
             </div>
           )}
           
-          <div className="space-y-2">
+          <div className="space-y-1 sm:space-y-2">
                 {navigationItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = location.pathname === item.path || location.pathname.startsWith('/dashboard/documents');
@@ -323,22 +324,22 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
                     <button
                       key={item.id}
                       onClick={() => handleNavigationClick(item.path)}
-                      className={`w-full flex items-center space-x-3 px-3 py-3 rounded-xl text-left transition-all duration-200 ${
+                      className={`w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-2 sm:py-3 rounded-lg sm:rounded-xl text-left transition-all duration-200 ${
                         isActive
                           ? 'bg-blue-50 text-blue-700 border border-blue-200'
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
                       }`}
                       title={item.description}
                     >
-                      <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
-                      <div className="flex-1">
-                        <div className="font-medium">{item.label}</div>
+                      <Icon className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm sm:text-base truncate">{item.label}</div>
                         {!collapsed && (
-                          <div className="text-xs text-gray-500 mt-1">{item.description}</div>
+                          <div className="text-xs text-gray-500 mt-1 truncate">{item.description}</div>
                         )}
                       </div>
                       {!collapsed && (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                        <span className="text-xs bg-gray-100 text-gray-600 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full flex-shrink-0">
                           {item.id === 'my-files' && myFilesCount}
                           {item.id === 'org-files' && orgFilesCount}
                           {item.id === 'recent' && recentFilesCount}
@@ -354,9 +355,9 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
 
           {/* Organization Files Section */}
           {!collapsed && (
-            <div className="mt-8">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">ORGANISATION FILES</h3>
-              <div className="space-y-2">
+            <div className="mt-4 sm:mt-8">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 sm:mb-3">ORGANISATION FILES</h3>
+              <div className="space-y-1 sm:space-y-2">
                 {organizationFiles.map((item) => {
                   const Icon = item.icon;
                   const isActive = location.search.includes(item.path.split('?')[1]);
@@ -365,18 +366,18 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
                     <button
                       key={item.id}
                       onClick={() => handleNavigationClick(item.path)}
-                      className={`w-full flex items-center space-x-3 px-3 py-3 rounded-xl text-left transition-all duration-200 ${
+                      className={`w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-2 sm:py-3 rounded-lg sm:rounded-xl text-left transition-all duration-200 ${
                         isActive
                           ? 'bg-blue-50 text-blue-700 border border-blue-200'
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
                       }`}
                       title={`View ${item.label}`}
                     >
-                      <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
-                      <div className="flex-1">
-                        <div className="font-medium">{item.label}</div>
+                      <Icon className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm sm:text-base truncate">{item.label}</div>
                       </div>
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full flex-shrink-0">
                         {item.count}
                       </span>
                     </button>
@@ -388,9 +389,9 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
 
           {/* Main Menu Items */}
           {!collapsed && (
-            <div className="mt-8">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">MAIN MENU</h3>
-              <div className="space-y-2">
+            <div className="mt-4 sm:mt-8">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 sm:mb-3">MAIN MENU</h3>
+              <div className="space-y-1 sm:space-y-2">
                 {menuItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
@@ -399,23 +400,23 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
                     <button
                       key={item.id}
                       onClick={() => handleMenuClick(item)}
-                      className={`w-full flex items-center space-x-3 px-3 py-3 rounded-xl text-left transition-all duration-200 ${
+                      className={`w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-2 sm:py-3 rounded-lg sm:rounded-xl text-left transition-all duration-200 ${
                         isActive
                           ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
                           : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                       }`}
                     >
-                      <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <Icon className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">{item.label}</span>
+                        <div className="flex items-center space-x-1 sm:space-x-2">
+                          <span className="font-medium text-sm sm:text-base truncate">{item.label}</span>
                           {item.isSystemAdmin && (
-                            <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded">
+                            <span className="px-1 sm:px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded flex-shrink-0">
                               System
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">{item.description}</p>
                       </div>
                     </button>
                   );
@@ -426,7 +427,7 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
 
           {/* Collapsed Menu Items */}
           {collapsed && (
-            <div className="mt-8 space-y-2">
+            <div className="mt-4 sm:mt-8 space-y-1 sm:space-y-2">
               {menuItems.slice(0, 5).map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -435,14 +436,14 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
                   <button
                     key={item.id}
                     onClick={() => handleMenuClick(item)}
-                    className={`w-full flex items-center justify-center p-3 rounded-xl transition-all duration-200 ${
+                    className={`w-full flex items-center justify-center p-2 sm:p-3 rounded-lg sm:rounded-xl transition-all duration-200 ${
                       isActive
                         ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                     }`}
                     title={item.label}
                   >
-                    <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                    <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
                   </button>
                 );
               })}
@@ -452,23 +453,23 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
 
         {/* Quick Stats */}
         {!collapsed && (
-          <div className="p-4 border-t border-gray-200">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Quick Stats</h3>
-            <div className="space-y-3">
+          <div className="p-2 sm:p-4 border-t border-gray-200">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 sm:mb-3">Quick Stats</h3>
+            <div className="space-y-2 sm:space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Your Documents</span>
-                <span className="font-semibold text-gray-900">{myFilesCount}</span>
+                <span className="text-xs sm:text-sm text-gray-600 truncate">Your Documents</span>
+                <span className="font-semibold text-gray-900 text-sm sm:text-base">{myFilesCount}</span>
               </div>
               
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Storage Used</span>
-                <span className="font-semibold text-gray-900">{storageUsed || '0 GB'}</span>
+                <span className="text-xs sm:text-sm text-gray-600 truncate">Storage Used</span>
+                <span className="font-semibold text-gray-900 text-sm sm:text-base">{storageUsed || '0 GB'}</span>
               </div>
               
               {['system_admin', 'hr_admin', 'hr_manager'].includes(user?.role) && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Team Members</span>
-                  <span className="font-semibold text-gray-900">{teamMembersCount || 0}</span>
+                  <span className="text-xs sm:text-sm text-gray-600 truncate">Team Members</span>
+                  <span className="font-semibold text-gray-900 text-sm sm:text-base">{teamMembersCount || 0}</span>
                 </div>
               )}
             </div>
@@ -476,17 +477,17 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
         )}
 
         {/* Settings & Logout */}
-        <div className="p-4 border-t border-gray-200">
+        <div className="p-2 sm:p-4 border-t border-gray-200">
           {!collapsed && (
-            <button className="w-full flex items-center space-x-3 px-3 py-3 text-gray-600 hover:bg-gray-50 hover:text-gray-800 rounded-xl transition-colors mb-2">
-              <Settings className="h-5 w-5 text-gray-400" />
-              <span className="font-medium">Settings</span>
+            <button className="w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-2 sm:py-3 text-gray-600 hover:bg-gray-50 hover:text-gray-800 rounded-lg sm:rounded-xl transition-colors mb-1 sm:mb-2">
+              <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 flex-shrink-0" />
+              <span className="font-medium text-sm sm:text-base truncate">Settings</span>
             </button>
           )}
           
-          <button className="w-full flex items-center space-x-3 px-3 py-3 text-red-600 hover:bg-red-50 transition-colors rounded-xl">
-            <LogOut className="h-5 w-5" />
-            {!collapsed && <span>Logout</span>}
+          <button className="w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-2 sm:py-3 text-red-600 hover:bg-red-50 transition-colors rounded-lg sm:rounded-xl">
+            <LogOut className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            {!collapsed && <span className="text-sm sm:text-base truncate">Logout</span>}
           </button>
         </div>
       </div>

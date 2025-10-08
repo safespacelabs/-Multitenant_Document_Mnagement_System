@@ -76,24 +76,24 @@ function Header({ sidebarOpen, setSidebarOpen, searchQuery, setSearchQuery, onSe
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center space-x-4">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-4">
+        <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+            className="lg:hidden p-1.5 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex-shrink-0"
           >
-            <Menu className="h-6 w-6" />
+            <Menu className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
           
           {/* Search Bar */}
-          <div className="relative w-96 search-container">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+          <div className="relative flex-1 max-w-md sm:max-w-lg lg:max-w-96 search-container">
+            <div className="absolute inset-y-0 left-0 pl-2 sm:pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
             </div>
             <input
               type="text"
               placeholder="Search for actions or people..."
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="block w-full pl-8 sm:pl-10 pr-2 sm:pr-3 py-1.5 sm:py-2 border border-gray-300 rounded-lg sm:rounded-xl leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               onFocus={() => setShowSearchResults(true)}
@@ -101,30 +101,30 @@ function Header({ sidebarOpen, setSidebarOpen, searchQuery, setSearchQuery, onSe
             
             {/* Search Results Dropdown */}
             {showSearchResults && searchQuery && (
-              <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
-                <div className="p-4">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Search Results</h3>
+              <div className="absolute z-50 w-full mt-1 bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-200 max-h-80 sm:max-h-96 overflow-y-auto">
+                <div className="p-3 sm:p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2 sm:mb-3">Search Results</h3>
                   
                   {/* Quick Actions */}
-                  <div className="mb-4">
+                  <div className="mb-3 sm:mb-4">
                     <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Quick Actions</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <User className="h-4 w-4 text-blue-600" />
+                    <div className="space-y-1 sm:space-y-2">
+                      <div className="flex items-center space-x-2 sm:space-x-3 p-1.5 sm:p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <User className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">View My Profile</p>
-                          <p className="text-xs text-gray-500">Update personal information</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">View My Profile</p>
+                          <p className="text-xs text-gray-500 truncate">Update personal information</p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                          <Settings className="h-4 w-4 text-green-600" />
+                      <div className="flex items-center space-x-2 sm:space-x-3 p-1.5 sm:p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Settings className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">System Settings</p>
-                          <p className="text-xs text-gray-500">Configure preferences</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">System Settings</p>
+                          <p className="text-xs text-gray-500 truncate">Configure preferences</p>
                         </div>
                       </div>
                     </div>
@@ -133,14 +133,14 @@ function Header({ sidebarOpen, setSidebarOpen, searchQuery, setSearchQuery, onSe
                   {/* Recent Searches */}
                   <div>
                     <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Recent Searches</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                        <Search className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-600">Employee Handbook</span>
+                    <div className="space-y-1 sm:space-y-2">
+                      <div className="flex items-center space-x-2 sm:space-x-3 p-1.5 sm:p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                        <Search className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
+                        <span className="text-xs sm:text-sm text-gray-600 truncate">Employee Handbook</span>
                       </div>
-                      <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                        <Search className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-600">John Doe</span>
+                      <div className="flex items-center space-x-2 sm:space-x-3 p-1.5 sm:p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                        <Search className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 flex-shrink-0" />
+                        <span className="text-xs sm:text-sm text-gray-600 truncate">John Doe</span>
                       </div>
                     </div>
                   </div>
@@ -150,41 +150,42 @@ function Header({ sidebarOpen, setSidebarOpen, searchQuery, setSearchQuery, onSe
           </div>
         </div>
         
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-1 sm:space-x-4 flex-shrink-0">
           {/* Header Icons */}
-          <div className="flex items-center space-x-2">
-            <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
-              <Search className="h-5 w-5" />
+          <div className="flex items-center space-x-1 sm:space-x-2">
+            <button className="hidden sm:block p-1.5 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+              <Search className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
-            <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
-              <Star className="h-5 w-5" />
+            <button className="hidden sm:block p-1.5 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+              <Star className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
             <button 
-              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 relative"
+              className="p-1.5 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 relative"
               onClick={() => setShowNotifications(!showNotifications)}
             >
-              <Bell className="h-5 w-5" />
+              <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
                   {unreadCount}
                 </span>
               )}
             </button>
-            <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
-              <MessageCircle className="h-5 w-5" />
+            <button className="hidden sm:block p-1.5 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+              <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
-            <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
-              <Headphones className="h-5 w-5" />
+            <button className="hidden sm:block p-1.5 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+              <Headphones className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
-            <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+            <button className="hidden lg:block p-1.5 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 relative">
+              <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
                 10
               </span>
             </button>
           </div>
 
-          {/* User Menu */}
+          {/* User Menu - Hidden */}
+          {false && (
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
@@ -249,15 +250,16 @@ function Header({ sidebarOpen, setSidebarOpen, searchQuery, setSearchQuery, onSe
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
 
       {/* Notifications Panel */}
       {showNotifications && (
-        <div className="absolute right-4 top-20 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
-          <div className="p-4 border-b border-gray-200">
+        <div className="absolute right-2 sm:right-4 top-16 sm:top-20 w-72 sm:w-80 bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-200 z-50">
+          <div className="p-3 sm:p-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Notifications</h3>
               <button 
                 onClick={() => setShowNotifications(false)}
                 className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
@@ -267,43 +269,43 @@ function Header({ sidebarOpen, setSidebarOpen, searchQuery, setSearchQuery, onSe
             </div>
           </div>
           
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-80 sm:max-h-96 overflow-y-auto">
             {notifications.length > 0 ? (
-              <div className="p-4 space-y-3">
+              <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
                 {notifications.map((notification) => (
                   <div 
                     key={notification.id} 
-                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                    className={`p-2 sm:p-3 rounded-lg cursor-pointer transition-colors ${
                       notification.read ? 'bg-gray-50' : 'bg-blue-50'
                     }`}
                     onClick={() => markNotificationAsRead(notification.id)}
                   >
-                    <div className="flex items-start space-x-3">
-                      <div className={`w-2 h-2 rounded-full mt-2 ${
+                    <div className="flex items-start space-x-2 sm:space-x-3">
+                      <div className={`w-2 h-2 rounded-full mt-1.5 sm:mt-2 flex-shrink-0 ${
                         notification.type === 'success' ? 'bg-green-500' :
                         notification.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
                       }`} />
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-900">{notification.message}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm text-gray-900 break-words">{notification.message}</p>
                         <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
                       </div>
                       {!notification.read && (
-                        <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                        <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
                       )}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="p-8 text-center">
-                <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No notifications</p>
+              <div className="p-6 sm:p-8 text-center">
+                <Bell className="h-8 w-8 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-2 sm:mb-3" />
+                <p className="text-sm sm:text-base text-gray-500">No notifications</p>
               </div>
             )}
           </div>
           
-          <div className="p-4 border-t border-gray-200">
-            <button className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium">
+          <div className="p-3 sm:p-4 border-t border-gray-200">
+            <button className="w-full text-center text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium">
               View All Notifications
             </button>
           </div>

@@ -858,24 +858,24 @@ const DocumentManagement = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
             {isSystemAdmin ? 'System Documents' : 'Document Management'}
           </h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-xs sm:text-sm text-gray-600 mt-1">
             {isSystemAdmin ? 
               'Manage system-level documents and files' : 
               'Upload, organize, and manage your documents'}
           </p>
         </div>
         
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 flex-shrink-0">
           <button
             onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-            className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-xs sm:text-sm"
           >
             {viewMode === 'grid' ? 'List View' : 'Grid View'}
           </button>
@@ -1399,15 +1399,15 @@ const DocumentManagement = () => {
 
       {/* HR User Folders Section - visible */}
       {(user?.role === 'hr_admin' || user?.role === 'hr_manager' || user?.role === 'system_admin') && (
-        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
           {/* Debug info */}
           {console.log('🔍 HR User Folders Section - User role:', user?.role, 'Selected user:', selectedUser)}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-medium text-blue-900">HR User Document Management</h3>
-              <p className="text-sm text-blue-700">Create folders and manage documents for any user in your company</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 space-y-2 sm:space-y-0">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base sm:text-lg font-medium text-blue-900">HR User Document Management</h3>
+              <p className="text-xs sm:text-sm text-blue-700">Create folders and manage documents for any user in your company</p>
             </div>
-            <div className="flex space-x-2">
+            <div className="flex space-x-2 flex-shrink-0">
               {companyUsers.length === 0 && (
                 <button
                   onClick={() => fetchCompanyUsers()}

@@ -512,14 +512,14 @@ const Dashboard = () => {
     
     // Default Dashboard Overview
     return (
-      <div className="p-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user?.full_name || user?.username}!</h1>
-          <p className="text-gray-600">Here's what's happening with your documents today.</p>
+      <div className="p-3 sm:p-6">
+        <div className="mb-4 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Welcome back, {user?.full_name || user?.username}!</h1>
+          <p className="text-sm sm:text-base text-gray-600">Here's what's happening with your documents today.</p>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-8">
           <QuickActionCard
             title="Document Management"
             description="Upload, organize, and manage your files"
@@ -574,28 +574,28 @@ const Dashboard = () => {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
-          <div className="space-y-3">
+        <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Recent Activity</h2>
+          <div className="space-y-2 sm:space-y-3">
             {recentActivity.length > 0 ? (
               recentActivity.slice(0, 3).map((activity, index) => (
-                <div key={activity.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                <div key={activity.id} className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-gray-50 rounded-lg">
                   {activity.type === 'upload' ? (
-                    <FileText className="h-5 w-5 text-blue-500" />
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" />
                   ) : activity.type === 'user' ? (
-                    <Users className="h-5 w-5 text-green-500" />
+                    <Users className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
                   ) : (
-                    <FileText className="h-5 w-5 text-purple-500" />
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500 flex-shrink-0" />
                   )}
-                  <div>
-                    <p className="font-medium text-gray-900">{activity.message}</p>
-                    <p className="text-sm text-gray-500">{activity.time}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{activity.message}</p>
+                    <p className="text-xs sm:text-sm text-gray-500">{activity.time}</p>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="text-center py-4 text-gray-500">
-                <p>No recent activity</p>
+              <div className="text-center py-3 sm:py-4 text-gray-500">
+                <p className="text-sm sm:text-base">No recent activity</p>
               </div>
             )}
           </div>
@@ -619,17 +619,19 @@ const Dashboard = () => {
       blue: 'bg-blue-50 text-blue-600 hover:bg-blue-100',
       green: 'bg-green-50 text-green-600 hover:bg-green-100',
       purple: 'bg-purple-50 text-purple-600 hover:bg-purple-100',
-      indigo: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+      indigo: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100',
+      teal: 'bg-teal-50 text-teal-600 hover:bg-teal-100',
+      yellow: 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100'
     };
 
     return (
       <button
         onClick={onClick}
-        className={`p-6 rounded-xl border border-gray-200 text-left transition-all duration-200 hover:shadow-md ${colorClasses[color]}`}
+        className={`p-3 sm:p-4 lg:p-6 rounded-lg sm:rounded-xl border border-gray-200 text-left transition-all duration-200 hover:shadow-md ${colorClasses[color]}`}
       >
-        <Icon className="h-8 w-8 mb-3" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-        <p className="text-sm text-gray-600">{description}</p>
+        <Icon className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 mb-2 sm:mb-3" />
+        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 mb-1 sm:mb-2 line-clamp-2">{title}</h3>
+        <p className="text-xs sm:text-sm text-gray-600 line-clamp-2">{description}</p>
       </button>
     );
   };
@@ -637,79 +639,81 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Modern Sidebar */}
-      <div className={`${sidebarOpen ? 'block' : 'hidden'} lg:block fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg lg:static lg:inset-0`}>
+      <div className={`${sidebarOpen ? 'block' : 'hidden'} lg:block fixed inset-y-0 left-0 z-50 w-64 sm:w-72 lg:w-80 bg-white shadow-lg lg:static lg:inset-0`}>
         <div className="flex flex-col h-full">
           {/* Logo/Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-between p-3 sm:p-4 lg:p-6 border-b border-gray-200">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <img 
                 src={
                   'https://raw.githubusercontent.com/safespacelabs/-Multitenant_Document_Mnagement_System/development/frontend/icons/SafespaceLogo.png'
                 } 
                 alt="Safe Space Labs" 
-                className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-xl object-contain bg-white" 
+                className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 rounded-xl object-contain bg-white flex-shrink-0" 
               />
-              <div>
-                <span className="font-bold text-xl text-gray-900">Document Manager</span>
-                <p className="text-xs text-gray-500">Enterprise Solution</p>
+              <div className="min-w-0 flex-1">
+                <span className="font-bold text-sm sm:text-base lg:text-xl text-gray-900 block truncate">Document Manager</span>
+                <p className="text-xs text-gray-500 truncate">Enterprise Solution</p>
               </div>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              className="lg:hidden p-1.5 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex-shrink-0"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           </div>
 
-          {/* User Info */}
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-lg">
+          {/* User Info - Hidden for mobile responsiveness */}
+          {false && (
+          <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200">
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-sm sm:text-base lg:text-lg">
                   {(user.full_name || user.username || 'U').charAt(0).toUpperCase()}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">
+                <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
                   {user.full_name || user.username}
                 </p>
-                <p className="text-xs text-gray-500">{user.email}</p>
+                <p className="text-xs text-gray-500 truncate">{user.email}</p>
               </div>
             </div>
-            <div className="mt-3">
-              <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getRoleColor(user.role)}`}>
+            <div className="mt-2 sm:mt-3">
+              <span className={`inline-flex px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-medium rounded-full ${getRoleColor(user.role)}`}>
                 {user.role.replace('_', ' ').toUpperCase()}
               </span>
             </div>
             {company && (
-              <div className="mt-3">
-                <p className="text-xs text-gray-500 font-medium">Company: {company.name}</p>
+              <div className="mt-2 sm:mt-3">
+                <p className="text-xs text-gray-500 font-medium truncate">Company: {company.name}</p>
               </div>
             )}
           </div>
+          )}
 
           {/* Quick Stats */}
           {!loading && (
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Quick Stats</h3>
-              <div className="space-y-3">
+            <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 sm:mb-3">Quick Stats</h3>
+              <div className="space-y-2 sm:space-y-3">
                 {stats.documentsCount !== undefined && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Documents</span>
-                    <span className="font-semibold text-gray-900">{stats.documentsCount || 0}</span>
+                    <span className="text-xs sm:text-sm text-gray-600">Documents</span>
+                    <span className="font-semibold text-gray-900 text-sm sm:text-base">{stats.documentsCount || 0}</span>
                   </div>
                 )}
                 {stats.usersCount !== undefined && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Users</span>
-                    <span className="font-semibold text-gray-900">{stats.usersCount}</span>
+                    <span className="text-xs sm:text-sm text-gray-600">Users</span>
+                    <span className="font-semibold text-gray-900 text-sm sm:text-base">{stats.usersCount}</span>
                   </div>
                 )}
                 {stats.companiesCount !== undefined && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Companies</span>
-                    <span className="font-semibold text-gray-900">{stats.companiesCount}</span>
+                    <span className="text-xs sm:text-sm text-gray-600">Companies</span>
+                    <span className="font-semibold text-gray-900 text-sm sm:text-base">{stats.companiesCount}</span>
                   </div>
                 )}
               </div>
@@ -717,7 +721,7 @@ const Dashboard = () => {
           )}
 
           {/* Navigation */}
-          <nav className="flex-1 px-6 py-4 space-y-2">
+          <nav className="flex-1 px-3 sm:px-4 lg:px-6 py-2 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
             {getMenuItems().map((item) => {
               const Icon = item.icon;
               const isActive = isActivePage(item.path);
@@ -726,27 +730,27 @@ const Dashboard = () => {
                 <button
                   key={item.id}
                   onClick={() => navigate(item.path)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
+                  className={`w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 lg:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl text-left transition-all duration-200 ${
                     isActive
                       ? `bg-${item.color}-50 text-${item.color}-700 border border-${item.color}-200 shadow-sm`
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
-                  <Icon className={`h-5 w-5 ${isActive ? `text-${item.color}-600` : 'text-gray-400'}`} />
-                  <span className="font-medium">{item.name}</span>
+                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${isActive ? `text-${item.color}-600` : 'text-gray-400'}`} />
+                  <span className="font-medium text-sm sm:text-base truncate">{item.name}</span>
                 </button>
               );
             })}
           </nav>
 
           {/* Logout */}
-          <div className="p-6 border-t border-gray-200">
+          <div className="p-3 sm:p-4 lg:p-6 border-t border-gray-200">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              className="w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 lg:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
             >
-              <LogOut className="h-5 w-5" />
-              <span>Logout</span>
+              <LogOut className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+              <span className="truncate">Logout</span>
             </button>
             
             {/* Debug Button - Only show in development */}
@@ -756,10 +760,10 @@ const Dashboard = () => {
                   debugAuthState();
                   setShowDebugInfo(!showDebugInfo);
                 }}
-                className="w-full flex items-center space-x-3 px-4 py-3 mt-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 lg:px-4 py-2 sm:py-3 mt-1 sm:mt-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                <SettingsIcon className="h-5 w-5" />
-                <span>Debug Auth</span>
+                <SettingsIcon className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <span className="truncate">Debug Auth</span>
               </button>
             )}
           </div>
@@ -778,24 +782,24 @@ const Dashboard = () => {
       <div className="flex-1 flex flex-col lg:ml-0">
         {/* Modern Top Bar */}
         <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
+          <div className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-4">
+            <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                className="lg:hidden p-1.5 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex-shrink-0"
               >
-                <Menu className="h-6 w-6" />
+                <Menu className="h-5 w-5 sm:h-6 sm:w-6" />
               </button>
               
               {/* Search Bar */}
-              <div className="relative w-96 search-container">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-5 w-5 text-gray-400" />
+              <div className="relative flex-1 max-w-md sm:max-w-lg lg:max-w-96 search-container">
+                <div className="absolute inset-y-0 left-0 pl-2 sm:pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
                   placeholder="Search for employees, documents, or actions..."
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="block w-full pl-8 sm:pl-10 pr-2 sm:pr-3 py-1.5 sm:py-2 border border-gray-300 rounded-lg sm:rounded-xl leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);

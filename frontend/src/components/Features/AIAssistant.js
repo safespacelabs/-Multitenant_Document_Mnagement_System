@@ -348,55 +348,55 @@ const AIAssistant = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center space-x-4 mb-4">
-          <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-            <Bot className="h-6 w-6 text-white" />
+      <div className="mb-4 sm:mb-8">
+        <div className="flex items-center space-x-3 sm:space-x-4 mb-3 sm:mb-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Bot className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
           </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">AI Assistant</h1>
-            <p className="text-gray-600">Your intelligent companion for {company.name}</p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">AI Assistant</h1>
+            <p className="text-sm sm:text-base text-gray-600 truncate">Your intelligent companion for {company.name}</p>
           </div>
         </div>
         
         {/* Quick Stats */}
         {aiStats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <div className="flex items-center space-x-3">
-                <MessageCircle className="h-5 w-5 text-blue-600" />
-                <div>
-                  <p className="text-sm text-gray-500">Chat Sessions</p>
-                  <p className="text-2xl font-bold text-gray-900">{aiStats.total_chat_sessions}</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
+            <div className="bg-white p-2 sm:p-4 rounded-lg sm:rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm text-gray-500">Chat Sessions</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{aiStats.total_chat_sessions}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <div className="flex items-center space-x-3">
-                <FileText className="h-5 w-5 text-green-600" />
-                <div>
-                  <p className="text-sm text-gray-500">Documents Analyzed</p>
-                  <p className="text-2xl font-bold text-gray-900">{aiStats.documents_analyzed}</p>
+            <div className="bg-white p-2 sm:p-4 rounded-lg sm:rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm text-gray-500">Documents Analyzed</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{aiStats.documents_analyzed}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <div className="flex items-center space-x-3">
-                <Lightbulb className="h-5 w-5 text-purple-600" />
-                <div>
-                  <p className="text-sm text-gray-500">Suggestions</p>
-                  <p className="text-2xl font-bold text-gray-900">{aiStats.suggestions_generated}</p>
+            <div className="bg-white p-2 sm:p-4 rounded-lg sm:rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <Lightbulb className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm text-gray-500">Suggestions</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{aiStats.suggestions_generated}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <div className="flex items-center space-x-3">
-                <Clock className="h-5 w-5 text-orange-600" />
-                <div>
-                  <p className="text-sm text-gray-500">Avg Response</p>
-                  <p className="text-2xl font-bold text-gray-900">{aiStats.average_response_time}s</p>
+            <div className="bg-white p-2 sm:p-4 rounded-lg sm:rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm text-gray-500">Avg Response</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{aiStats.average_response_time}s</p>
                 </div>
               </div>
             </div>
@@ -481,20 +481,20 @@ const AIAssistant = () => {
             {/* Chat Interface */}
             <div className="flex-1 flex flex-col">
               {/* Chat Header */}
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
+              <div className="p-3 sm:p-4 border-b border-gray-200">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
                   {currentSession?.session_name || 'Select a session'}
                 </h3>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 sm:space-y-4">
                 {messages.map((message) => (
-                  <div key={message.id} className="space-y-3">
+                  <div key={message.id} className="space-y-2 sm:space-y-3">
                     {/* User Message */}
                     <div className="flex justify-end">
-                      <div className="bg-blue-600 text-white px-4 py-2 rounded-lg max-w-xs lg:max-w-md">
-                        <p className="text-sm">{message.message}</p>
+                      <div className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg max-w-xs sm:max-w-sm lg:max-w-md">
+                        <p className="text-xs sm:text-sm break-words">{message.message}</p>
                         <p className="text-xs text-blue-200 mt-1">
                           {formatTimestamp(message.timestamp)}
                         </p>
@@ -578,31 +578,33 @@ const AIAssistant = () => {
                     </label>
                   </div>
 
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                     <input
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                     placeholder="Ask me anything about your company operations..."
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     disabled={!currentSession || isLoading}
                   />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!newMessage.trim() || !currentSession || isLoading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Send className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={handleAskAboutDocument}
-                    disabled={!newMessage.trim() || !currentSession || !qaFileInputRef.current?.files?.[0] || qaUploading}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Ask about the attached document"
-                  >
-                    {qaUploading ? 'Processing…' : 'Ask from document'}
-                  </button>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={!newMessage.trim() || !currentSession || isLoading}
+                      className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
+                    >
+                      <Send className="h-3 w-3 sm:h-4 sm:w-4" />
+                    </button>
+                    <button
+                      onClick={handleAskAboutDocument}
+                      disabled={!newMessage.trim() || !currentSession || !qaFileInputRef.current?.files?.[0] || qaUploading}
+                      className="px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
+                      title="Ask about the attached document"
+                    >
+                      {qaUploading ? 'Processing…' : 'Ask from document'}
+                    </button>
+                  </div>
                   </div>
                 </div>
               </div>
