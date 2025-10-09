@@ -101,7 +101,7 @@ class ChunkedDocumentChat(Base):
     chunked_document_id = Column(String, ForeignKey("chunked_documents.id"), nullable=False)
     
     # Chat information
-    user_id = Column(Integer, nullable=False)
+    user_id = Column(String, nullable=False)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)
     
