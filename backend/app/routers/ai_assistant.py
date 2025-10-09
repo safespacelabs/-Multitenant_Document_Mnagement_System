@@ -25,6 +25,7 @@ from ..services.anthropic_service import anthropic_service
 from ..services.document_analysis_service import document_analysis_service
 from ..services.database_manager import db_manager
 from ..services.aws_service import aws_service
+from ..services.chunked_document_service import chunked_document_service
 
 router = APIRouter(prefix="/api/ai-assistant", tags=["AI Assistant"])
 
@@ -350,7 +351,147 @@ async def ask_about_document_id(
         raise
     except Exception as e:
         logging.error(f"ask_about_document_id failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to answer question for the document")
+@router.post("/chat/ask-about-chunked-document")
+async def ask_about_chunked_document(
+    payload: dict,
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
+):
+    """Ask a question about a previously uploaded chunked document."""
+    try:
+        chunked_document_id = payload.get("document_id")
+        question = payload.get("question")
+        
+        if not chunked_document_id or not question:
+            raise HTTPException(status_code=400, detail="document_id and question are required")
+        
+        # Get company database connection
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+        
+        try:
+            # Search across all chunks for the answer
+            search_result = await chunked_document_service.search_across_chunks(
+                chunked_document_id=chunked_document_id,
+                query=question,
+                company_db=company_db
+            )
+            
+            if 'error' in search_result:
+                raise HTTPException(status_code=404, detail=search_result['error'])
+            
+            # Get document info
+            doc_info = chunked_document_service.get_chunked_document_info(
+                chunked_document_id=chunked_document_id,
+                company_db=company_db
+            )
+            
+            return {
+                "document_id": chunked_document_id,
+                "answer": search_result['answer'],
+                "filename": doc_info.get('filename', 'Unknown'),
+                "total_pages": doc_info.get('total_pages', 0),
+                "total_chunks": doc_info.get('total_chunks', 0),
+                "relevant_chunks": search_result.get('relevant_chunks', []),
+                "search_method": search_result.get('search_method', 'multi_chunk_search'),
+                "total_chunks_searched": search_result.get('total_chunks_searched', 0),
+                "relevant_chunks_found": search_result.get('relevant_chunks_found', 0)
+            }
+            
+        finally:
+            company_db.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"ask_about_chunked_document failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to answer question for the chunked document")
+
+@router.get("/chat/chunked-documents")
+async def list_chunked_documents(
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
+):
+    """List all chunked documents for the current user's company."""
+    try:
+        # Get company database connection
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+        
+        try:
+            from app.models_chunked_documents import ChunkedDocument
+            
+            chunked_docs = company_db.query(ChunkedDocument).filter(
+                ChunkedDocument.is_active == True
+            ).order_by(ChunkedDocument.created_at.desc()).all()
+            
+            documents = []
+            for doc in chunked_docs:
+                documents.append({
+                    "id": doc.id,
+                    "filename": doc.filename,
+                    "total_pages": doc.total_pages,
+                    "total_chunks": doc.total_chunks,
+                    "total_characters": doc.total_characters,
+                    "processing_status": doc.processing_status,
+                    "created_at": doc.created_at,
+                    "user_name": doc.user_name
+                })
+            
+            return {"documents": documents}
+            
+        finally:
+            company_db.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"list_chunked_documents failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to list chunked documents")
+
+@router.get("/chat/chunked-document/{document_id}/info")
+async def get_chunked_document_info(
+    document_id: str,
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed information about a specific chunked document."""
+    try:
+        # Get company database connection
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+        
+        try:
+            doc_info = chunked_document_service.get_chunked_document_info(
+                chunked_document_id=document_id,
+                company_db=company_db
+            )
+            
+            if 'error' in doc_info:
+                raise HTTPException(status_code=404, detail=doc_info['error'])
+            
+            return doc_info
+            
+        finally:
+            company_db.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"get_chunked_document_info failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get chunked document info")
 
 @router.post("/chat/upload-and-ask")
 async def upload_and_ask(
@@ -359,7 +500,7 @@ async def upload_and_ask(
     current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
-    """Upload any document, parse locally, store as ChatDocument, and answer question using stored text only."""
+    """Upload any document, automatically chunk if large, and answer question using all available content."""
     try:
         content = await file.read()
         # Enforce backend size limit up to 1GB
@@ -368,36 +509,101 @@ async def upload_and_ask(
         filename = file.filename or "uploaded"
         content_type = file.content_type or "application/octet-stream"
 
-        # Extract plain text only; no structured JSON needed for QA
-        extracted_text = anthropic_service.extract_plain_text(content, filename)
-        metadata = {"title": filename, "processing_status": "plain_text", "extracted_at": datetime.utcnow().isoformat()}
-
-        # Store in per-company ChatDocument
+        # Store in per-company database
         company = db.query(Company).filter(Company.id == current_user.company_id).first()
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
         company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
         company_db = next(company_db_gen)
+        
         try:
-            chat_doc = await document_analysis_service.upsert_chat_document(
-                user_id=current_user.id,
-                user_name=getattr(current_user, "username", ""),
-                filename=filename,
-                content_type=content_type,
-                file_size=len(content or b"") or 0,
-                extracted_text=extracted_text,
-                metadata=metadata,
-                company_db=company_db
-            )
+            # Check if this is a large document that needs chunking
+            import PyPDF2
+            import io
+            
+            is_large_document = False
+            if filename.lower().endswith('.pdf'):
+                try:
+                    pdf_file = io.BytesIO(content)
+                    pdf_reader = PyPDF2.PdfReader(pdf_file)
+                    page_count = len(pdf_reader.pages)
+                    
+                    # Estimate if document is large (more than ~30 pages or 50k characters)
+                    if page_count > 30:
+                        is_large_document = True
+                        print(f"🔍 Large document detected: {filename} ({page_count} pages)")
+                except Exception as e:
+                    print(f"⚠️ Could not determine PDF size: {e}")
+            
+            if is_large_document:
+                # Process as chunked document
+                result = await chunked_document_service.process_large_document_upload(
+                    file_content=content,
+                    filename=filename,
+                    folder_name=None,
+                    user_id=current_user.id,
+                    user_name=getattr(current_user, "username", ""),
+                    user_email=getattr(current_user, "email", ""),
+                    company_db=company_db
+                )
+                
+                if result.get('success', False):
+                    chunked_document_id = result.get('chunked_document_id')
+                    total_pages = result.get('total_pages', 0)
+                    total_chunks = result.get('total_chunks', 0)
+                    
+                    # Search across all chunks for the answer
+                    search_result = await chunked_document_service.search_across_chunks(
+                        chunked_document_id=chunked_document_id,
+                        query=question,
+                        company_db=company_db
+                    )
+                    
+                    if 'error' in search_result:
+                        return {"error": search_result['error']}
+                    
+                    return {
+                        "document_id": chunked_document_id,
+                        "answer": search_result['answer'],
+                        "is_chunked_document": True,
+                        "total_pages": total_pages,
+                        "total_chunks": total_chunks,
+                        "relevant_chunks": search_result.get('relevant_chunks', []),
+                        "search_method": search_result.get('search_method', 'multi_chunk_search')
+                    }
+                else:
+                    return {"error": result.get('error', 'Failed to process large document')}
+            else:
+                # Process as regular document (existing logic)
+                extracted_text = anthropic_service.extract_plain_text(content, filename)
+                metadata = {"title": filename, "processing_status": "plain_text", "extracted_at": datetime.utcnow().isoformat()}
 
-            # Answer from extracted text only and store
-            answer_text = await anthropic_service.answer_question(chat_doc.extracted_text or "", question)
-            msg = await document_analysis_service.answer_and_store_chat(document_id=chat_doc.id, user_id=current_user.id, question=question, company_db=company_db)
-            msg.answer = answer_text
-            company_db.commit()
-            return {"document_id": chat_doc.id, "answer": answer_text}
+                chat_doc = await document_analysis_service.upsert_chat_document(
+                    user_id=current_user.id,
+                    user_name=getattr(current_user, "username", ""),
+                    filename=filename,
+                    content_type=content_type,
+                    file_size=len(content or b"") or 0,
+                    extracted_text=extracted_text,
+                    metadata=metadata,
+                    company_db=company_db
+                )
+
+                # Answer from extracted text only and store
+                answer_text = await anthropic_service.answer_question(chat_doc.extracted_text or "", question)
+                msg = await document_analysis_service.answer_and_store_chat(document_id=chat_doc.id, user_id=current_user.id, question=question, company_db=company_db)
+                msg.answer = answer_text
+                company_db.commit()
+                
+                return {
+                    "document_id": chat_doc.id, 
+                    "answer": answer_text,
+                    "is_chunked_document": False
+                }
+                
         finally:
             company_db.close()
+            
     except Exception as e:
         logging.error(f"upload_and_ask failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to process document and answer question")
