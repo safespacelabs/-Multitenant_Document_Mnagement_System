@@ -5,6 +5,7 @@ Handles large documents by automatically dividing them into manageable chunks
 
 import json
 import uuid
+import asyncio
 from typing import Dict, Any, List, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ class DocumentChunkingService:
         self.chunk_size = 50000  # Characters per chunk (~10-15 pages)
         self.overlap_size = 5000  # Character overlap between chunks
         self.max_chunks_per_document = 50  # Maximum chunks to prevent abuse
+        self.max_concurrency = 4  # Limit parallel AI calls to avoid rate limits
         
     def extract_text_with_page_info(self, file_content: bytes, filename: str) -> List[Dict[str, Any]]:
         """Extract text from PDF with page-by-page information"""
@@ -58,7 +60,7 @@ class DocumentChunkingService:
             'pages': [],
             'text': '',
             'char_count': 0,
-            'start_page': 0,
+            'start_page': 1,
             'end_page': 0
         }
         
@@ -145,6 +147,11 @@ class DocumentChunkingService:
         except Exception as e:
             print(f"❌ Error processing chunk with AI: {e}")
             return self._create_fallback_chunk_metadata(chunk)
+
+    async def _process_chunk_with_limit(self, chunk: Dict[str, Any], sem: asyncio.Semaphore) -> Dict[str, Any]:
+        """Wrapper to enforce concurrency limits when processing chunks."""
+        async with sem:
+            return await self.process_chunk_with_ai(chunk)
     
     def _create_fallback_chunk_metadata(self, chunk: Dict[str, Any]) -> Dict[str, Any]:
         """Create fallback metadata for a chunk"""
@@ -192,12 +199,11 @@ class DocumentChunkingService:
                 print(f"⚠️ Document has too many chunks ({len(chunks)}), limiting to {self.max_chunks_per_document}")
                 chunks = chunks[:self.max_chunks_per_document]
             
-            # Process each chunk with AI
-            chunk_metadata = []
-            for i, chunk in enumerate(chunks):
-                print(f"🔍 Processing chunk {i+1}/{len(chunks)} (pages {chunk['start_page']}-{chunk['end_page']})")
-                metadata = await self.process_chunk_with_ai(chunk)
-                chunk_metadata.append(metadata)
+            # Process chunks with AI in parallel with bounded concurrency
+            sem = asyncio.Semaphore(self.max_concurrency)
+            print(f"🔍 Processing {len(chunks)} chunks in parallel (concurrency={self.max_concurrency})")
+            tasks = [self._process_chunk_with_limit(chunk, sem) for chunk in chunks]
+            chunk_metadata = await asyncio.gather(*tasks)
             
             # Create master document metadata
             master_metadata = {

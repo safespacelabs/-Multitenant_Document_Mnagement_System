@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from app.services.document_chunking_service import document_chunking_service
 from app.services.anthropic_service import anthropic_service
-from app.models_chunked_documents import ChunkedDocument, DocumentChunk, ChunkedDocumentAnalysis, ChunkedDocumentChat
+from app.models_chunked_documents import Base as ChunkedBase, ChunkedDocument, DocumentChunk, ChunkedDocumentAnalysis, ChunkedDocumentChat
 from app.config import ANTHROPIC_API_KEY
 
 
@@ -21,9 +21,8 @@ class ChunkedDocumentService:
     def ensure_chunked_tables(self, company_db: Session) -> None:
         """Ensure chunked document tables exist"""
         try:
-            # Create tables if they don't exist
-            Base = ChunkedDocument.__class__.__bases__[0]
-            Base.metadata.create_all(company_db.bind)
+            # Create tables if they don't exist using the module Base
+            ChunkedBase.metadata.create_all(company_db.bind)
         except Exception as e:
             print(f"ensure_chunked_tables warning: {e}")
     

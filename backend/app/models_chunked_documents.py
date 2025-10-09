@@ -20,7 +20,8 @@ class ChunkedDocument(Base):
     file_size = Column(Integer, nullable=False)
     file_type = Column(String, nullable=False)
     folder_name = Column(String, nullable=True)
-    user_id = Column(Integer, nullable=False)
+    # Use string to support UUID-style user IDs
+    user_id = Column(String, nullable=False)
     user_name = Column(String, nullable=False)
     user_email = Column(String, nullable=False)
     
