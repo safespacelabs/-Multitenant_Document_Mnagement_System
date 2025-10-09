@@ -7,6 +7,7 @@ import uuid
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from sqlalchemy import and_, or_
 from app.services.document_chunking_service import document_chunking_service
 from app.services.anthropic_service import anthropic_service
@@ -25,6 +26,38 @@ class ChunkedDocumentService:
             ChunkedBase.metadata.create_all(company_db.bind)
         except Exception as e:
             print(f"ensure_chunked_tables warning: {e}")
+
+    def ensure_chunked_columns_migrated(self, company_db: Session) -> None:
+        """Best-effort migration for legacy schemas where user_id was INTEGER.
+        Converts to TEXT so UUIDs insert successfully.
+        Safe to run repeatedly.
+        """
+        try:
+            company_db.execute(text(
+                """
+                DO $$
+                BEGIN
+                    BEGIN
+                        ALTER TABLE chunked_documents
+                          ALTER COLUMN user_id TYPE text USING user_id::text;
+                    EXCEPTION WHEN others THEN
+                        -- ignore if column already text or table absent
+                        NULL;
+                    END;
+
+                    BEGIN
+                        ALTER TABLE chunked_document_chats
+                          ALTER COLUMN user_id TYPE text USING user_id::text;
+                    EXCEPTION WHEN others THEN
+                        NULL;
+                    END;
+                END$$;
+                """
+            ))
+            company_db.commit()
+        except Exception as e:
+            # Do not block processing if migration isn't possible (no-op)
+            print(f"ensure_chunked_columns_migrated warning: {e}")
     
     async def process_large_document_upload(
         self, 
@@ -49,6 +82,9 @@ class ChunkedDocumentService:
             )
             
             if metadata.get('is_large_document', False):
+                # Ensure legacy schemas are compatible
+                self.ensure_chunked_tables(company_db)
+                self.ensure_chunked_columns_migrated(company_db)
                 # Create chunked document record
                 chunked_doc = ChunkedDocument(
                     filename=filename,
