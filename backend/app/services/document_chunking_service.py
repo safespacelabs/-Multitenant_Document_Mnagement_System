@@ -18,7 +18,8 @@ class DocumentChunkingService:
         self.chunk_size = 50000  # Characters per chunk (~10-15 pages)
         self.overlap_size = 5000  # Character overlap between chunks
         self.max_chunks_per_document = 50  # Maximum chunks to prevent abuse
-        self.max_concurrency = 4  # Limit parallel AI calls to avoid rate limits
+        self.max_concurrency = 6  # Limit parallel AI calls to avoid rate limits
+        self.ai_chunk_enrichment = False  # If True, call AI to enrich chunk metadata; otherwise text-only
         
     def extract_text_with_page_info(self, file_content: bytes, filename: str) -> List[Dict[str, Any]]:
         """Extract text from PDF with page-by-page information"""
@@ -121,32 +122,46 @@ class DocumentChunkingService:
     
     async def process_chunk_with_ai(self, chunk: Dict[str, Any]) -> Dict[str, Any]:
         """Process a single chunk with AI to extract metadata"""
-        try:
-            if not ANTHROPIC_API_KEY:
-                return self._create_fallback_chunk_metadata(chunk)
-            
-            # Extract metadata for this chunk
-            metadata = await anthropic_service._extract_from_text(
-                chunk['text'], 
-                f"{chunk['filename']}_chunk_{chunk['chunk_id'][:8]}",
-                None
-            )
-            
-            # Add chunk-specific information
-            metadata.update({
-                'chunk_id': chunk['chunk_id'],
-                'start_page': chunk['start_page'],
-                'end_page': chunk['end_page'],
-                'page_count': len(chunk['pages']),
-                'is_chunk': True,
-                'parent_filename': chunk['filename']
-            })
-            
-            return metadata
-            
-        except Exception as e:
-            print(f"❌ Error processing chunk with AI: {e}")
+        # If not enriching, just return text-only metadata (no JSON parsing, no API call)
+        if not self.ai_chunk_enrichment:
             return self._create_fallback_chunk_metadata(chunk)
+
+        if not ANTHROPIC_API_KEY:
+            return self._create_fallback_chunk_metadata(chunk)
+
+        # Simple retry with exponential backoff for rate limits/transient failures
+        max_attempts = 3
+        delay = 1.0
+        last_error: Exception | None = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                metadata = await anthropic_service._extract_from_text(
+                    chunk['text'],
+                    f"{chunk['filename']}_chunk_{chunk['chunk_id'][:8]}",
+                    None
+                )
+                # Ensure we always return essential fields
+                if not isinstance(metadata, dict):
+                    metadata = {}
+                metadata.setdefault('extracted_text', chunk['text'])
+                metadata.update({
+                    'chunk_id': chunk['chunk_id'],
+                    'start_page': chunk['start_page'],
+                    'end_page': chunk['end_page'],
+                    'page_count': len(chunk['pages']),
+                    'is_chunk': True,
+                    'parent_filename': chunk['filename']
+                })
+                return metadata
+            except Exception as e:
+                last_error = e
+                print(f"❌ Chunk AI attempt {attempt}/{max_attempts} failed: {e}")
+                if attempt < max_attempts:
+                    await asyncio.sleep(delay)
+                    delay *= 2
+        # Fallback after retries
+        print(f"❌ Giving up on chunk {chunk.get('chunk_id')} after retries: {last_error}")
+        return self._create_fallback_chunk_metadata(chunk)
 
     async def _process_chunk_with_limit(self, chunk: Dict[str, Any], sem: asyncio.Semaphore) -> Dict[str, Any]:
         """Wrapper to enforce concurrency limits when processing chunks."""
