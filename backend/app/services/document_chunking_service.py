@@ -17,7 +17,7 @@ class DocumentChunkingService:
     def __init__(self):
         self.chunk_size = 50000  # Characters per chunk (~10-15 pages)
         self.overlap_size = 5000  # Character overlap between chunks
-        self.max_chunks_per_document = 50  # Maximum chunks to prevent abuse
+        self.max_chunks_per_document = 250  # Increased to support 1000+ page documents
         self.max_concurrency = 6  # Limit parallel AI calls to avoid rate limits
         self.ai_chunk_enrichment = False  # If True, call AI to enrich chunk metadata; otherwise text-only
         

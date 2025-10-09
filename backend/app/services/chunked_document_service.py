@@ -18,6 +18,8 @@ from app.config import ANTHROPIC_API_KEY
 class ChunkedDocumentService:
     def __init__(self):
         self.max_search_chunks = 10  # Maximum chunks to search for a single query
+        self.max_chunks_for_answer = 5  # Cap chunks concatenated for LLM call to avoid rate limits
+        self.max_combined_chars = 80000  # Hard cap on combined context size sent to LLM
         
     def ensure_chunked_tables(self, company_db: Session) -> None:
         """Ensure chunked document tables exist"""
@@ -276,18 +278,27 @@ class ChunkedDocumentService:
             if not ANTHROPIC_API_KEY:
                 return self._create_fallback_answer(relevant_chunks, query, filename)
             
-            # Combine text from relevant chunks
+            # Limit number of chunks to control token usage
+            limited_chunks = relevant_chunks[: self.max_chunks_for_answer]
+
+            # Combine text from limited chunks with a strict size cap
             combined_text = ""
             chunk_info = []
-            
-            for chunk in relevant_chunks:
-                chunk_text = f"\n\n--- Pages {chunk.start_page}-{chunk.end_page} ---\n{chunk.extracted_text}"
-                combined_text += chunk_text
+            for chunk in limited_chunks:
+                section = f"\n\n--- Pages {chunk.start_page}-{chunk.end_page} ---\n{chunk.extracted_text}"
+                if len(combined_text) + len(section) > self.max_combined_chars:
+                    # Truncate section if needed to not exceed the cap
+                    remaining = max(0, self.max_combined_chars - len(combined_text))
+                    section = section[:remaining]
+                    combined_text += section
+                    chunk_info.append(f"Pages {chunk.start_page}-{chunk.end_page}")
+                    break
+                combined_text += section
                 chunk_info.append(f"Pages {chunk.start_page}-{chunk.end_page}")
             
-            # Limit combined text size
-            if len(combined_text) > 200000:  # Increased limit for multi-chunk processing
-                combined_text = combined_text[:200000] + "..."
+            # Final safety cap
+            if len(combined_text) > self.max_combined_chars:
+                combined_text = combined_text[: self.max_combined_chars] + "..."
             
             # Create comprehensive prompt
             prompt = f"""
@@ -313,14 +324,25 @@ INSTRUCTIONS:
 ANSWER:
 """
             
-            msg = anthropic_service.client.messages.create(
-                model=anthropic_service.model,
-                max_tokens=2000,  # Increased for comprehensive answers
-                temperature=0.0,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            
-            return msg.content[0].text.strip()
+            # Retry/backoff on rate-limit errors
+            import time
+            backoff = 1.0
+            for attempt in range(1, 4):
+                try:
+                    msg = anthropic_service.client.messages.create(
+                        model=anthropic_service.model,
+                        max_tokens=1500,
+                        temperature=0.0,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    return msg.content[0].text.strip()
+                except Exception as e:
+                    err_text = str(e)
+                    if "rate_limit" in err_text or "429" in err_text:
+                        time.sleep(backoff)
+                        backoff *= 2
+                        continue
+                    raise
             
         except Exception as e:
             print(f"❌ Error generating comprehensive answer: {e}")
