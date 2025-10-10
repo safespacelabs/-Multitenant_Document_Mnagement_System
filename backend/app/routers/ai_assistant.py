@@ -32,22 +32,6 @@ router = APIRouter(prefix="/api/ai-assistant", tags=["AI Assistant"])
 # Initialize AI Service
 ai_service = AIService()
 
-def extract_user_info(current_user):
-    """Helper function to extract user information from current_user object"""
-    if isinstance(current_user, dict):
-        user_id = current_user.get('id')
-        company_id = current_user.get('company_id')
-        user_role = current_user.get('role', 'customer')
-    else:
-        user_id = getattr(current_user, 'id', None)
-        company_id = getattr(current_user, 'company_id', None)
-        user_role = getattr(current_user, 'role', 'customer')
-    
-    if not user_id or not company_id:
-        raise HTTPException(status_code=400, detail="User or company information not found")
-    
-    return user_id, company_id, user_role
-
 @router.post("/chat/sessions", response_model=ChatSessionResponse)
 async def create_chat_session(
     session_data: ChatSessionCreate,
@@ -56,20 +40,13 @@ async def create_chat_session(
 ):
     """Create a new AI chat session for company users"""
     try:
-        # Debug: Check the type and attributes of current_user
-        logging.info(f"Current user type: {type(current_user)}")
-        logging.info(f"Current user attributes: {dir(current_user)}")
-        
-        # Extract user information using helper function
-        user_id, company_id, user_role = extract_user_info(current_user)
-        
         # Get company from user's company_id
-        company = db.query(Company).filter(Company.id == company_id).first()
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
             
         session = ai_service.create_chat_session(
-            user_id=user_id,
+            user_id=current_user.id,
             company_id=company.id,
             session_name=session_data.session_name,
             context=session_data.context
@@ -95,16 +72,13 @@ async def get_chat_sessions(
 ):
     """Get all chat sessions for the current user in their company"""
     try:
-        # Extract user information using helper function
-        user_id, company_id, user_role = extract_user_info(current_user)
-        
         # Get company from user's company_id
-        company = db.query(Company).filter(Company.id == company_id).first()
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
             
         sessions = ai_service.get_user_chat_sessions(
-            user_id=user_id,
+            user_id=current_user.id,
             company_id=company.id
         )
         return sessions
@@ -123,11 +97,8 @@ async def send_chat_message(
 ):
     """Send a message to AI Assistant and get response"""
     try:
-        # Extract user information using helper function
-        user_id, company_id, user_role = extract_user_info(current_user)
-        
         # Get company from user's company_id
-        company = db.query(Company).filter(Company.id == company_id).first()
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
             
@@ -135,13 +106,13 @@ async def send_chat_message(
         company_context = {
             "company_name": company.name,
             "company_industry": getattr(company, 'industry', 'General'),
-            "user_role": user_role,
+            "user_role": current_user.role,
             "user_department": getattr(current_user, 'department', 'General')
         }
         
         # Process message with AI service
         response = ai_service.process_chat_message(
-            user_id=user_id,
+            user_id=current_user.id,
             company_id=company.id,
             session_id=message_data.session_id,
             message=message_data.message,
