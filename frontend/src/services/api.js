@@ -1011,21 +1011,30 @@ const documentsAPI = {
 
 // Chat API
 const chatAPI = {
-  sendMessage: async (message, companyId) => {
+  sendMessage: async (message, companyId, documentIds = null) => {
+    const requestBody = {
+      question: message
+    };
+
+    // Add document IDs for context-aware responses if provided
+    if (documentIds && documentIds.length > 0) {
+      requestBody.document_ids = documentIds;
+    }
+
     const response = await fetch(buildApiUrl('/api/chat/'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       },
-      body: JSON.stringify({ question: message })
+      body: JSON.stringify(requestBody)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to send message');
     }
-    
+
     return response.json();
   },
 

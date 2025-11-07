@@ -14,7 +14,7 @@ import logging
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-async def process_enhanced_chat_query(query: str, current_user: CompanyUser, company_db: Session, company_id: str) -> tuple[str, list]:
+async def process_enhanced_chat_query(query: str, current_user: CompanyUser, company_db: Session, company_id: str, document_ids: list = None) -> tuple[str, list]:
     """Enhanced chat processing with RAG service, document analysis, and HR admin database access"""
     try:
         query_lower = query.lower()
@@ -28,11 +28,13 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
         # Check if query should use advanced RAG (vector search + semantic understanding)
         # RAG is better for: specific questions about document content, complex queries, multi-document analysis
         rag_keywords = ['what', 'how', 'why', 'when', 'where', 'who', 'explain', 'describe', 'tell me about', 'compare', 'difference', 'summary']
-        use_rag = any(keyword in query_lower for keyword in rag_keywords)
+        use_rag = any(keyword in query_lower for keyword in rag_keywords) or (document_ids and len(document_ids) > 0)
 
         if use_rag:
             try:
                 logger.info(f"Using RAG service for query: {query[:100]}")
+                if document_ids:
+                    logger.info(f"Using specific documents: {document_ids}")
 
                 # First, check if there are any documents in the RAG service
                 try:
@@ -60,11 +62,12 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                 except Exception as list_error:
                     logger.warning(f"Failed to list RAG documents: {str(list_error)}")
 
-                # Query using advanced RAG service
+                # Query using advanced RAG service with optional document filtering
                 rag_result = await rag_service.query_documents(
                     question=query,
                     company_id=company_id,
                     user_id=str(current_user.id),
+                    document_ids=document_ids,  # Pass selected document IDs for focused search
                     limit=12  # Get top 12 most relevant chunks
                 )
 
@@ -226,7 +229,8 @@ async def chat_with_bot(
             query=chat_request.question,
             current_user=current_user,
             company_db=company_db,
-            company_id=str(company.id)
+            company_id=str(company.id),
+            document_ids=chat_request.document_ids  # Pass selected document IDs for context-aware responses
         )
         
         # Save chat history in company database
