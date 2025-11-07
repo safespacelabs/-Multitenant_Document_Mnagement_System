@@ -1,21 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { chatAPI } from '../../services/api';
-import { Send, Bot, User, Loader } from 'lucide-react';
+import { Send, Bot, User, Loader, Plus, Trash2, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../utils/auth';
 import SystemChatbot from './SystemChatbot';
 
 function Chatbot() {
   const { user, company } = useAuth();
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingSessions, setLoadingSessions] = useState(true);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    // Only load chat history for company users, not system admins
     if (user.role !== 'system_admin' && company) {
-      loadChatHistory();
+      loadSessions();
+      loadActiveSessionFromStorage();
     }
   }, [user.role, company]);
 
@@ -23,37 +26,110 @@ function Chatbot() {
     scrollToBottom();
   }, [messages]);
 
+  // Persist active session ID to localStorage
+  useEffect(() => {
+    if (activeSessionId && company) {
+      localStorage.setItem(`active_chat_session_${company.id}_${user.id}`, activeSessionId);
+    }
+  }, [activeSessionId, company, user.id]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const loadChatHistory = async () => {
-    if (user.role === 'system_admin' || !company) {
-      return;
+  const loadActiveSessionFromStorage = () => {
+    if (!company) return;
+
+    const storedSessionId = localStorage.getItem(`active_chat_session_${company.id}_${user.id}`);
+    if (storedSessionId) {
+      setActiveSessionId(storedSessionId);
+      loadSessionMessages(storedSessionId);
     }
+  };
+
+  const loadSessions = async () => {
+    if (user.role === 'system_admin' || !company) return;
+
+    setLoadingSessions(true);
+    try {
+      const response = await chatAPI.listSessions();
+      setSessions(response.sessions || []);
+
+      // If no active session and sessions exist, select the most recent
+      if (!activeSessionId && response.sessions && response.sessions.length > 0) {
+        const mostRecent = response.sessions[0];
+        setActiveSessionId(mostRecent.id);
+        loadSessionMessages(mostRecent.id);
+      }
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  const loadSessionMessages = async (sessionId) => {
+    try {
+      const response = await chatAPI.getSessionMessages(sessionId);
+      const formattedMessages = response.messages.flatMap(msg => [
+        {type: 'user', content: msg.question, timestamp: msg.created_at},
+        {type: 'bot', content: msg.answer, contextDocuments: msg.context_documents, timestamp: msg.created_at}
+      ]);
+      setMessages(formattedMessages);
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+      setMessages([]);
+    }
+  };
+
+  const createNewSession = async () => {
+    try {
+      const response = await chatAPI.createSession('New Chat');
+      setSessions(prev => [response, ...prev]);
+      setActiveSessionId(response.id);
+      setMessages([]);
+    } catch (error) {
+      console.error('Failed to create session:', error);
+    }
+  };
+
+  const deleteSession = async (sessionId, e) => {
+    e.stopPropagation();
+
+    if (!window.confirm('Delete this chat? This cannot be undone.')) return;
 
     try {
-      const response = await chatAPI.getHistory();
-      const history = response.data.slice(0, 10).reverse();
-      const formattedHistory = history.flatMap(chat => [
-        { type: 'user', content: chat.question, timestamp: chat.created_at },
-        { type: 'bot', content: chat.answer, timestamp: chat.created_at }
-      ]);
-      setMessages(formattedHistory);
+      await chatAPI.deleteSession(sessionId);
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+
+      if (activeSessionId === sessionId) {
+        const remaining = sessions.filter(s => s.id !== sessionId);
+        if (remaining.length > 0) {
+          setActiveSessionId(remaining[0].id);
+          loadSessionMessages(remaining[0].id);
+        } else {
+          setActiveSessionId(null);
+          setMessages([]);
+        }
+      }
     } catch (error) {
-      console.error('Failed to load chat history:', error);
+      console.error('Failed to delete session:', error);
     }
+  };
+
+  const switchSession = (sessionId) => {
+    setActiveSessionId(sessionId);
+    loadSessionMessages(sessionId);
   };
 
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!inputMessage.trim() || loading) return;
 
-    // Prevent system admins from sending messages
     if (user.role === 'system_admin' || !company) {
       const errorMessage = {
         type: 'bot',
-        content: 'System administrators cannot access company chat. Please use system-level features.',
+        content: 'System administrators cannot access company chat.',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -71,19 +147,28 @@ function Chatbot() {
     setLoading(true);
 
     try {
-      // Backend will automatically detect query type (normal docs, I9, or general)
-      const response = await chatAPI.sendMessage(inputMessage, company.id);
+      const response = await chatAPI.sendMessage(inputMessage, company.id, activeSessionId);
+
       const botMessage = {
         type: 'bot',
-        content: response.data.answer,
-        timestamp: response.data.created_at,
-        contextDocuments: response.data.context_documents
+        content: response.answer,
+        timestamp: response.created_at,
+        contextDocuments: response.context_documents
       };
       setMessages(prev => [...prev, botMessage]);
+
+      // If this was the first message (new session created)
+      if (!activeSessionId && response.session_id) {
+        setActiveSessionId(response.session_id);
+        await loadSessions(); // Refresh session list
+      } else if (activeSessionId) {
+        // Update session list to reflect new message count
+        await loadSessions();
+      }
     } catch (error) {
       const errorMessage = {
         type: 'bot',
-        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        content: 'Sorry, I encountered an error. Please try again.',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -92,147 +177,201 @@ function Chatbot() {
     }
   };
 
-  // Show system chatbot for system admins
   if (user.role === 'system_admin') {
     return <SystemChatbot />;
   }
 
-  // Require company context
   if (!company) {
     return (
-      <div className="bg-white rounded-lg shadow h-[calc(100vh-12rem)] flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="text-2xl font-bold flex items-center">
-            <Bot className="h-6 w-6 mr-2 text-blue-500" />
-            Document Assistant
-          </h2>
-          <p className="text-gray-600 text-sm">
-            Company context required for chat
-          </p>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-gray-500">
-            <Bot className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p>Chat requires a company context.</p>
-            <p className="text-sm mt-2">Please ensure you're properly logged in to a company.</p>
-          </div>
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Bot className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+          <h2 className="text-xl font-bold text-gray-900">Company context required</h2>
+          <p className="text-gray-600 mt-2">Please log in to a company to use chat.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow h-[calc(100vh-12rem)] flex flex-col">
-      <div className="p-4 border-b border-gray-200">
-        <h2 className="text-2xl font-bold flex items-center">
-          <Bot className="h-6 w-6 mr-2 text-blue-500" />
-          AI Document Assistant
-        </h2>
-        <p className="text-gray-600 text-sm">
-          Ask me anything - I'll automatically search documents, I9 forms, or answer general questions
-        </p>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
-          <div className="text-center text-gray-500 mt-8">
-            <Bot className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p className="font-medium text-lg mb-2">AI Document Assistant</p>
-            <div className="max-w-md mx-auto text-sm space-y-3">
-              <p className="text-gray-600">
-                I automatically understand your questions and search the right sources!
-              </p>
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg text-left">
-                <p className="font-medium text-blue-900 mb-2">I can help with:</p>
-                <ul className="text-blue-800 space-y-1">
-                  <li>📄 <strong>Document queries:</strong> "What's in my contract?" or "Summarize report.pdf"</li>
-                  <li>🏢 <strong>I9 compliance:</strong> "Show me expiring I9 forms" or "Which I9s are invalid?"</li>
-                  <li>💬 <strong>General questions:</strong> "How many documents do I have?" or "What's new?"</li>
-                </ul>
-              </div>
-              <div className="mt-3 p-2 bg-green-50 rounded text-xs text-green-800">
-                ✨ <strong>Smart Detection:</strong> Just ask naturally - I'll figure out what you need!
-              </div>
-            </div>
-          </div>
-        )}
-
-        {messages.map((message, index) => (
-          <div
-            key={index}
-            className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+    <div className="flex h-[calc(100vh-8rem)] bg-gray-50">
+      {/* Sidebar - Session List */}
+      <div className="w-64 bg-gray-900 text-white flex flex-col">
+        {/* New Chat Button */}
+        <div className="p-3 border-b border-gray-700">
+          <button
+            onClick={createNewSession}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
           >
-            <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                message.type === 'user'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-800'
-              }`}
-            >
-              <div className="flex items-start space-x-2">
-                {message.type === 'bot' && (
-                  <Bot className="h-4 w-4 mt-1 text-blue-500" />
-                )}
-                {message.type === 'user' && (
-                  <User className="h-4 w-4 mt-1 text-white" />
-                )}
-                <div className="flex-1">
-                  {message.type === 'bot' ? (
-                    <ReactMarkdown className="prose prose-sm max-w-none">
-                      {message.content}
-                    </ReactMarkdown>
-                  ) : (
-                    <p>{message.content}</p>
-                  )}
+            <Plus className="h-4 w-4" />
+            <span className="font-medium">New Chat</span>
+          </button>
+        </div>
 
-                  {/* Show context documents for bot responses if auto-detected */}
-                  {message.type === 'bot' && message.contextDocuments && message.contextDocuments.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-gray-300">
-                      <p className="text-xs text-gray-600">
-                        📎 Sources: {message.contextDocuments.join(', ')}
+        {/* Sessions List */}
+        <div className="flex-1 overflow-y-auto">
+          {loadingSessions ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader className="h-5 w-5 animate-spin text-gray-400" />
+            </div>
+          ) : sessions.length === 0 ? (
+            <div className="p-4 text-center text-gray-400 text-sm">
+              <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No chats yet</p>
+              <p className="text-xs mt-1">Start a conversation!</p>
+            </div>
+          ) : (
+            <div className="p-2 space-y-1">
+              {sessions.map((session) => (
+                <button
+                  key={session.id}
+                  onClick={() => switchSession(session.id)}
+                  className={`w-full text-left p-3 rounded-lg transition-colors group relative ${
+                    activeSessionId === session.id
+                      ? 'bg-gray-800 text-white'
+                      : 'text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{session.title}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {session.message_count} message{session.message_count !== 1 ? 's' : ''}
                       </p>
                     </div>
-                  )}
+                    <button
+                      onClick={(e) => deleteSession(session.id, e)}
+                      className="opacity-0 group-hover:opacity-100 ml-2 p-1 hover:bg-red-600 rounded transition-opacity"
+                      title="Delete chat"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* User Info */}
+        <div className="p-3 border-t border-gray-700 text-xs text-gray-400">
+          <p className="truncate">{user.username}</p>
+          <p className="truncate text-gray-500">{company.name}</p>
+        </div>
+      </div>
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col bg-white">
+        {/* Chat Header */}
+        <div className="p-4 border-b border-gray-200 bg-white">
+          <h2 className="text-xl font-bold flex items-center">
+            <Bot className="h-5 w-5 mr-2 text-blue-500" />
+            AI Document Assistant
+          </h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Ask me anything - I'll automatically search documents, I9 forms, or answer general questions
+          </p>
+        </div>
+
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.length === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+              <Bot className="h-16 w-16 mb-4 text-gray-300" />
+              <p className="text-lg font-medium mb-2">Start a new conversation</p>
+              <div className="max-w-md text-sm text-center space-y-2">
+                <p className="text-gray-600">I can help with:</p>
+                <div className="grid grid-cols-1 gap-2 mt-3">
+                  <div className="p-3 bg-blue-50 rounded-lg text-left">
+                    <p className="font-medium text-blue-900">📄 Documents</p>
+                    <p className="text-xs text-blue-800 mt-1">"Summarize my contract" or "What's in report.pdf?"</p>
+                  </div>
+                  <div className="p-3 bg-green-50 rounded-lg text-left">
+                    <p className="font-medium text-green-900">🏢 I9 Compliance</p>
+                    <p className="text-xs text-green-800 mt-1">"Show expiring I9 forms" or "I9 summary"</p>
+                  </div>
+                  <div className="p-3 bg-purple-50 rounded-lg text-left">
+                    <p className="font-medium text-purple-900">💬 General Help</p>
+                    <p className="text-xs text-purple-800 mt-1">"How many documents do I have?"</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          )}
 
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 text-gray-800 max-w-xs lg:max-w-md px-4 py-2 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Bot className="h-4 w-4 text-blue-500" />
-                <Loader className="h-4 w-4 animate-spin text-blue-500" />
-                <span>Thinking...</span>
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-2xl px-4 py-3 rounded-lg ${
+                  message.type === 'user'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-900'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  {message.type === 'bot' && (
+                    <Bot className="h-5 w-5 mt-0.5 text-blue-600 flex-shrink-0" />
+                  )}
+                  {message.type === 'user' && (
+                    <User className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    {message.type === 'bot' ? (
+                      <div className="prose prose-sm max-w-none">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-wrap">{message.content}</p>
+                    )}
+
+                    {message.contextDocuments && message.contextDocuments.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-300 text-xs text-gray-600">
+                        📎 Sources: {message.contextDocuments.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          ))}
 
-        <div ref={messagesEndRef} />
-      </div>
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 px-4 py-3 rounded-lg flex items-center gap-2">
+                <Bot className="h-5 w-5 text-blue-600" />
+                <Loader className="h-4 w-4 animate-spin text-blue-600" />
+                <span className="text-gray-700 text-sm">Thinking...</span>
+              </div>
+            </div>
+          )}
 
-      <form onSubmit={sendMessage} className="p-4 border-t border-gray-200">
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            placeholder="Ask about your documents..."
-            className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={loading}
-          />
-          <button
-            type="submit"
-            disabled={loading || !inputMessage.trim()}
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+          <div ref={messagesEndRef} />
         </div>
-      </form>
+
+        {/* Input Area */}
+        <div className="p-4 border-t border-gray-200 bg-white">
+          <form onSubmit={sendMessage} className="flex gap-2">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              placeholder="Ask me anything about your documents..."
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              disabled={loading || !inputMessage.trim()}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }
