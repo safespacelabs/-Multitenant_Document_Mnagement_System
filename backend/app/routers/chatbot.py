@@ -381,6 +381,12 @@ async def list_chat_sessions(
             ]
         }
     except Exception as e:
+        # Handle case where chat_sessions table doesn't exist yet (migration pending)
+        logger.warning(f"Failed to list sessions for company {company_id}: {str(e)}")
+        if "chat_sessions" in str(e).lower() or "does not exist" in str(e).lower():
+            # Return empty sessions list if table doesn't exist yet
+            logger.info(f"chat_sessions table not found for company {company_id}, returning empty list")
+            return {"sessions": []}
         raise HTTPException(status_code=500, detail=f"Failed to list sessions: {str(e)}")
     finally:
         company_db.close()

@@ -157,11 +157,7 @@ function Chatbot() {
 
     try {
       // Upload document to the documents system
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('folder_name', 'Chat Uploads');
-
-      const uploadResponse = await documentsAPI.upload(formData);
+      const uploadResponse = await documentsAPI.upload(selectedFile, 'Chat Uploads');
 
       // Send message with reference to the uploaded document
       const question = `I just uploaded "${selectedFile.name}". ${inputMessage}`;
