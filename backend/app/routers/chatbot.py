@@ -15,7 +15,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 async def process_enhanced_chat_query(query: str, current_user: CompanyUser, company_db: Session, company_id: str, document_ids: list = None) -> tuple[str, list]:
-    """Enhanced chat processing with RAG service, document analysis, and HR admin database access"""
+    """Enhanced chat processing with automatic query type detection (I9, documents, or general)"""
     try:
         query_lower = query.lower()
 
@@ -25,16 +25,114 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
             hr_admin_response = await hr_admin_database_service.process_hr_admin_query(query, company_db)
             return hr_admin_response, []
 
-        # Check if query should use advanced RAG (vector search + semantic understanding)
-        # RAG is better for: specific questions about document content, complex queries, multi-document analysis
-        rag_keywords = ['what', 'how', 'why', 'when', 'where', 'who', 'explain', 'describe', 'tell me about', 'compare', 'difference', 'summary']
-        use_rag = any(keyword in query_lower for keyword in rag_keywords) or (document_ids and len(document_ids) > 0)
+        # ===== AUTOMATIC I9 DETECTION =====
+        # Check if query is specifically about I9 documents/forms
+        i9_keywords = ['i9', 'i-9', 'form i9', 'form i-9', 'i9 form', 'i-9 form',
+                       'i9 compliance', 'employment verification', 'work authorization']
+        i9_actions = ['expiring', 'expired', 'invalid', 'compliance', 'verification']
+
+        is_i9_query = any(keyword in query_lower for keyword in i9_keywords)
+
+        # If it's an I9 query, route to I9-specific endpoints
+        if is_i9_query:
+            logger.info(f"🏢 Detected I9 query: {query[:100]}")
+            try:
+                # Check what kind of I9 query it is
+                if any(action in query_lower for action in ['expiring', 'expire soon', 'about to expire', 'will expire']):
+                    # Get expiring I9 documents
+                    days = 30  # Default to 30 days
+                    if '60 day' in query_lower or 'two month' in query_lower:
+                        days = 60
+                    elif '90 day' in query_lower or 'three month' in query_lower:
+                        days = 90
+
+                    expiring = await rag_service.get_expiring_i9_documents(
+                        company_id=company_id,
+                        days=days,
+                        user_id=str(current_user.id)
+                    )
+
+                    count = expiring.get('count', 0)
+                    if count > 0:
+                        docs_list = "\n".join([f"- {doc['employee_name']} (expires: {doc['expiration_date']})"
+                                              for doc in expiring.get('documents', [])[:10]])
+                        return f"🏢 **I9 Forms Expiring in {days} Days:**\n\n{count} I9 form(s) expiring soon:\n\n{docs_list}", []
+                    else:
+                        return f"✅ No I9 forms expiring in the next {days} days.", []
+
+                elif any(action in query_lower for action in ['expired', 'past due', 'overdue']):
+                    # Get expired I9 documents
+                    expired = await rag_service.get_expired_i9_documents(
+                        company_id=company_id,
+                        user_id=str(current_user.id)
+                    )
+
+                    count = expired.get('count', 0)
+                    if count > 0:
+                        docs_list = "\n".join([f"- {doc['employee_name']} (expired: {doc['expiration_date']})"
+                                              for doc in expired.get('documents', [])[:10]])
+                        return f"⚠️ **Expired I9 Forms:**\n\n{count} expired I9 form(s):\n\n{docs_list}\n\n**Action Required:** Please update these forms immediately.", []
+                    else:
+                        return f"✅ No expired I9 forms found.", []
+
+                elif any(action in query_lower for action in ['invalid', 'problem', 'issue', 'missing']):
+                    # Get invalid I9 documents
+                    invalid = await rag_service.get_invalid_i9_documents(
+                        company_id=company_id,
+                        user_id=str(current_user.id)
+                    )
+
+                    count = invalid.get('count', 0)
+                    if count > 0:
+                        docs_list = "\n".join([f"- {doc['employee_name']} ({doc.get('issue', 'Issue detected')})"
+                                              for doc in invalid.get('documents', [])[:10]])
+                        return f"⚠️ **Invalid/Problem I9 Forms:**\n\n{count} I9 form(s) with issues:\n\n{docs_list}", []
+                    else:
+                        return f"✅ No invalid I9 forms found.", []
+
+                else:
+                    # General I9 summary
+                    summary = await rag_service.get_i9_summary(
+                        company_id=company_id,
+                        user_id=str(current_user.id)
+                    )
+
+                    total = summary.get('total_i9_documents', 0)
+                    valid = summary.get('valid_count', 0)
+                    expiring = summary.get('expiring_soon_count', 0)
+                    expired = summary.get('expired_count', 0)
+
+                    return (f"🏢 **I9 Compliance Summary:**\n\n"
+                           f"📊 Total I9 Forms: {total}\n"
+                           f"✅ Valid: {valid}\n"
+                           f"⏰ Expiring Soon: {expiring}\n"
+                           f"⚠️ Expired: {expired}\n\n"
+                           f"Ask me specific questions like 'show expiring I9 forms' or 'which I9s are invalid'"), []
+
+            except Exception as i9_error:
+                logger.warning(f"I9 service error: {str(i9_error)}")
+                return "I couldn't fetch I9 information at this time. The I9 tracking service may still be processing documents.", []
+
+        # ===== AUTOMATIC DOCUMENT DETECTION =====
+        # Check if query mentions specific document names or asks about document content
+        document_indicators = ['document', 'file', 'pdf', 'contract', 'report', 'form', 'resume',
+                              'invoice', 'receipt', 'certificate', 'letter', 'agreement']
+        content_questions = ['what', 'how', 'why', 'when', 'where', 'who', 'explain', 'describe',
+                           'tell me about', 'summarize', 'summary', 'compare', 'difference', 'show me']
+
+        mentions_document = any(indicator in query_lower for indicator in document_indicators)
+        is_content_query = any(question in query_lower for question in content_questions)
+
+        # Use RAG if query is about document content or mentions documents
+        use_rag = (mentions_document and is_content_query) or document_ids
 
         if use_rag:
             try:
-                logger.info(f"Using RAG service for query: {query[:100]}")
+                logger.info(f"📄 Auto-detected DOCUMENT query: {query[:100]}")
                 if document_ids:
                     logger.info(f"Using specific documents: {document_ids}")
+                else:
+                    logger.info(f"Searching all available documents automatically")
 
                 # First, check if there are any documents in the RAG service
                 try:

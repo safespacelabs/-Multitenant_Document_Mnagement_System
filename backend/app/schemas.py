@@ -583,7 +583,7 @@ class SystemDocumentCreate(BaseModel):
 # Chat schemas
 class ChatRequest(BaseModel):
     question: str
-    document_ids: Optional[List[str]] = None  # Optional list of document IDs for context-specific queries
+    document_ids: Optional[List[str]] = None  # Optional (rarely used) - chatbot auto-detects query type
 
 class ChatResponse(BaseModel):
     answer: str
