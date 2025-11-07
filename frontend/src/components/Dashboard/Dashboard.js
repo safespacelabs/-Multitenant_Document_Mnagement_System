@@ -4,7 +4,8 @@ import { useAuth } from '../../utils/auth';
 import { documentsAPI, usersAPI, companiesAPI, systemDocumentsAPI } from '../../services/api';
 import { EnhancedDocumentManager } from '../Documents';
 import { DocumentManagement } from '../Features';
-import { HRAdminDashboard, UserManagement, MailingSystem, AIAssistant } from '../Features';
+import { HRAdminDashboard, UserManagement, MailingSystem } from '../Features';
+import Chatbot from '../Chat/Chatbot';
 import { Analytics } from '../Features';
 import ESignatureManager from '../ESignature/ESignatureManager';
 import TestingInterface from '../Testing/TestingInterface';
@@ -500,9 +501,9 @@ const Dashboard = () => {
       return <MailingSystem />;
     }
     
-         // Chat/AI Assistant
+         // Chat/AI Assistant - Using new ChatGPT-style Chatbot with session management
      if (path === '/dashboard/chat') {
-       return <AIAssistant />;
+       return <Chatbot />;
      }
      
      // Testing Interface
