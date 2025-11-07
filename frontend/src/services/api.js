@@ -1009,22 +1009,108 @@ const documentsAPI = {
   }
 };
 
-// Chat API
+// Chat API with Session Management
 const chatAPI = {
-  sendMessage: async (message, companyId) => {
-    // Backend will automatically detect query type (normal docs, I9, or general)
+  sendMessage: async (message, companyId, sessionId = null) => {
     const response = await fetch(buildApiUrl('/api/chat/'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       },
-      body: JSON.stringify({ question: message })
+      body: JSON.stringify({
+        question: message,
+        session_id: sessionId
+      })
     });
 
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to send message');
+    }
+
+    return response.json();
+  },
+
+  createSession: async (title = 'New Chat') => {
+    const response = await fetch(buildApiUrl('/api/chat/sessions'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify({ title })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create session');
+    }
+
+    return response.json();
+  },
+
+  listSessions: async () => {
+    const response = await fetch(buildApiUrl('/api/chat/sessions'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to list sessions');
+    }
+
+    return response.json();
+  },
+
+  getSessionMessages: async (sessionId) => {
+    const response = await fetch(buildApiUrl(`/api/chat/sessions/${sessionId}/messages`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get session messages');
+    }
+
+    return response.json();
+  },
+
+  deleteSession: async (sessionId) => {
+    const response = await fetch(buildApiUrl(`/api/chat/sessions/${sessionId}`), {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete session');
+    }
+
+    return response.json();
+  },
+
+  updateSessionTitle: async (sessionId, title) => {
+    const response = await fetch(buildApiUrl(`/api/chat/sessions/${sessionId}/title`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify({ title })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update session title');
     }
 
     return response.json();
@@ -1037,12 +1123,12 @@ const chatAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch chat history');
     }
-    
+
     return response.json();
   }
 };

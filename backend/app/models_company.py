@@ -26,6 +26,7 @@ class User(CompanyBase):
     
     documents = relationship("Document", back_populates="user")
     created_users = relationship("User", remote_side=[id])  # Users this user created
+    chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
 
 class UserInvitation(CompanyBase):
     __tablename__ = "user_invitations"
@@ -73,17 +74,32 @@ class Document(CompanyBase):
     
     user = relationship("User", back_populates="documents")
 
+class ChatSession(CompanyBase):
+    __tablename__ = "chat_sessions"
+
+    id = Column(String, primary_key=True, default=lambda: f"session_{uuid.uuid4().hex[:8]}")
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    title = Column(String, default="New Chat")  # Session title
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    message_count = Column(Integer, default=0)
+
+    user = relationship("User", back_populates="chat_sessions")
+    messages = relationship("ChatHistory", back_populates="session", cascade="all, delete-orphan")
+
 class ChatHistory(CompanyBase):
     __tablename__ = "chat_history"
-    
+
     id = Column(String, primary_key=True, default=lambda: f"chat_{uuid.uuid4().hex[:8]}")
+    session_id = Column(String, ForeignKey("chat_sessions.id"), nullable=True)  # Link to session
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)
     context_documents = Column(JSON)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
-    user = relationship("User") 
+
+    user = relationship("User")
+    session = relationship("ChatSession", back_populates="messages") 
 
 # E-Signature Models
 class ESignatureDocument(CompanyBase):

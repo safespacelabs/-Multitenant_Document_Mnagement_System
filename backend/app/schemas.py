@@ -583,12 +583,14 @@ class SystemDocumentCreate(BaseModel):
 # Chat schemas
 class ChatRequest(BaseModel):
     question: str
+    session_id: Optional[str] = None  # Chat session ID - creates new session if not provided
     document_ids: Optional[List[str]] = None  # Optional (rarely used) - chatbot auto-detects query type
 
 class ChatResponse(BaseModel):
     answer: str
     context_documents: Optional[List[str]]
     created_at: datetime
+    session_id: Optional[str] = None  # Session ID for linking messages
 
 # User update schema
 class UserUpdate(BaseModel):

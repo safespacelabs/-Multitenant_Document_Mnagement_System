@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from app.database import get_management_db, get_company_db
 from app import models, schemas, auth
-from app.models_company import User as CompanyUser, ChatHistory as CompanyChatHistory, Document as CompanyDocument
+from app.models_company import User as CompanyUser, ChatHistory as CompanyChatHistory, Document as CompanyDocument, ChatSession as CompanyChatSession
 from app.services.nlp_service import nlp_service
 from app.services.intelligent_ai_service import intelligent_ai_service
 from app.services.document_analysis_service import document_analysis_service
@@ -300,6 +300,233 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
         answer = f"I apologize, but I encountered an error processing your question: {str(e)}"
         return answer, []
 
+# ===== SESSION MANAGEMENT ENDPOINTS =====
+
+@router.post("/sessions", status_code=201)
+async def create_chat_session(
+    title: str = None,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """Create a new chat session"""
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+
+    try:
+        session = CompanyChatSession(
+            user_id=current_user.id,
+            title=title or "New Chat"
+        )
+        company_db.add(session)
+        company_db.commit()
+        company_db.refresh(session)
+
+        return {
+            "id": session.id,
+            "title": session.title,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
+            "message_count": session.message_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
+    finally:
+        company_db.close()
+
+@router.get("/sessions")
+async def list_chat_sessions(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """List all chat sessions for the current user"""
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+
+    try:
+        # Get only sessions belonging to the current user (permission check)
+        sessions = company_db.query(CompanyChatSession).filter(
+            CompanyChatSession.user_id == current_user.id
+        ).order_by(CompanyChatSession.updated_at.desc()).all()
+
+        return {
+            "sessions": [
+                {
+                    "id": s.id,
+                    "title": s.title,
+                    "created_at": s.created_at,
+                    "updated_at": s.updated_at,
+                    "message_count": s.message_count
+                }
+                for s in sessions
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list sessions: {str(e)}")
+    finally:
+        company_db.close()
+
+@router.get("/sessions/{session_id}/messages")
+async def get_session_messages(
+    session_id: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """Get all messages for a specific session (with permission check)"""
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+
+    try:
+        # Verify session belongs to current user
+        session = company_db.query(CompanyChatSession).filter(
+            CompanyChatSession.id == session_id,
+            CompanyChatSession.user_id == current_user.id
+        ).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found or access denied")
+
+        # Get messages for this session
+        messages = company_db.query(CompanyChatHistory).filter(
+            CompanyChatHistory.session_id == session_id
+        ).order_by(CompanyChatHistory.created_at.asc()).all()
+
+        return {
+            "session_id": session_id,
+            "messages": [
+                {
+                    "id": m.id,
+                    "question": m.question,
+                    "answer": m.answer,
+                    "context_documents": m.context_documents,
+                    "created_at": m.created_at
+                }
+                for m in messages
+            ]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get messages: {str(e)}")
+    finally:
+        company_db.close()
+
+@router.delete("/sessions/{session_id}")
+async def delete_chat_session(
+    session_id: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """Delete a chat session (with permission check)"""
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+
+    try:
+        # Verify session belongs to current user
+        session = company_db.query(CompanyChatSession).filter(
+            CompanyChatSession.id == session_id,
+            CompanyChatSession.user_id == current_user.id
+        ).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found or access denied")
+
+        # Delete session (cascade will delete messages too)
+        company_db.delete(session)
+        company_db.commit()
+
+        return {"message": "Session deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete session: {str(e)}")
+    finally:
+        company_db.close()
+
+@router.put("/sessions/{session_id}/title")
+async def update_session_title(
+    session_id: str,
+    title: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """Update session title (with permission check)"""
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+
+    try:
+        # Verify session belongs to current user
+        session = company_db.query(CompanyChatSession).filter(
+            CompanyChatSession.id == session_id,
+            CompanyChatSession.user_id == current_user.id
+        ).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found or access denied")
+
+        session.title = title
+        session.updated_at = datetime.utcnow()
+        company_db.commit()
+
+        return {"message": "Title updated successfully", "title": title}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update title: {str(e)}")
+    finally:
+        company_db.close()
+
+# ===== CHAT ENDPOINT =====
+
 @router.post("/", response_model=schemas.ChatResponse)
 async def chat_with_bot(
     chat_request: schemas.ChatRequest,
@@ -322,31 +549,64 @@ async def chat_with_bot(
     company_db = next(company_db_gen)
     
     try:
+        # Get or create session
+        session_id = chat_request.session_id
+        session = None
+
+        if session_id:
+            # Verify session exists and belongs to current user
+            session = company_db.query(CompanyChatSession).filter(
+                CompanyChatSession.id == session_id,
+                CompanyChatSession.user_id == current_user.id
+            ).first()
+
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found or access denied")
+        else:
+            # Create new session with smart title from first message
+            session_title = chat_request.question[:50] + "..." if len(chat_request.question) > 50 else chat_request.question
+            session = CompanyChatSession(
+                user_id=current_user.id,
+                title=session_title
+            )
+            company_db.add(session)
+            company_db.flush()  # Get the session ID without committing
+            session_id = session.id
+
         # Enhanced chatbot with RAG service, document analysis integration
         answer, context_documents = await process_enhanced_chat_query(
             query=chat_request.question,
             current_user=current_user,
             company_db=company_db,
             company_id=str(company.id),
-            document_ids=chat_request.document_ids  # Pass selected document IDs for context-aware responses
+            document_ids=chat_request.document_ids
         )
-        
-        # Save chat history in company database
+
+        # Save chat history linked to session
         chat_history = CompanyChatHistory(
+            session_id=session_id,
             user_id=current_user.id,
             question=chat_request.question,
             answer=answer,
             context_documents=context_documents
         )
-        
+
         company_db.add(chat_history)
+
+        # Update session metadata
+        session.message_count = company_db.query(CompanyChatHistory).filter(
+            CompanyChatHistory.session_id == session_id
+        ).count() + 1
+        session.updated_at = datetime.utcnow()
+
         company_db.commit()
         company_db.refresh(chat_history)
-        
+
         return {
             "answer": answer,
             "context_documents": context_documents,
-            "created_at": chat_history.created_at
+            "created_at": chat_history.created_at,
+            "session_id": session_id  # Return session_id to frontend
         }
         
     except Exception as e:
