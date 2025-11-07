@@ -21,6 +21,10 @@ from app.models_document_analysis import DocumentAnalysis
 from app.services.aws_service import aws_service
 from app.services.document_analysis_service import document_analysis_service
 from app.services.email_extensions import get_extended_email_service
+from app.services.rag_service import rag_service
+import logging
+
+logger = logging.getLogger(__name__)
 from ..schemas import DocumentResponse, DocumentCreate, SystemDocumentResponse, SystemDocumentCreate
 from ..models import SystemDocument, SystemUser
 
@@ -458,17 +462,53 @@ async def upload_document(
                 user_email=current_user.email,
                 company_db=company_db
             )
-            
+
             if analysis_result["success"]:
                 print(f"✅ AI analysis completed successfully for document: {document.id}")
                 if analysis_result.get("expiry_detected"):
                     print(f"⚠️ Expiry date detected in document: {document.id}")
             else:
                 print(f"❌ AI analysis failed for document: {document.id}, Error: {analysis_result.get('error')}")
-                
+
         except Exception as e:
             print(f"❌ AI analysis error for document {document.id}: {str(e)}")
-        
+
+        # Upload to RAG service for advanced vector search and QA
+        try:
+            logger.info(f"📤 Uploading document to RAG service: {document.id}")
+            rag_upload_result = await rag_service.upload_document(
+                file_content=file_content,
+                filename=file.filename,
+                company_id=str(company_id),
+                user_id=str(current_user.id),
+                metadata={
+                    "document_id": document.id,
+                    "folder_name": folder_name,
+                    "uploaded_by": current_user.username,
+                    "company_name": company.name
+                }
+            )
+
+            # Store RAG document ID for future reference
+            rag_document_id = rag_upload_result.get("document_id")
+            if rag_document_id:
+                # Update document metadata with RAG document ID
+                metadata = json.loads(document.metadata_json or '{}')
+                metadata['rag_document_id'] = rag_document_id
+                metadata['rag_ingestion_status'] = rag_upload_result.get('ingestion', 'scheduled')
+
+                company_db.query(CompanyDocument).filter(CompanyDocument.id == document.id).update({
+                    'metadata_json': json.dumps(metadata)
+                })
+                company_db.commit()
+
+                logger.info(f"✅ Document uploaded to RAG service successfully: RAG ID {rag_document_id}")
+
+        except Exception as rag_error:
+            # Don't fail the upload if RAG service fails
+            logger.warning(f"⚠️ RAG service upload failed for document {document.id}: {str(rag_error)}")
+            logger.warning("Document saved successfully, but advanced QA features may not be available")
+
         return document
         
     except Exception as e:

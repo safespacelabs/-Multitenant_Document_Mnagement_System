@@ -28,6 +28,10 @@ AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 # AI Service Configuration
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
+# RAG Service Configuration (Document Extraction & QA)
+RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL", "https://document-uploadation-with-qa-backend.onrender.com")
+RAG_SERVICE_TIMEOUT = int(os.getenv("RAG_SERVICE_TIMEOUT", "30"))
+
 # Neon Database Configuration
 NEON_API_KEY = os.getenv("NEON_API_KEY", "")
 NEON_PROJECT_ID = os.getenv("NEON_PROJECT_ID", "")
@@ -117,7 +121,11 @@ class Settings:
         self.AWS_ACCESS_KEY_ID = AWS_ACCESS_KEY_ID
         self.AWS_SECRET_ACCESS_KEY = AWS_SECRET_ACCESS_KEY
         self.AWS_REGION = AWS_REGION
-        
+
+        # RAG Service settings
+        self.RAG_SERVICE_URL = RAG_SERVICE_URL
+        self.RAG_SERVICE_TIMEOUT = RAG_SERVICE_TIMEOUT
+
         # Feature flags
         self.ENABLE_EMAIL_NOTIFICATIONS = ENABLE_EMAIL_NOTIFICATIONS
         self.ENABLE_DOCUMENT_NOTIFICATIONS = ENABLE_DOCUMENT_NOTIFICATIONS

@@ -3,24 +3,97 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from app.database import get_management_db, get_company_db
 from app import models, schemas, auth
-from app.models_company import User as CompanyUser, ChatHistory as CompanyChatHistory
+from app.models_company import User as CompanyUser, ChatHistory as CompanyChatHistory, Document as CompanyDocument
 from app.services.nlp_service import nlp_service
 from app.services.intelligent_ai_service import intelligent_ai_service
 from app.services.document_analysis_service import document_analysis_service
 from app.services.hr_admin_database_service import hr_admin_database_service
+from app.services.rag_service import rag_service
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-async def process_enhanced_chat_query(query: str, current_user: CompanyUser, company_db: Session) -> tuple[str, list]:
-    """Enhanced chat processing with document analysis integration and HR admin database access"""
+async def process_enhanced_chat_query(query: str, current_user: CompanyUser, company_db: Session, company_id: str) -> tuple[str, list]:
+    """Enhanced chat processing with RAG service, document analysis, and HR admin database access"""
     try:
         query_lower = query.lower()
-        
+
         # Check if user is HR admin and provide comprehensive database access
         if current_user.role in ['hr_admin', 'hr_manager']:
             # HR admin gets access to entire company database
             hr_admin_response = await hr_admin_database_service.process_hr_admin_query(query, company_db)
             return hr_admin_response, []
+
+        # Check if query should use advanced RAG (vector search + semantic understanding)
+        # RAG is better for: specific questions about document content, complex queries, multi-document analysis
+        rag_keywords = ['what', 'how', 'why', 'when', 'where', 'who', 'explain', 'describe', 'tell me about', 'compare', 'difference', 'summary']
+        use_rag = any(keyword in query_lower for keyword in rag_keywords)
+
+        if use_rag:
+            try:
+                logger.info(f"Using RAG service for query: {query[:100]}")
+
+                # First, check if there are any documents in the RAG service
+                try:
+                    rag_docs = await rag_service.list_documents(
+                        company_id=company_id,
+                        user_id=str(current_user.id)
+                    )
+                    logger.info(f"Found {len(rag_docs)} documents in RAG service for company {company_id}")
+
+                    if len(rag_docs) == 0:
+                        # No documents in RAG service yet
+                        logger.warning("No documents found in RAG service")
+                        # Check if there are documents in the company database
+                        company_docs_count = company_db.query(CompanyDocument).filter(
+                            CompanyDocument.company_id == company_id
+                        ).count()
+
+                        if company_docs_count > 0:
+                            return (
+                                f"📄 I can see you have {company_docs_count} document(s) in the system, but they haven't been processed yet.\n\n"
+                                f"⏳ **Processing Status**: Documents typically take 10-15 seconds to process.\n\n"
+                                f"💡 **Tip**: Please wait a moment and try your question again. If you just uploaded a document, give it a few seconds to finish processing.",
+                                []
+                            )
+                except Exception as list_error:
+                    logger.warning(f"Failed to list RAG documents: {str(list_error)}")
+
+                # Query using advanced RAG service
+                rag_result = await rag_service.query_documents(
+                    question=query,
+                    company_id=company_id,
+                    user_id=str(current_user.id),
+                    limit=12  # Get top 12 most relevant chunks
+                )
+
+                if rag_result and rag_result.get('answer'):
+                    answer = f"🤖 **RAG-Powered Answer:**\n\n{rag_result['answer']}\n\n"
+
+                    # Add context information
+                    debug_info = rag_result.get('debug', {})
+                    if debug_info:
+                        total_chunks = debug_info.get('total_chunks', 0)
+                        docs_used = debug_info.get('documents_used', {})
+
+                        if total_chunks > 0:
+                            answer += f"\n\n📊 **Sources:** Found {total_chunks} relevant sections"
+                            if docs_used:
+                                answer += f" across {len(docs_used)} document(s)"
+                        else:
+                            # No chunks found - documents might still be processing
+                            answer += f"\n\n⚠️ **Note**: No specific document sections found. If you just uploaded documents, they may still be processing (takes 10-15 seconds)."
+
+                    # Extract document IDs from contexts for reference
+                    contexts = rag_result.get('contexts', [])
+                    doc_ids = list(set([ctx.get('document_id') for ctx in contexts if ctx.get('document_id')]))
+
+                    return answer, doc_ids
+
+            except Exception as rag_error:
+                logger.warning(f"RAG service error, falling back to basic search: {str(rag_error)}")
+                # Fall through to basic document search if RAG fails
         
         # Check if query is about documents, folders, or expiry
         document_keywords = ['document', 'file', 'folder', 'upload', 'expiry', 'expire', 'passport', 'license', 'card']
@@ -148,11 +221,12 @@ async def chat_with_bot(
     company_db = next(company_db_gen)
     
     try:
-        # Enhanced chatbot with document analysis integration
+        # Enhanced chatbot with RAG service, document analysis integration
         answer, context_documents = await process_enhanced_chat_query(
             query=chat_request.question,
             current_user=current_user,
-            company_db=company_db
+            company_db=company_db,
+            company_id=str(company.id)
         )
         
         # Save chat history in company database
@@ -594,27 +668,318 @@ async def search_documents(
     # Check if user is HR admin
     if current_user.role not in ['hr_admin', 'hr_manager']:
         raise HTTPException(status_code=403, detail="Access denied. HR admin role required.")
-    
+
     # Get company information
     company_id = getattr(current_user, 'company_id', None)
     if not company_id:
         raise HTTPException(status_code=400, detail="User not associated with a company")
-    
+
     company = management_db.query(models.Company).filter(
         models.Company.id == company_id
     ).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
-    
+
     # Get company database connection
     company_db_gen = get_company_db(str(company.id), str(company.database_url))
     company_db = next(company_db_gen)
-    
+
     try:
         documents = hr_admin_database_service.search_documents(query, company_db, limit)
         return {"documents": documents, "query": query, "count": len(documents)}
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to search documents: {str(e)}")
+    finally:
+        company_db.close()
+
+# RAG-Specific Endpoints
+
+@router.post("/rag/query")
+async def rag_query(
+    chat_request: schemas.ChatRequest,
+    document_ids: list[str] = None,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """
+    Advanced RAG query with vector similarity search, hybrid search, and re-ranking.
+
+    This endpoint uses the deployed document extraction service for:
+    - Semantic vector search with embeddings
+    - Hybrid search (BM25 + vector)
+    - Cross-encoder re-ranking for better accuracy
+    - Multi-document queries
+    """
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    try:
+        # Query using RAG service
+        rag_result = await rag_service.query_documents(
+            question=chat_request.question,
+            company_id=str(company_id),
+            user_id=str(current_user.id),
+            document_ids=document_ids,
+            limit=12
+        )
+
+        return {
+            "answer": rag_result.get('answer'),
+            "contexts": rag_result.get('contexts', []),
+            "debug": rag_result.get('debug', {}),
+            "created_at": datetime.utcnow()
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"RAG query failed: {str(e)}")
+
+@router.get("/rag/i9/summary")
+async def get_i9_summary(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """Get I9 compliance summary from RAG service"""
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    try:
+        summary = await rag_service.get_i9_summary(
+            company_id=str(company_id),
+            user_id=str(current_user.id)
+        )
+        return summary
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get I9 summary: {str(e)}")
+
+@router.get("/rag/i9/expiring")
+async def get_expiring_i9(
+    days: int = 30,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """Get expiring I9 documents from RAG service"""
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    try:
+        expiring = await rag_service.get_expiring_i9_documents(
+            company_id=str(company_id),
+            days=days,
+            user_id=str(current_user.id)
+        )
+        return expiring
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get expiring I9 documents: {str(e)}")
+
+@router.get("/rag/i9/expired")
+async def get_expired_i9(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """Get expired I9 documents from RAG service"""
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    try:
+        expired = await rag_service.get_expired_i9_documents(
+            company_id=str(company_id),
+            user_id=str(current_user.id)
+        )
+        return expired
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get expired I9 documents: {str(e)}")
+
+@router.get("/rag/i9/invalid")
+async def get_invalid_i9(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """Get invalid I9 documents from RAG service"""
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    try:
+        invalid = await rag_service.get_invalid_i9_documents(
+            company_id=str(company_id),
+            user_id=str(current_user.id)
+        )
+        return invalid
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get invalid I9 documents: {str(e)}")
+
+@router.get("/rag/health")
+async def rag_health_check():
+    """Check RAG service health"""
+    try:
+        health = await rag_service.health_check()
+        models_health = await rag_service.models_health_check()
+
+        return {
+            "service": health,
+            "models": models_health,
+            "timestamp": datetime.utcnow()
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow()
+        }
+
+@router.get("/rag/documents")
+async def list_rag_documents(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """
+    List all documents in RAG service for debugging.
+
+    This helps verify that documents are properly synced to the RAG service.
+    """
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    try:
+        # Get documents from RAG service
+        rag_docs = await rag_service.list_documents(
+            company_id=str(company_id),
+            user_id=str(current_user.id)
+        )
+
+        # Get documents from company database for comparison
+        company = management_db.query(models.Company).filter(
+            models.Company.id == company_id
+        ).first()
+
+        if company:
+            company_db_gen = get_company_db(str(company.id), str(company.database_url))
+            company_db = next(company_db_gen)
+
+            try:
+                company_docs = company_db.query(CompanyDocument).filter(
+                    CompanyDocument.company_id == company_id
+                ).all()
+
+                company_doc_list = [
+                    {
+                        "id": doc.id,
+                        "filename": doc.original_filename,
+                        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+                        "metadata": doc.metadata_json
+                    }
+                    for doc in company_docs
+                ]
+            finally:
+                company_db.close()
+        else:
+            company_doc_list = []
+
+        return {
+            "rag_documents": rag_docs,
+            "rag_document_count": len(rag_docs),
+            "company_documents": company_doc_list,
+            "company_document_count": len(company_doc_list),
+            "sync_status": "synced" if len(rag_docs) == len(company_doc_list) else "out_of_sync",
+            "timestamp": datetime.utcnow()
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list RAG documents: {str(e)}")
+
+@router.post("/rag/documents/{document_id}/re-upload")
+async def re_upload_document_to_rag(
+    document_id: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """
+    Re-upload a specific document to the RAG service.
+
+    Use this if a document failed to sync or you want to force a re-upload.
+    """
+    company_id = getattr(current_user, 'company_id', None)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="User not associated with a company")
+
+    company = management_db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    # Get company database
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+
+    try:
+        # Get document from database
+        document = company_db.query(CompanyDocument).filter(
+            CompanyDocument.id == document_id,
+            CompanyDocument.company_id == company_id
+        ).first()
+
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        # Get file from S3
+        from app.services.aws_service import aws_service
+        file_content = await aws_service.get_file_from_s3(
+            bucket_name=company.s3_bucket_name,
+            s3_key=document.s3_key
+        )
+
+        # Re-upload to RAG service
+        logger.info(f"Re-uploading document {document_id} to RAG service")
+        rag_upload_result = await rag_service.upload_document(
+            file_content=file_content,
+            filename=document.original_filename,
+            company_id=str(company_id),
+            user_id=str(current_user.id),
+            metadata={
+                "document_id": document.id,
+                "folder_name": document.folder_name,
+                "uploaded_by": current_user.username,
+                "company_name": company.name,
+                "re_upload": True
+            }
+        )
+
+        # Update document metadata
+        import json
+        metadata = json.loads(document.metadata_json or '{}')
+        metadata['rag_document_id'] = rag_upload_result.get("document_id")
+        metadata['rag_ingestion_status'] = rag_upload_result.get('ingestion', 'scheduled')
+        metadata['rag_re_uploaded_at'] = datetime.utcnow().isoformat()
+
+        company_db.query(CompanyDocument).filter(CompanyDocument.id == document.id).update({
+            'metadata_json': json.dumps(metadata)
+        })
+        company_db.commit()
+
+        return {
+            "success": True,
+            "message": "Document re-uploaded to RAG service successfully",
+            "document_id": document_id,
+            "rag_document_id": rag_upload_result.get("document_id"),
+            "rag_status": rag_upload_result
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to re-upload document {document_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to re-upload document: {str(e)}")
+
     finally:
         company_db.close()
