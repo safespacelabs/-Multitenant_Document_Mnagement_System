@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { chatAPI } from '../../services/api';
-import { Send, Bot, User, Loader, Plus, Trash2, MessageSquare } from 'lucide-react';
+import { chatAPI, documentsAPI } from '../../services/api';
+import { Send, Bot, User, Loader, Plus, Trash2, MessageSquare, Paperclip, X, FileText, Upload } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../utils/auth';
 import SystemChatbot from './SystemChatbot';
@@ -13,7 +13,11 @@ function Chatbot() {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (user.role !== 'system_admin' && company) {
@@ -120,6 +124,87 @@ function Chatbot() {
   const switchSession = (sessionId) => {
     setActiveSessionId(sessionId);
     loadSessionMessages(sessionId);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size must be less than 10MB');
+        return;
+      }
+      setSelectedFile(file);
+      setShowUploadModal(true);
+    }
+  };
+
+  const handleUploadAndAsk = async () => {
+    if (!selectedFile || !inputMessage.trim()) {
+      alert('Please select a file and enter a question');
+      return;
+    }
+
+    setUploading(true);
+    setShowUploadModal(false);
+
+    const userMessage = {
+      type: 'user',
+      content: `📎 ${selectedFile.name}\n\nQ: ${inputMessage}`,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+
+    try {
+      // Upload document to the documents system
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('folder_name', 'Chat Uploads');
+
+      const uploadResponse = await documentsAPI.upload(formData);
+
+      // Send message with reference to the uploaded document
+      const question = `I just uploaded "${selectedFile.name}". ${inputMessage}`;
+      const response = await chatAPI.sendMessage(question, company.id, activeSessionId);
+
+      const botMessage = {
+        type: 'bot',
+        content: `📄 Document uploaded successfully!\n\n${response.answer}`,
+        timestamp: response.created_at,
+        contextDocuments: response.context_documents
+      };
+      setMessages(prev => [...prev, botMessage]);
+
+      // Handle session creation/update
+      if (!activeSessionId && response.session_id) {
+        setActiveSessionId(response.session_id);
+        await loadSessions();
+      } else if (activeSessionId) {
+        await loadSessions();
+      }
+
+      // Clear form
+      setInputMessage('');
+      setSelectedFile(null);
+    } catch (error) {
+      console.error('Upload error:', error);
+      const errorMessage = {
+        type: 'bot',
+        content: `Sorry, failed to upload document: ${error.message}. Please try again.`,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const cancelUpload = () => {
+    setSelectedFile(null);
+    setShowUploadModal(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const sendMessage = async (e) => {
@@ -354,24 +439,113 @@ function Chatbot() {
         {/* Input Area */}
         <div className="p-4 border-t border-gray-200 bg-white">
           <form onSubmit={sendMessage} className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-3 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+              title="Upload document"
+              disabled={loading || uploading}
+            >
+              <Paperclip className="h-5 w-5" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileSelect}
+              className="hidden"
+              accept=".pdf,.doc,.docx,.txt"
+            />
             <input
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               placeholder="Ask me anything about your documents..."
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={loading}
+              disabled={loading || uploading}
             />
             <button
               type="submit"
-              disabled={loading || !inputMessage.trim()}
+              disabled={loading || uploading || !inputMessage.trim()}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
-              <Send className="h-4 w-4" />
+              {loading || uploading ? <Loader className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </button>
           </form>
         </div>
       </div>
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Upload className="h-5 w-5 text-blue-600" />
+                Upload and Ask
+              </h3>
+              <button
+                onClick={cancelUpload}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {selectedFile && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
+                <FileText className="h-8 w-8 text-blue-600 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{selectedFile.name}</p>
+                  <p className="text-xs text-gray-500">{(selectedFile.size / 1024).toFixed(1)} KB</p>
+                </div>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                What would you like to know about this document?
+              </label>
+              <textarea
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder="E.g., Summarize this document, What are the key points?, etc."
+                rows="3"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={cancelUpload}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUploadAndAsk}
+                disabled={!inputMessage.trim() || uploading}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {uploading ? (
+                  <>
+                    <Loader className="h-4 w-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Upload & Ask
+                  </>
+                )}
+              </button>
+            </div>
+
+            <p className="mt-3 text-xs text-gray-500">
+              Supported formats: PDF, DOC, DOCX, TXT (max 10MB)
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
