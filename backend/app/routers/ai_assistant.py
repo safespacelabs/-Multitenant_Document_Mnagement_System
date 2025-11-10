@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
+from sqlalchemy import cast, String
 from typing import List, Optional
 import json
 import logging
@@ -146,9 +147,10 @@ async def send_chat_message(
             from app.models_document_analysis import ChatDocument
             from app.models_company import ChatHistory
 
+            # Cast JSON to text and search for session_id
             session_documents = company_db.query(ChatDocument).filter(
                 ChatDocument.user_id == current_user.id,
-                ChatDocument.metadata_json.contains({"session_id": message_data.session_id})
+                cast(ChatDocument.metadata_json, String).like(f'%"session_id": "{message_data.session_id}"%')
             ).all()
 
             start_time = datetime.utcnow()
@@ -833,9 +835,10 @@ async def ask_session_documents(
             # Find all documents linked to this session
             from app.models_document_analysis import ChatDocument
 
+            # Cast JSON to text and search for session_id
             session_documents = company_db.query(ChatDocument).filter(
                 ChatDocument.user_id == current_user.id,
-                ChatDocument.metadata_json.contains({"session_id": session_id})
+                cast(ChatDocument.metadata_json, String).like(f'%"session_id": "{session_id}"%')
             ).all()
 
             if not session_documents:
@@ -914,10 +917,10 @@ async def get_session_documents(
         try:
             from app.models_document_analysis import ChatDocument
 
-            # Find all documents linked to this session
+            # Find all documents linked to this session - Cast JSON to text for search
             session_documents = company_db.query(ChatDocument).filter(
                 ChatDocument.user_id == current_user.id,
-                ChatDocument.metadata_json.contains({"session_id": session_id})
+                cast(ChatDocument.metadata_json, String).like(f'%"session_id": "{session_id}"%')
             ).order_by(ChatDocument.created_at.desc()).all()
 
             documents = []
