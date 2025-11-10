@@ -509,6 +509,9 @@ async def upload_document(
             logger.warning(f"⚠️ RAG service upload failed for document {document.id}: {str(rag_error)}")
             logger.warning("Document saved successfully, but advanced QA features may not be available")
 
+        # Refresh document to ensure all attributes are loaded before session closes
+        company_db.refresh(document)
+
         return document
         
     except Exception as e:

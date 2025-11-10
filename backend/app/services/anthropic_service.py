@@ -468,23 +468,47 @@ class AnthropicService:
             except json.JSONDecodeError as e:
                 # Fallback if JSON parsing fails
                 print(f"❌ JSON Parse Error: {e}")
-                print(f"❌ Response text: {response_text}")
+                print(f"❌ Response text: {response_text[:500]}...")
                 # Try to clean the response
                 try:
                     import re
-                    # Remove control characters and fix common JSON issues
-                    cleaned_response = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', response_text)
-                    # Fix common JSON issues
-                    cleaned_response = cleaned_response.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+                    # First, try to extract JSON if wrapped in markdown code blocks
+                    json_match = re.search(r'```(?:json)?\s*(\{.*\})\s*```', response_text, re.DOTALL)
+                    if json_match:
+                        response_text = json_match.group(1)
+
+                    # Remove control characters but preserve spaces
+                    cleaned_response = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f-\x9f]', '', response_text)
+
+                    # Don't try to escape newlines - instead parse with JSONDecoder that handles them
                     # Remove any trailing commas before closing braces/brackets
                     cleaned_response = re.sub(r',(\s*[}\]])', r'\1', cleaned_response)
-                    metadata = json.loads(cleaned_response)
-                    print(f"🔍 JSON parsed after cleaning!")
+
+                    # Try json.loads with strict=False which is more lenient
+                    try:
+                        metadata = json.loads(cleaned_response, strict=False)
+                        print(f"🔍 JSON parsed after cleaning (lenient mode)!")
+                    except json.JSONDecodeError:
+                        # Last resort: manually escape newlines and tabs in string values
+                        # This regex finds string values and escapes control chars within them
+                        def escape_string_content(match):
+                            content = match.group(0)
+                            content = content.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+                            return content
+                        cleaned_response = re.sub(r':\s*"([^"]*)"', escape_string_content, cleaned_response)
+                        metadata = json.loads(cleaned_response)
+                        print(f"🔍 JSON parsed after aggressive cleaning!")
+
+                    metadata['extracted_at'] = datetime.utcnow().isoformat()
+                    metadata['ai_model'] = self.model
+                    metadata['processing_status'] = 'success'
                     metadata = self._normalize_and_enhance_metadata(metadata)
                     return metadata
                 except Exception as clean_error:
                     print(f"❌ JSON cleaning failed: {clean_error}")
-                    return self._create_fallback_metadata(filename, folder_name, f"JSON parse error: {e}", f"JSON parse error: {e}")
+                    # Extract whatever text we can for fallback
+                    text_preview = response_text[:1000] if len(response_text) > 1000 else response_text
+                    return self._create_fallback_metadata(filename, folder_name, text_preview, f"JSON parse error: {e}")
                 
         except Exception as e:
             # Fallback metadata if extraction fails
@@ -631,23 +655,47 @@ class AnthropicService:
             except json.JSONDecodeError as e:
                 # Fallback if JSON parsing fails
                 print(f"❌ JSON Parse Error: {e}")
-                print(f"❌ Response text: {response_text}")
+                print(f"❌ Response text: {response_text[:500]}...")
                 # Try to clean the response
                 try:
                     import re
-                    # Remove control characters and fix common JSON issues
-                    cleaned_response = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', response_text)
-                    # Fix common JSON issues
-                    cleaned_response = cleaned_response.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+                    # First, try to extract JSON if wrapped in markdown code blocks
+                    json_match = re.search(r'```(?:json)?\s*(\{.*\})\s*```', response_text, re.DOTALL)
+                    if json_match:
+                        response_text = json_match.group(1)
+
+                    # Remove control characters but preserve spaces
+                    cleaned_response = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f-\x9f]', '', response_text)
+
+                    # Don't try to escape newlines - instead parse with JSONDecoder that handles them
                     # Remove any trailing commas before closing braces/brackets
                     cleaned_response = re.sub(r',(\s*[}\]])', r'\1', cleaned_response)
-                    metadata = json.loads(cleaned_response)
-                    print(f"🔍 JSON parsed after cleaning!")
+
+                    # Try json.loads with strict=False which is more lenient
+                    try:
+                        metadata = json.loads(cleaned_response, strict=False)
+                        print(f"🔍 JSON parsed after cleaning (lenient mode)!")
+                    except json.JSONDecodeError:
+                        # Last resort: manually escape newlines and tabs in string values
+                        # This regex finds string values and escapes control chars within them
+                        def escape_string_content(match):
+                            content = match.group(0)
+                            content = content.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+                            return content
+                        cleaned_response = re.sub(r':\s*"([^"]*)"', escape_string_content, cleaned_response)
+                        metadata = json.loads(cleaned_response)
+                        print(f"🔍 JSON parsed after aggressive cleaning!")
+
+                    metadata['extracted_at'] = datetime.utcnow().isoformat()
+                    metadata['ai_model'] = self.model
+                    metadata['processing_status'] = 'success'
                     metadata = self._normalize_and_enhance_metadata(metadata)
                     return metadata
                 except Exception as clean_error:
                     print(f"❌ JSON cleaning failed: {clean_error}")
-                    return self._create_fallback_metadata(filename, folder_name, f"JSON parse error: {e}", f"JSON parse error: {e}")
+                    # Extract whatever text we can for fallback
+                    text_preview = response_text[:1000] if len(response_text) > 1000 else response_text
+                    return self._create_fallback_metadata(filename, folder_name, text_preview, f"JSON parse error: {e}")
                 
         except Exception as e:
             # Fallback metadata if extraction fails
