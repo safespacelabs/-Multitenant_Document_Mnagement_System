@@ -497,10 +497,12 @@ async def get_chunked_document_info(
 async def upload_and_ask(
     file: UploadFile = File(...),
     question: str = Form(...),
+    session_id: Optional[str] = Form(None),  # Link document to session
     current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
-    """Upload any document, automatically chunk if large, and answer question using all available content."""
+    """Upload any document, automatically chunk if large, and answer question using all available content.
+    If session_id is provided, the document will be linked to that chat session for future queries."""
     try:
         content = await file.read()
         # Enforce backend size limit up to 1GB
@@ -546,22 +548,48 @@ async def upload_and_ask(
                     user_email=getattr(current_user, "email", ""),
                     company_db=company_db
                 )
-                
+
                 if result.get('success', False):
                     chunked_document_id = result.get('chunked_document_id')
                     total_pages = result.get('total_pages', 0)
                     total_chunks = result.get('total_chunks', 0)
-                    
+
+                    # Store session_id in chunked document metadata if provided
+                    if session_id:
+                        from app.models_chunked_documents import ChunkedDocument
+                        chunked_doc = company_db.query(ChunkedDocument).filter(
+                            ChunkedDocument.id == chunked_document_id
+                        ).first()
+                        if chunked_doc:
+                            metadata = chunked_doc.metadata_json or {}
+                            metadata['session_id'] = session_id
+                            chunked_doc.metadata_json = metadata
+                            company_db.commit()
+
                     # Search across all chunks for the answer
                     search_result = await chunked_document_service.search_across_chunks(
                         chunked_document_id=chunked_document_id,
                         query=question,
                         company_db=company_db
                     )
-                    
+
                     if 'error' in search_result:
                         return {"error": search_result['error']}
-                    
+
+                    # Store in chat history if session provided
+                    if session_id:
+                        from app.models_company import ChatHistory
+                        chat_entry = ChatHistory(
+                            session_id=session_id,
+                            user_id=current_user.id,
+                            question=question,
+                            answer=search_result['answer'],
+                            document_id=chunked_document_id,
+                            document_name=filename
+                        )
+                        company_db.add(chat_entry)
+                        company_db.commit()
+
                     return {
                         "document_id": chunked_document_id,
                         "answer": search_result['answer'],
@@ -569,14 +597,20 @@ async def upload_and_ask(
                         "total_pages": total_pages,
                         "total_chunks": total_chunks,
                         "relevant_chunks": search_result.get('relevant_chunks', []),
-                        "search_method": search_result.get('search_method', 'multi_chunk_search')
+                        "search_method": search_result.get('search_method', 'multi_chunk_search'),
+                        "session_id": session_id
                     }
                 else:
                     return {"error": result.get('error', 'Failed to process large document')}
             else:
                 # Process as regular document (existing logic)
                 extracted_text = anthropic_service.extract_plain_text(content, filename)
-                metadata = {"title": filename, "processing_status": "plain_text", "extracted_at": datetime.utcnow().isoformat()}
+                metadata = {
+                    "title": filename,
+                    "processing_status": "plain_text",
+                    "extracted_at": datetime.utcnow().isoformat(),
+                    "session_id": session_id if session_id else None  # Link to session
+                }
 
                 chat_doc = await document_analysis_service.upsert_chat_document(
                     user_id=current_user.id,
@@ -594,11 +628,26 @@ async def upload_and_ask(
                 msg = await document_analysis_service.answer_and_store_chat(document_id=chat_doc.id, user_id=current_user.id, question=question, company_db=company_db)
                 msg.answer = answer_text
                 company_db.commit()
-                
+
+                # If session_id provided, store Q&A in chat history
+                if session_id:
+                    from app.models_company import ChatHistory
+                    chat_entry = ChatHistory(
+                        session_id=session_id,
+                        user_id=current_user.id,
+                        question=question,
+                        answer=answer_text,
+                        document_id=chat_doc.id,
+                        document_name=filename
+                    )
+                    company_db.add(chat_entry)
+                    company_db.commit()
+
                 return {
-                    "document_id": chat_doc.id, 
+                    "document_id": chat_doc.id,
                     "answer": answer_text,
-                    "is_chunked_document": False
+                    "is_chunked_document": False,
+                    "session_id": session_id
                 }
                 
         finally:
@@ -607,6 +656,147 @@ async def upload_and_ask(
     except Exception as e:
         logging.error(f"upload_and_ask failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to process document and answer question")
+
+@router.post("/chat/ask-session")
+async def ask_session_documents(
+    payload: dict,
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
+):
+    """Ask a question about documents already uploaded in this chat session.
+    Body: { "session_id": str, "question": str }
+    Returns answers based on all documents in the session."""
+    try:
+        session_id = payload.get("session_id")
+        question = payload.get("question")
+
+        if not session_id or not question:
+            raise HTTPException(status_code=400, detail="session_id and question are required")
+
+        # Get company database
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+
+        try:
+            # Find all documents linked to this session
+            from app.models_document_analysis import ChatDocument
+
+            session_documents = company_db.query(ChatDocument).filter(
+                ChatDocument.user_id == current_user.id,
+                ChatDocument.metadata_json.contains({"session_id": session_id})
+            ).all()
+
+            if not session_documents:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No documents found in this session. Please upload a document first."
+                )
+
+            # Combine text from all session documents
+            combined_context = ""
+            document_info = []
+
+            for doc in session_documents:
+                if doc.extracted_text:
+                    combined_context += f"\n\n=== Document: {doc.filename} ===\n{doc.extracted_text}"
+                    document_info.append({
+                        "id": doc.id,
+                        "filename": doc.filename,
+                        "uploaded_at": doc.created_at.isoformat() if doc.created_at else None
+                    })
+
+            if not combined_context.strip():
+                raise HTTPException(
+                    status_code=404,
+                    detail="No extractable content found in session documents"
+                )
+
+            # Answer question using combined context
+            answer_text = await anthropic_service.answer_question(combined_context, question)
+
+            # Store in chat history
+            from app.models_company import ChatHistory
+            chat_entry = ChatHistory(
+                session_id=session_id,
+                user_id=current_user.id,
+                question=question,
+                answer=answer_text,
+                document_id=session_documents[0].id if len(session_documents) == 1 else None,
+                document_name=", ".join([d.filename for d in session_documents[:3]])
+            )
+            company_db.add(chat_entry)
+            company_db.commit()
+
+            return {
+                "answer": answer_text,
+                "session_id": session_id,
+                "documents_searched": len(session_documents),
+                "document_info": document_info
+            }
+
+        finally:
+            company_db.close()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"ask_session_documents failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to answer question for session documents")
+
+@router.get("/chat/session-documents/{session_id}")
+async def get_session_documents(
+    session_id: str,
+    current_user: User = Depends(get_current_company_user),
+    db: Session = Depends(get_db)
+):
+    """Get all documents uploaded in a specific chat session."""
+    try:
+        # Get company database
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+
+        try:
+            from app.models_document_analysis import ChatDocument
+
+            # Find all documents linked to this session
+            session_documents = company_db.query(ChatDocument).filter(
+                ChatDocument.user_id == current_user.id,
+                ChatDocument.metadata_json.contains({"session_id": session_id})
+            ).order_by(ChatDocument.created_at.desc()).all()
+
+            documents = []
+            for doc in session_documents:
+                documents.append({
+                    "id": doc.id,
+                    "filename": doc.filename,
+                    "file_size": doc.file_size,
+                    "content_type": doc.content_type,
+                    "uploaded_at": doc.created_at.isoformat() if doc.created_at else None,
+                    "has_content": bool(doc.extracted_text and len(doc.extracted_text.strip()) > 0)
+                })
+
+            return {
+                "session_id": session_id,
+                "documents": documents,
+                "total_documents": len(documents)
+            }
+
+        finally:
+            company_db.close()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"get_session_documents failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get session documents")
 
 @router.post("/chat/multipart/initiate")
 async def initiate_multipart_upload(
