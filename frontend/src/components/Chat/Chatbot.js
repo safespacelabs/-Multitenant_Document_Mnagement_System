@@ -156,18 +156,14 @@ function Chatbot() {
     setMessages(prev => [...prev, userMessage]);
 
     try {
-      // Upload document to the documents system
-      const uploadResponse = await documentsAPI.upload(selectedFile, 'Chat Uploads');
-
-      // Send message with reference to the uploaded document
-      const question = `I just uploaded "${selectedFile.name}". ${inputMessage}`;
-      const response = await chatAPI.sendMessage(question, company.id, activeSessionId);
+      // Upload document and ask question in one API call
+      const response = await chatAPI.uploadAndAsk(selectedFile, inputMessage, activeSessionId);
 
       const botMessage = {
         type: 'bot',
-        content: `📄 Document uploaded successfully!\n\n${response.answer}`,
-        timestamp: response.created_at,
-        contextDocuments: response.context_documents
+        content: response.answer,
+        timestamp: new Date(),
+        contextDocuments: [selectedFile.name]
       };
       setMessages(prev => [...prev, botMessage]);
 

@@ -1011,16 +1011,43 @@ const documentsAPI = {
 
 // Chat API with Session Management
 const chatAPI = {
+  // Upload document and ask question in one call
+  uploadAndAsk: async (file, question, sessionId = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('question', question);
+    if (sessionId) {
+      formData.append('session_id', sessionId);
+    }
+
+    const response = await fetch(buildApiUrl('/api/ai-assistant/chat/upload-and-ask'), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to upload and process document');
+    }
+
+    return response.json();
+  },
+
   sendMessage: async (message, companyId, sessionId = null) => {
-    const response = await fetch(buildApiUrl('/api/chat/'), {
+    // Use document-aware endpoint that checks session documents
+    const response = await fetch(buildApiUrl('/api/ai-assistant/chat/messages'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       },
       body: JSON.stringify({
-        question: message,
-        session_id: sessionId
+        message: message,
+        session_id: sessionId,
+        message_type: 'text'
       })
     });
 
@@ -1029,17 +1056,24 @@ const chatAPI = {
       throw new Error(error.detail || 'Failed to send message');
     }
 
-    return response.json();
+    const data = await response.json();
+    // Convert response format to match expected structure
+    return {
+      answer: data.response,
+      created_at: data.timestamp,
+      session_id: data.session_id,
+      context_documents: []
+    };
   },
 
   createSession: async (title = 'New Chat') => {
-    const response = await fetch(buildApiUrl('/api/chat/sessions'), {
+    const response = await fetch(buildApiUrl('/api/ai-assistant/chat/sessions'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       },
-      body: JSON.stringify({ title })
+      body: JSON.stringify({ session_name: title })
     });
 
     if (!response.ok) {
@@ -1047,11 +1081,19 @@ const chatAPI = {
       throw new Error(error.detail || 'Failed to create session');
     }
 
-    return response.json();
+    const data = await response.json();
+    // Convert to expected format
+    return {
+      id: data.id,
+      title: data.session_name,
+      message_count: data.message_count || 0,
+      created_at: data.created_at,
+      sessions: [data]  // Wrap in array for compatibility
+    };
   },
 
   listSessions: async () => {
-    const response = await fetch(buildApiUrl('/api/chat/sessions'), {
+    const response = await fetch(buildApiUrl('/api/ai-assistant/chat/sessions'), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -1063,11 +1105,21 @@ const chatAPI = {
       throw new Error(error.detail || 'Failed to list sessions');
     }
 
-    return response.json();
+    const sessions = await response.json();
+    // Convert response format to match expected structure
+    return {
+      sessions: sessions.map(s => ({
+        id: s.id,
+        title: s.session_name || s.title || 'Untitled',
+        message_count: s.message_count || 0,
+        created_at: s.created_at,
+        updated_at: s.last_activity || s.updated_at
+      }))
+    };
   },
 
   getSessionMessages: async (sessionId) => {
-    const response = await fetch(buildApiUrl(`/api/chat/sessions/${sessionId}/messages`), {
+    const response = await fetch(buildApiUrl(`/api/ai-assistant/chat/sessions/${sessionId}/messages`), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -1079,11 +1131,20 @@ const chatAPI = {
       throw new Error(error.detail || 'Failed to get session messages');
     }
 
-    return response.json();
+    const data = await response.json();
+    // Convert response format to match expected structure
+    return {
+      messages: data.map(msg => ({
+        question: msg.message || msg.question,
+        answer: msg.response || msg.answer,
+        created_at: msg.timestamp || msg.created_at,
+        context_documents: msg.context_documents || []
+      }))
+    };
   },
 
   deleteSession: async (sessionId) => {
-    const response = await fetch(buildApiUrl(`/api/chat/sessions/${sessionId}`), {
+    const response = await fetch(buildApiUrl(`/api/ai-assistant/chat/sessions/${sessionId}`), {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
