@@ -175,8 +175,13 @@ async def send_chat_message(
                     user_id=current_user.id,
                     question=message_data.message,
                     answer=answer_text,
-                    document_id=session_documents[0].id if len(session_documents) == 1 else None,
-                    document_name=", ".join([d.filename for d in session_documents[:3]])
+                    context_documents={
+                        "documents": [
+                            {"id": d.id, "filename": d.filename}
+                            for d in session_documents
+                        ],
+                        "document_count": len(session_documents)
+                    }
                 )
                 company_db.add(chat_entry)
                 company_db.commit()
@@ -734,8 +739,12 @@ async def upload_and_ask(
                             user_id=current_user.id,
                             question=question,
                             answer=search_result['answer'],
-                            document_id=chunked_document_id,
-                            document_name=filename
+                            context_documents={
+                                "document_id": chunked_document_id,
+                                "filename": filename,
+                                "is_chunked": True,
+                                "total_chunks": total_chunks
+                            }
                         )
                         company_db.add(chat_entry)
                         company_db.commit()
@@ -787,8 +796,11 @@ async def upload_and_ask(
                         user_id=current_user.id,
                         question=question,
                         answer=answer_text,
-                        document_id=chat_doc.id,
-                        document_name=filename
+                        context_documents={
+                            "document_id": chat_doc.id,
+                            "filename": filename,
+                            "is_chunked": False
+                        }
                     )
                     company_db.add(chat_entry)
                     company_db.commit()
@@ -876,8 +888,13 @@ async def ask_session_documents(
                 user_id=current_user.id,
                 question=question,
                 answer=answer_text,
-                document_id=session_documents[0].id if len(session_documents) == 1 else None,
-                document_name=", ".join([d.filename for d in session_documents[:3]])
+                context_documents={
+                    "documents": [
+                        {"id": d.id, "filename": d.filename}
+                        for d in session_documents
+                    ],
+                    "document_count": len(session_documents)
+                }
             )
             company_db.add(chat_entry)
             company_db.commit()
