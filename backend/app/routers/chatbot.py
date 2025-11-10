@@ -580,35 +580,61 @@ async def chat_with_bot(
             session_id = session.id
 
         # CHECK FOR SESSION DOCUMENTS FIRST (from upload-and-ask)
-        from app.models_document_analysis import ChatDocument
-        from app.services.anthropic_service import anthropic_service
+        try:
+            from app.models_document_analysis import ChatDocument
+            from app.services.anthropic_service import anthropic_service
 
-        session_documents = company_db.query(ChatDocument).filter(
-            ChatDocument.user_id == current_user.id,
-            ChatDocument.metadata_json.contains({"session_id": session_id})
-        ).all()
+            # Try to find session documents
+            session_documents = company_db.query(ChatDocument).filter(
+                ChatDocument.user_id == current_user.id
+            ).all()
 
-        # If session has uploaded documents, answer from those documents
-        if session_documents and len(session_documents) > 0:
-            logger.info(f"📄 Found {len(session_documents)} documents in session {session_id}, using Anthropic for answer")
-
-            # Combine all document content
-            combined_context = ""
-            context_doc_names = []
+            # Filter by session_id in Python (since JSON contains might not work in all databases)
+            session_docs_filtered = []
             for doc in session_documents:
-                if doc.extracted_text:
-                    combined_context += f"\n\n=== Document: {doc.filename} ===\n{doc.extracted_text}"
-                    context_doc_names.append(doc.filename)
+                if doc.metadata_json and isinstance(doc.metadata_json, dict):
+                    if doc.metadata_json.get('session_id') == session_id:
+                        session_docs_filtered.append(doc)
 
-            if combined_context.strip():
-                # Answer using Anthropic with document context
-                answer = await anthropic_service.answer_question(combined_context, chat_request.question)
-                context_documents = context_doc_names
+            # If session has uploaded documents, answer from those documents
+            if session_docs_filtered and len(session_docs_filtered) > 0:
+                logger.info(f"📄 Found {len(session_docs_filtered)} documents in session {session_id}, using Anthropic for answer")
+
+                # Combine all document content
+                combined_context = ""
+                context_doc_names = []
+                for doc in session_docs_filtered:
+                    if doc.extracted_text:
+                        combined_context += f"\n\n=== Document: {doc.filename} ===\n{doc.extracted_text}"
+                        context_doc_names.append(doc.filename)
+
+                if combined_context.strip():
+                    # Answer using Anthropic with document context
+                    answer = await anthropic_service.answer_question(combined_context, chat_request.question)
+                    context_documents = context_doc_names
+                else:
+                    logger.warning(f"Documents found but no text extracted, falling back to enhanced query")
+                    answer, context_documents = await process_enhanced_chat_query(
+                        query=chat_request.question,
+                        current_user=current_user,
+                        company_db=company_db,
+                        company_id=str(company.id),
+                        document_ids=chat_request.document_ids
+                    )
             else:
-                answer = "I found documents in this session, but couldn't extract their content. Please try re-uploading."
-                context_documents = []
-        else:
-            # No session documents - use enhanced chat query (RAG, I9, etc.)
+                logger.info(f"No session documents found for session {session_id}, using enhanced query")
+                # No session documents - use enhanced chat query (RAG, I9, etc.)
+                answer, context_documents = await process_enhanced_chat_query(
+                    query=chat_request.question,
+                    current_user=current_user,
+                    company_db=company_db,
+                    company_id=str(company.id),
+                    document_ids=chat_request.document_ids
+                )
+        except Exception as session_doc_error:
+            logger.error(f"Error checking session documents: {str(session_doc_error)}")
+            logger.info(f"Falling back to enhanced query due to error")
+            # Fall back to enhanced query if session document check fails
             answer, context_documents = await process_enhanced_chat_query(
                 query=chat_request.question,
                 current_user=current_user,
