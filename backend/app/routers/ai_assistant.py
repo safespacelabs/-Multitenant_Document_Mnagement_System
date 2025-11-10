@@ -44,25 +44,38 @@ async def create_chat_session(
         company = db.query(Company).filter(Company.id == current_user.company_id).first()
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
-            
-        session = ai_service.create_chat_session(
-            user_id=current_user.id,
-            company_id=company.id,
-            session_name=session_data.session_name,
-            context=session_data.context
-        )
-        return ChatSessionResponse(
-            id=session.id,
-            session_name=session.session_name,
-            created_at=session.created_at,
-            last_activity=session.last_activity,
-            message_count=session.message_count
-        )
+
+        # Get company database
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+
+        try:
+            from app.models_company import ChatSession
+
+            # Create new session in company database
+            new_session = ChatSession(
+                user_id=current_user.id,
+                title=session_data.session_name
+            )
+            company_db.add(new_session)
+            company_db.commit()
+            company_db.refresh(new_session)
+
+            return ChatSessionResponse(
+                id=new_session.id,
+                session_name=new_session.title,
+                created_at=new_session.created_at,
+                last_activity=new_session.updated_at,
+                message_count=new_session.message_count
+            )
+        finally:
+            company_db.close()
+
     except Exception as e:
         logging.error(f"Failed to create chat session: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create chat session"
+            detail=f"Failed to create chat session: {str(e)}"
         )
 
 @router.get("/chat/sessions", response_model=List[ChatSessionResponse])
@@ -76,17 +89,37 @@ async def get_chat_sessions(
         company = db.query(Company).filter(Company.id == current_user.company_id).first()
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
-            
-        sessions = ai_service.get_user_chat_sessions(
-            user_id=current_user.id,
-            company_id=company.id
-        )
-        return sessions
+
+        # Get company database
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+
+        try:
+            from app.models_company import ChatSession
+
+            # Get sessions from company database
+            sessions = company_db.query(ChatSession).filter(
+                ChatSession.user_id == current_user.id
+            ).order_by(ChatSession.updated_at.desc()).all()
+
+            return [
+                ChatSessionResponse(
+                    id=session.id,
+                    session_name=session.title,
+                    created_at=session.created_at,
+                    last_activity=session.updated_at,
+                    message_count=session.message_count
+                )
+                for session in sessions
+            ]
+        finally:
+            company_db.close()
+
     except Exception as e:
         logging.error(f"Failed to get chat sessions: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get chat sessions"
+            detail=f"Failed to get chat sessions: {str(e)}"
         )
 
 @router.post("/chat/messages", response_model=ChatMessageResponse)
@@ -159,32 +192,36 @@ async def send_chat_message(
                     ai_response_time=response_time
                 )
             else:
-                # No documents in session - use general company context
-                company_context = {
-                    "company_name": company.name,
-                    "company_industry": getattr(company, 'industry', 'General'),
-                    "user_role": current_user.role,
-                    "user_department": getattr(current_user, 'department', 'General')
-                }
-
-                # Process message with AI service
-                response = ai_service.process_chat_message(
-                    user_id=current_user.id,
-                    company_id=company.id,
-                    session_id=message_data.session_id,
-                    message=message_data.message,
-                    message_type=message_data.message_type,
-                    company_context=company_context
+                # No documents in session - provide general assistant message
+                answer_text = (
+                    "I'm here to help! To get started, you can:\n\n"
+                    "1. **Upload a document** using the attachment button and ask questions about it\n"
+                    "2. **Ask general questions** about your company or documents\n\n"
+                    "Once you upload a document, I'll be able to answer specific questions about its content."
                 )
 
+                # Store in chat history
+                chat_entry = ChatHistory(
+                    session_id=message_data.session_id,
+                    user_id=current_user.id,
+                    question=message_data.message,
+                    answer=answer_text
+                )
+                company_db.add(chat_entry)
+                company_db.commit()
+                company_db.refresh(chat_entry)
+
+                end_time = datetime.utcnow()
+                response_time = (end_time - start_time).total_seconds()
+
                 return ChatMessageResponse(
-                    id=response.get("id"),
-                    session_id=response.get("session_id"),
-                    message=response.get("message"),
-                    response=response.get("response"),
-                    message_type=response.get("message_type"),
-                    timestamp=response.get("timestamp"),
-                    ai_response_time=response.get("ai_response_time")
+                    id=chat_entry.id,
+                    session_id=message_data.session_id,
+                    message=message_data.message,
+                    response=answer_text,
+                    message_type=message_data.message_type,
+                    timestamp=chat_entry.created_at,
+                    ai_response_time=response_time
                 )
         finally:
             company_db.close()
@@ -208,18 +245,50 @@ async def get_chat_messages(
         company = db.query(Company).filter(Company.id == current_user.company_id).first()
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
-            
-        messages = ai_service.get_chat_session_messages(
-            session_id=session_id,
-            user_id=current_user.id,
-            company_id=company.id
-        )
-        return messages
+
+        # Get company database
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+
+        try:
+            from app.models_company import ChatHistory, ChatSession
+
+            # Verify session exists and belongs to user
+            session = company_db.query(ChatSession).filter(
+                ChatSession.id == session_id,
+                ChatSession.user_id == current_user.id
+            ).first()
+
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            # Get chat history for this session
+            messages = company_db.query(ChatHistory).filter(
+                ChatHistory.session_id == session_id
+            ).order_by(ChatHistory.created_at).all()
+
+            return [
+                ChatMessageResponse(
+                    id=msg.id,
+                    session_id=msg.session_id,
+                    message=msg.question,
+                    response=msg.answer,
+                    message_type='text',
+                    timestamp=msg.created_at,
+                    ai_response_time=0.0  # Not tracked yet
+                )
+                for msg in messages
+            ]
+        finally:
+            company_db.close()
+
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Failed to get chat messages: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get chat messages"
+            detail=f"Failed to get chat messages: {str(e)}"
         )
 
 @router.post("/chat/ask-about-document")
@@ -366,18 +435,37 @@ async def delete_chat_session(
         company = db.query(Company).filter(Company.id == current_user.company_id).first()
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
-            
-        ai_service.delete_chat_session(
-            session_id=session_id,
-            user_id=current_user.id,
-            company_id=company.id
-        )
-        return {"message": "Chat session deleted successfully"}
+
+        # Get company database
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+
+        try:
+            from app.models_company import ChatSession
+
+            # Find and delete session
+            session = company_db.query(ChatSession).filter(
+                ChatSession.id == session_id,
+                ChatSession.user_id == current_user.id
+            ).first()
+
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            company_db.delete(session)
+            company_db.commit()
+
+            return {"message": "Chat session deleted successfully"}
+        finally:
+            company_db.close()
+
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Failed to delete chat session: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete chat session"
+            detail=f"Failed to delete chat session: {str(e)}"
         )
 
 @router.post("/chat/ask-about-document-id")
