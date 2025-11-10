@@ -95,40 +95,100 @@ async def send_chat_message(
     current_user: User = Depends(get_current_company_user),
     db: Session = Depends(get_db)
 ):
-    """Send a message to AI Assistant and get response"""
+    """Send a message to AI Assistant and get response.
+    If the session has uploaded documents, answers will be grounded in those documents.
+    Otherwise, provides general company assistance."""
     try:
         # Get company from user's company_id
         company = db.query(Company).filter(Company.id == current_user.company_id).first()
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
-            
-        # Get company context for AI
-        company_context = {
-            "company_name": company.name,
-            "company_industry": getattr(company, 'industry', 'General'),
-            "user_role": current_user.role,
-            "user_department": getattr(current_user, 'department', 'General')
-        }
-        
-        # Process message with AI service
-        response = ai_service.process_chat_message(
-            user_id=current_user.id,
-            company_id=company.id,
-            session_id=message_data.session_id,
-            message=message_data.message,
-            message_type=message_data.message_type,
-            company_context=company_context
-        )
-        
-        return ChatMessageResponse(
-            id=response.get("id"),
-            session_id=response.get("session_id"),
-            message=response.get("message"),
-            response=response.get("response"),
-            message_type=response.get("message_type"),
-            timestamp=response.get("timestamp"),
-            ai_response_time=response.get("ai_response_time")
-        )
+
+        # Get company database connection
+        company_db_gen = db_manager.get_company_db(str(company.id), str(company.database_url))
+        company_db = next(company_db_gen)
+
+        try:
+            # Check if this session has documents uploaded
+            from app.models_document_analysis import ChatDocument
+            from app.models_company import ChatHistory
+
+            session_documents = company_db.query(ChatDocument).filter(
+                ChatDocument.user_id == current_user.id,
+                ChatDocument.metadata_json.contains({"session_id": message_data.session_id})
+            ).all()
+
+            start_time = datetime.utcnow()
+
+            # If session has documents, answer using document content
+            if session_documents and len(session_documents) > 0:
+                # Combine all document content
+                combined_context = ""
+                for doc in session_documents:
+                    if doc.extracted_text:
+                        combined_context += f"\n\n=== Document: {doc.filename} ===\n{doc.extracted_text}"
+
+                # Answer question using Anthropic service with document context
+                if combined_context.strip():
+                    answer_text = await anthropic_service.answer_question(combined_context, message_data.message)
+                else:
+                    answer_text = "I found documents in this session, but couldn't extract their content. Please try re-uploading the document."
+
+                # Store in chat history
+                chat_entry = ChatHistory(
+                    session_id=message_data.session_id,
+                    user_id=current_user.id,
+                    question=message_data.message,
+                    answer=answer_text,
+                    document_id=session_documents[0].id if len(session_documents) == 1 else None,
+                    document_name=", ".join([d.filename for d in session_documents[:3]])
+                )
+                company_db.add(chat_entry)
+                company_db.commit()
+
+                end_time = datetime.utcnow()
+                response_time = (end_time - start_time).total_seconds()
+
+                return ChatMessageResponse(
+                    id=chat_entry.id,
+                    session_id=message_data.session_id,
+                    message=message_data.message,
+                    response=answer_text,
+                    message_type=message_data.message_type,
+                    timestamp=chat_entry.created_at,
+                    ai_response_time=response_time
+                )
+            else:
+                # No documents in session - use general company context
+                company_context = {
+                    "company_name": company.name,
+                    "company_industry": getattr(company, 'industry', 'General'),
+                    "user_role": current_user.role,
+                    "user_department": getattr(current_user, 'department', 'General')
+                }
+
+                # Process message with AI service
+                response = ai_service.process_chat_message(
+                    user_id=current_user.id,
+                    company_id=company.id,
+                    session_id=message_data.session_id,
+                    message=message_data.message,
+                    message_type=message_data.message_type,
+                    company_context=company_context
+                )
+
+                return ChatMessageResponse(
+                    id=response.get("id"),
+                    session_id=response.get("session_id"),
+                    message=response.get("message"),
+                    response=response.get("response"),
+                    message_type=response.get("message_type"),
+                    timestamp=response.get("timestamp"),
+                    ai_response_time=response.get("ai_response_time")
+                )
+        finally:
+            company_db.close()
+
     except Exception as e:
         logging.error(f"Failed to process chat message: {str(e)}")
         raise HTTPException(
