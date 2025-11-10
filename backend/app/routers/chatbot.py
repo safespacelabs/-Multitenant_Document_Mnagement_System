@@ -543,17 +543,17 @@ async def chat_with_bot(
     company_id = getattr(current_user, 'company_id', None)
     if not company_id:
         raise HTTPException(status_code=400, detail="User not associated with a company")
-    
+
     company = management_db.query(models.Company).filter(
         models.Company.id == company_id
     ).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
-    
+
     # Get company database connection
     company_db_gen = get_company_db(str(company.id), str(company.database_url))
     company_db = next(company_db_gen)
-    
+
     try:
         # Get or create session
         session_id = chat_request.session_id
@@ -579,14 +579,43 @@ async def chat_with_bot(
             company_db.flush()  # Get the session ID without committing
             session_id = session.id
 
-        # Enhanced chatbot with RAG service, document analysis integration
-        answer, context_documents = await process_enhanced_chat_query(
-            query=chat_request.question,
-            current_user=current_user,
-            company_db=company_db,
-            company_id=str(company.id),
-            document_ids=chat_request.document_ids
-        )
+        # CHECK FOR SESSION DOCUMENTS FIRST (from upload-and-ask)
+        from app.models_document_analysis import ChatDocument
+        from app.services.anthropic_service import anthropic_service
+
+        session_documents = company_db.query(ChatDocument).filter(
+            ChatDocument.user_id == current_user.id,
+            ChatDocument.metadata_json.contains({"session_id": session_id})
+        ).all()
+
+        # If session has uploaded documents, answer from those documents
+        if session_documents and len(session_documents) > 0:
+            logger.info(f"📄 Found {len(session_documents)} documents in session {session_id}, using Anthropic for answer")
+
+            # Combine all document content
+            combined_context = ""
+            context_doc_names = []
+            for doc in session_documents:
+                if doc.extracted_text:
+                    combined_context += f"\n\n=== Document: {doc.filename} ===\n{doc.extracted_text}"
+                    context_doc_names.append(doc.filename)
+
+            if combined_context.strip():
+                # Answer using Anthropic with document context
+                answer = await anthropic_service.answer_question(combined_context, chat_request.question)
+                context_documents = context_doc_names
+            else:
+                answer = "I found documents in this session, but couldn't extract their content. Please try re-uploading."
+                context_documents = []
+        else:
+            # No session documents - use enhanced chat query (RAG, I9, etc.)
+            answer, context_documents = await process_enhanced_chat_query(
+                query=chat_request.question,
+                current_user=current_user,
+                company_db=company_db,
+                company_id=str(company.id),
+                document_ids=chat_request.document_ids
+            )
 
         # Save chat history linked to session
         chat_history = CompanyChatHistory(
