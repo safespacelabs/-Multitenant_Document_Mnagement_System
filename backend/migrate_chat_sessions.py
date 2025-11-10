@@ -13,7 +13,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from sqlalchemy import create_engine, text, inspect
 from app.database import get_management_db
 from app import models
-from app.models_company import Base as CompanyBase, ChatSession, ChatHistory
+from app.models_company import CompanyBase, ChatSession, ChatHistory
 import logging
 
 logging.basicConfig(level=logging.INFO)
