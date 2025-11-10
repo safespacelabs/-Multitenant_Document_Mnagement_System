@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, String
+from sqlalchemy.orm.attributes import flag_modified
 from typing import List, Optional
 import json
 import logging
@@ -143,20 +144,77 @@ async def send_chat_message(
         company_db = next(company_db_gen)
 
         try:
-            # Check if this session has documents uploaded
+            # Check if this session has documents uploaded (both regular and chunked)
             from app.models_document_analysis import ChatDocument
+            from app.models_chunked_documents import ChunkedDocument
             from app.models_company import ChatHistory
 
-            # Cast JSON to text and search for session_id
+            # Check for regular documents
             session_documents = company_db.query(ChatDocument).filter(
                 ChatDocument.user_id == current_user.id,
                 cast(ChatDocument.metadata_json, String).like(f'%"session_id": "{message_data.session_id}"%')
             ).all()
 
+            # Check for chunked documents (large PDFs)
+            chunked_documents = company_db.query(ChunkedDocument).filter(
+                ChunkedDocument.user_id == current_user.id,
+                cast(ChunkedDocument.metadata_json, String).like(f'%"session_id": "{message_data.session_id}"%'),
+                ChunkedDocument.is_active == True
+            ).all()
+
+            print(f"🔍 Session {message_data.session_id}: Found {len(session_documents)} regular docs, {len(chunked_documents)} chunked docs")
+
             start_time = datetime.utcnow()
 
-            # If session has documents, answer using document content
-            if session_documents and len(session_documents) > 0:
+            # If session has chunked documents, use multi-chunk search
+            if chunked_documents and len(chunked_documents) > 0:
+                print(f"✅ Using chunked document: {chunked_documents[0].filename} ({chunked_documents[0].total_chunks} chunks)")
+                # Use the first chunked document (users typically upload one large doc per session)
+                chunked_doc = chunked_documents[0]
+
+                # Search across all chunks for the answer
+                search_result = await chunked_document_service.search_across_chunks(
+                    chunked_document_id=chunked_doc.id,
+                    query=message_data.message,
+                    company_db=company_db
+                )
+
+                if 'error' in search_result:
+                    answer_text = f"I found your document '{chunked_doc.filename}', but encountered an error searching it: {search_result['error']}"
+                else:
+                    answer_text = search_result['answer']
+
+                # Store in chat history
+                chat_entry = ChatHistory(
+                    session_id=message_data.session_id,
+                    user_id=current_user.id,
+                    question=message_data.message,
+                    answer=answer_text,
+                    context_documents={
+                        "document_id": chunked_doc.id,
+                        "filename": chunked_doc.filename,
+                        "is_chunked": True,
+                        "total_chunks": chunked_doc.total_chunks,
+                        "search_method": search_result.get('search_method', 'multi_chunk_search')
+                    }
+                )
+                company_db.add(chat_entry)
+                company_db.commit()
+
+                end_time = datetime.utcnow()
+                response_time = (end_time - start_time).total_seconds()
+
+                return ChatMessageResponse(
+                    id=chat_entry.id,
+                    session_id=message_data.session_id,
+                    message=message_data.message,
+                    response=answer_text,
+                    message_type=message_data.message_type,
+                    timestamp=chat_entry.created_at,
+                    ai_response_time=response_time
+                )
+            # If session has regular documents, answer using document content
+            elif session_documents and len(session_documents) > 0:
                 # Combine all document content
                 combined_context = ""
                 for doc in session_documents:
@@ -719,7 +777,10 @@ async def upload_and_ask(
                             metadata = chunked_doc.metadata_json or {}
                             metadata['session_id'] = session_id
                             chunked_doc.metadata_json = metadata
+                            # Mark the JSON field as modified so SQLAlchemy detects the change
+                            flag_modified(chunked_doc, 'metadata_json')
                             company_db.commit()
+                            print(f"✅ Linked chunked document {chunked_document_id} to session {session_id}")
 
                     # Search across all chunks for the answer
                     search_result = await chunked_document_service.search_across_chunks(
