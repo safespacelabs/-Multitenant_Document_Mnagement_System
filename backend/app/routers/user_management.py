@@ -141,6 +141,12 @@ async def invite_user(
         }
         
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"[ERROR] Full exception in invite_user:")
+        print(error_traceback)
+        print(f"[ERROR] Exception type: {type(e).__name__}")
+        print(f"[ERROR] Exception message: {str(e)}")
         company_db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create invitation: {str(e)}")
     finally:
