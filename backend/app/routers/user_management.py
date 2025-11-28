@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Union
 from datetime import datetime, timedelta
 import secrets
+import uuid
 
 from app.database import get_management_db, get_company_db
 from app import models, schemas, auth
@@ -98,7 +99,11 @@ async def invite_user(
             raise HTTPException(status_code=400, detail="Invitation already sent to this email")
         
         # Create invitation in company database
+        # Generate unique_id for invitation link
+        unique_id = secrets.token_urlsafe(32)
+
         invitation = CompanyUserInvitation(
+            unique_id=unique_id,
             email=invite_data.email,
             full_name=invite_data.full_name,
             role=invite_data.role.value,
@@ -118,19 +123,21 @@ async def invite_user(
                 company_name=company.name,
                 inviter_name=current_user.full_name,
                 role=invite_data.role.value,
-                invitation_link=f"https://multitenant-frontend.onrender.com/company-login?invitation={invitation.id}"
+                invitation_link=f"https://multitenant-frontend.onrender.com/company-login?invitation={invitation.unique_id}"
             )
         except Exception as e:
             print(f"Warning: Failed to send invitation email: {str(e)}")
         
         return {
             "id": str(invitation.id),
+            "unique_id": str(invitation.unique_id),
             "email": invitation.email,
             "full_name": invitation.full_name,
             "role": invitation.role,
-            "company_id": str(invitation.company_id),
-            "created_at": invitation.created_at,
-            "expires_at": invitation.expires_at
+            "created_by": str(invitation.created_by),
+            "expires_at": invitation.expires_at,
+            "is_used": invitation.is_used,
+            "created_at": invitation.created_at
         }
         
     except Exception as e:

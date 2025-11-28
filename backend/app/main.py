@@ -15,15 +15,15 @@ from app.config import get_cors_origins, ENVIRONMENT, IS_DEVELOPMENT, IS_PRODUCT
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("🚀 Starting Multi-Tenant Document Management System")
+    print("[STARTUP] Starting Multi-Tenant Document Management System")
     
     # Create management database tables
-    print("📊 Creating management database tables...")
+    print("[DB] Creating management database tables...")
     models.Base.metadata.create_all(bind=db_manager.management_engine)
     
     yield
     # Shutdown
-    print("🛑 Shutting down...")
+    print("[SHUTDOWN] Shutting down...")
 
 app = FastAPI(
     title="Multi-Tenant Document Management System",
@@ -34,7 +34,7 @@ app = FastAPI(
 
 # CORS middleware - environment-aware configuration
 cors_origins = get_cors_origins()
-print(f"🚀 Running in {ENVIRONMENT} mode")
+print(f"[MODE] Running in {ENVIRONMENT} mode")
 
 # Add CORS middleware with explicit configuration
 app.add_middleware(
@@ -55,25 +55,25 @@ async def ensure_cors_headers(request, call_next):
     method = request.method
     path = request.url.path
     
-    print(f"🔍 CORS Middleware - Method: {method}, Path: {path}")
-    print(f"🔍 CORS Middleware - Origin: {origin}, Environment: {ENVIRONMENT}, IS_PRODUCTION: {IS_PRODUCTION}")
-    print(f"🔍 Allowed CORS origins: {cors_origins}")
+    print(f"[CORS] Middleware - Method: {method}, Path: {path}")
+    print(f"[CORS] Middleware - Origin: {origin}, Environment: {ENVIRONMENT}, IS_PRODUCTION: {IS_PRODUCTION}")
+    print(f"[CORS] Allowed CORS origins: {cors_origins}")
     
     # Handle preflight requests
     if method == "OPTIONS":
-        print(f"🚀 Handling OPTIONS preflight request for path: {path}")
+        print(f"[CORS] Handling OPTIONS preflight request for path: {path}")
         # Always allow preflight for production
         if IS_PRODUCTION:
             allowed_origin = origin if origin in cors_origins else "https://multitenant-frontend.onrender.com"
-            print(f"✅ Preflight: Production mode - allowing origin {allowed_origin}")
+            print(f"[OK] Preflight: Production mode - allowing origin {allowed_origin}")
         else:
             # Check if origin is allowed
             if origin in cors_origins:
                 allowed_origin = origin
-                print(f"✅ Preflight: Origin {origin} is in allowed CORS origins")
+                print(f"[OK] Preflight: Origin {origin} is in allowed CORS origins")
             else:
                 # Origin not allowed
-                print(f"❌ Preflight: Origin {origin} not in allowed origins")
+                print(f"[WARN] Preflight: Origin {origin} not in allowed origins")
                 allowed_origin = cors_origins[0] if cors_origins else "https://multitenant-frontend.onrender.com"
             
         headers = {
@@ -83,7 +83,7 @@ async def ensure_cors_headers(request, call_next):
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Max-Age": "3600"
         }
-        print(f"📤 Sending preflight response with headers: {headers}")
+        print(f"[CORS] Sending preflight response with headers: {headers}")
         return Response(content="", status_code=200, headers=headers)
     
     response = await call_next(request)
@@ -96,17 +96,17 @@ async def ensure_cors_headers(request, call_next):
         else:
             response.headers["Access-Control-Allow-Origin"] = "https://multitenant-frontend.onrender.com"
         response.headers["Access-Control-Allow-Credentials"] = "true"
-        print(f"✅ Production mode: set CORS headers for origin {origin}")
+        print(f"[OK] Production mode: set CORS headers for origin {origin}")
     elif origin in cors_origins:
         # Origin is explicitly allowed
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
-        print(f"✅ Added CORS headers for origin {origin}")
+        print(f"[OK] Added CORS headers for origin {origin}")
     else:
         # Origin not allowed or development mode
-        print(f"❌ Not setting CORS headers for origin: '{origin}'")
+        print(f"[WARN] Not setting CORS headers for origin: '{origin}'")
     
-    print(f"📤 Final response headers: {dict(response.headers)}")
+    print(f"[CORS] Final response headers: {dict(response.headers)}")
     return response
 
 # Test endpoint to verify CORS is working
@@ -227,32 +227,32 @@ async def test_document_enhanced():
     }
 
 # Include routers
-print("🔧 Including API routers...")
+print("[SETUP] Including API routers...")
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-print("✅ Auth router included")
+print("[OK] Auth router included")
 app.include_router(companies.router, prefix="/api/companies", tags=["Companies"])
-print("✅ Companies router included")
+print("[OK] Companies router included")
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
-print("✅ Users router included")
+print("[OK] Users router included")
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
-print("✅ Documents router included")
+print("[OK] Documents router included")
 app.include_router(chatbot.router, prefix="/api/chat", tags=["Chatbot"])
-print("✅ Chatbot router included")
+print("[OK] Chatbot router included")
 app.include_router(user_management.router, prefix="/api/user-management", tags=["User Management"])
-print("✅ User Management router included")
+print("[OK] User Management router included")
 app.include_router(esignature.router, prefix="/api", tags=["E-Signature"])
-print("✅ E-Signature router included")
+print("[OK] E-Signature router included")
 
 # AI Assistant routes (router already defines its own prefix)
 app.include_router(ai_assistant.router)
-print("✅ AI Assistant router included")
+print("[OK] AI Assistant router included")
 
 # Import and include HR admin router
 # from app.routers import hr_admin # This line is removed as per the edit hint
 app.include_router(hr_admin.router, prefix="/api/hr-admin", tags=["HR Admin"])
 app.include_router(hr_user_folders.router, prefix="/api/hr-user-folders", tags=["HR User Folders"])
-print("✅ HR Admin router included")
-print("🔧 All routers included successfully!")
+print("[OK] HR Admin router included")
+print("[SETUP] All routers included successfully!")
 
 @app.get("/")
 async def root():

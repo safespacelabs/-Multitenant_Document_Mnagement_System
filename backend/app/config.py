@@ -57,16 +57,16 @@ IS_PRODUCTION = ENVIRONMENT == "production"
 IS_DEVELOPMENT = ENVIRONMENT == "development"
 
 # Debug environment detection
-print(f"🔍 Environment detection: ENVIRONMENT={ENVIRONMENT}, IS_PRODUCTION={IS_PRODUCTION}, IS_DEVELOPMENT={IS_DEVELOPMENT}")
+print(f"[ENV] Environment detection: ENVIRONMENT={ENVIRONMENT}, IS_PRODUCTION={IS_PRODUCTION}, IS_DEVELOPMENT={IS_DEVELOPMENT}")
 
 # Force production mode for Render deployment
 if not IS_PRODUCTION:
-    print("⚠️  WARNING: Not in production mode, forcing production configuration for Render deployment")
+    print("[WARNING] Not in production mode, forcing production configuration for Render deployment")
     IS_PRODUCTION = True
     IS_DEVELOPMENT = False
     ENVIRONMENT = "production"
 
-print("🚀 Running in PRODUCTION mode for Render deployment")
+print("[PROD] Running in PRODUCTION mode for Render deployment")
 
 # CORS origins function - Production only for Render
 def get_cors_origins():
@@ -85,7 +85,7 @@ def get_cors_origins():
             if cleaned_origin:  # Only add non-empty origins
                 custom_origins.append(cleaned_origin)
         
-        print(f"🔧 CORS Origins from environment variable: {custom_origins}")
+        print(f"[CORS] Origins from environment variable: {custom_origins}")
         return custom_origins
     
     # Production-only origins for Render deployment
@@ -96,7 +96,7 @@ def get_cors_origins():
         "http://127.0.0.1:3000",  # Allow local development
         "http://127.0.0.1:3001"   # Allow local development
     ]
-    print(f"🔧 Using production-only CORS origins for Render: {production_origins}")
+    print(f"[CORS] Using production-only CORS origins for Render: {production_origins}")
     return production_origins
 
 # Settings class for new structured approach (optional)
