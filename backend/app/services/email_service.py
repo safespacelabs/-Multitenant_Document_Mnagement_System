@@ -226,6 +226,160 @@ Having trouble? Copy and paste this link into your browser:
 {setup_link}
         """
 
+    async def send_user_invitation(
+        self,
+        to_email: str,
+        company_name: str,
+        inviter_name: str,
+        role: str,
+        invitation_link: str
+    ) -> bool:
+        """
+        Send user invitation email (simplified interface)
+        This method matches the signature used in user_management.py
+        """
+        try:
+            # Create message
+            message = MIMEMultipart("alternative")
+            message["Subject"] = f"You've been invited to join {company_name}!"
+            message["From"] = f"{self.sender_name} <{self.sender_email}>"
+            message["To"] = to_email
+
+            # Create HTML email template
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Invitation to {company_name}</title>
+            </head>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white; border-radius: 10px 10px 0 0;">
+                    <h1 style="margin: 0; font-size: 28px;">You're Invited!</h1>
+                    <p style="margin: 10px 0 0 0; font-size: 18px;">Join {company_name}</p>
+                </div>
+
+                <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
+                    <p style="font-size: 18px; margin-bottom: 20px;">Hello!</p>
+
+                    <p style="margin-bottom: 20px;">
+                        <strong>{inviter_name}</strong> has invited you to join <strong>{company_name}</strong>
+                        as a <strong>{role.replace('_', ' ').title()}</strong> in the Document Management System.
+                    </p>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{invitation_link}"
+                           style="background: #28a745; color: white; padding: 15px 30px; text-decoration: none;
+                                  border-radius: 5px; font-size: 18px; font-weight: bold; display: inline-block;">
+                            Set Up Your Account
+                        </a>
+                    </div>
+
+                    <h3 style="color: #495057;">What's Next?</h3>
+                    <ol style="color: #6c757d;">
+                        <li>Click the "Set Up Your Account" button above</li>
+                        <li>Create your username and secure password</li>
+                        <li>Start managing and collaborating on documents!</li>
+                    </ol>
+
+                    <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
+
+                    <p style="font-size: 14px; color: #6c757d;">
+                        Having trouble with the button? Copy and paste this link into your browser:<br>
+                        <a href="{invitation_link}" style="color: #007bff;">{invitation_link}</a>
+                    </p>
+
+                    <p style="font-size: 14px; color: #6c757d; margin-top: 30px;">
+                        Best regards,<br>
+                        The {company_name} Team
+                    </p>
+                </div>
+            </body>
+            </html>
+            """
+
+            # Create plain text version
+            text_content = f"""
+Hello!
+
+{inviter_name} has invited you to join {company_name} as a {role.replace('_', ' ').title()} in the Document Management System.
+
+TO SET UP YOUR ACCOUNT:
+Visit this link: {invitation_link}
+
+What's Next?
+1. Click the link above to set up your account
+2. Create your username and secure password
+3. Start managing and collaborating on documents!
+
+If you have any questions, please contact your administrator.
+
+Best regards,
+The {company_name} Team
+
+---
+Having trouble? Copy and paste this link into your browser:
+{invitation_link}
+            """
+
+            # Attach parts
+            text_part = MIMEText(text_content, "plain")
+            html_part = MIMEText(html_content, "html")
+
+            message.attach(text_part)
+            message.attach(html_part)
+
+            # Send email with better error handling
+            context = ssl.create_default_context()
+
+            # Debug connection info
+            print(f"[EMAIL] Attempting to send invitation via {self.smtp_server}:{self.smtp_port}")
+            print(f"[EMAIL] From: {self.sender_email} to: {to_email}")
+
+            server = None
+            try:
+                # Create SMTP connection
+                server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+                print(f"[OK] SMTP connection established")
+
+                # Start TLS
+                server.starttls(context=context)
+                print(f"[OK] TLS started")
+
+                # Login
+                server.login(self.sender_email, self.sender_password)
+                print(f"[OK] SMTP login successful")
+
+                # Send email
+                server.sendmail(self.sender_email, to_email, message.as_string())
+                print(f"[OK] Email sent successfully to {to_email}")
+
+                server.quit()
+                return True
+
+            except smtplib.SMTPAuthenticationError as e:
+                print(f"[ERROR] SMTP Authentication failed: {str(e)}")
+                print(f"[INFO] Check your email credentials in .env file")
+                if server:
+                    server.quit()
+                return False
+
+            except smtplib.SMTPConnectError as e:
+                print(f"[ERROR] SMTP Connection failed: {str(e)}")
+                print(f"[INFO] Check your SMTP server settings: {self.smtp_server}:{self.smtp_port}")
+                return False
+
+            except smtplib.SMTPException as e:
+                print(f"[ERROR] SMTP Error: {str(e)}")
+                if server:
+                    server.quit()
+                return False
+
+        except Exception as e:
+            print(f"[ERROR] Failed to send invitation email to {to_email}: {str(e)}")
+            print(f"[INFO] Full error: {type(e).__name__}: {str(e)}")
+            return False
+
 
 # Create a global instance
 email_service = EmailService()
