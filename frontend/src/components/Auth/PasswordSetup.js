@@ -48,9 +48,9 @@ const PasswordSetup = () => {
   const fetchInvitationDetails = async () => {
     try {
       const response = await userManagementAPI.getInvitationDetails(uniqueId);
-      setInvitationData(response.data);
+      setInvitationData(response);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Invalid or expired invitation link');
+      setError(err.message || 'Invalid or expired invitation link');
     } finally {
       setLoading(false);
     }
@@ -96,13 +96,13 @@ const PasswordSetup = () => {
         username: setupForm.username,
         password: setupForm.password
       });
-      
+
       setSuccess(true);
       setTimeout(() => {
         navigate('/login');
       }, 3000);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to set password');
+      setError(err.message || 'Failed to set password');
     } finally {
       setLoading(false);
     }

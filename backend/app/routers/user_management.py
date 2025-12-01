@@ -4,6 +4,7 @@ from typing import List, Optional, Union
 from datetime import datetime, timedelta
 import secrets
 import uuid
+import os
 
 from app.database import get_management_db, get_company_db
 from app import models, schemas, auth
@@ -118,14 +119,19 @@ async def invite_user(
 
         # Send invitation email
         try:
+            # Get the frontend URL from environment variable (fallback to production URL)
+            app_url = os.getenv("APP_URL", "https://multitenant-frontend.onrender.com").rstrip('/')
+            invitation_link = f"{app_url}/setup-password/{invitation.unique_id}"
+
             await email_service.send_user_invitation(
                 to_email=invite_data.email,
                 company_name=company.name,
                 inviter_name=current_user.full_name,
                 role=invite_data.role.value,
-                invitation_link=f"https://multitenant-frontend.onrender.com/setup-password/{invitation.unique_id}"
+                invitation_link=invitation_link
             )
             print(f"[SUCCESS] Invitation email sent to {invite_data.email}")
+            print(f"[INFO] Invitation link: {invitation_link}")
         except Exception as e:
             print(f"[ERROR] Failed to send invitation email to {invite_data.email}: {str(e)}")
             import traceback
