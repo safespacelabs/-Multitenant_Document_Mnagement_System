@@ -89,7 +89,7 @@ async def invite_user(
         ).first()
         if existing_user:
             raise HTTPException(status_code=400, detail="Email already registered")
-        
+
         # Check if invitation already exists
         existing_invite = company_db.query(CompanyUserInvitation).filter(
             CompanyUserInvitation.email == invite_data.email,
@@ -97,7 +97,7 @@ async def invite_user(
         ).first()
         if existing_invite:
             raise HTTPException(status_code=400, detail="Invitation already sent to this email")
-        
+
         # Create invitation in company database
         # Generate unique_id for invitation link
         unique_id = secrets.token_urlsafe(32)
@@ -111,11 +111,11 @@ async def invite_user(
             created_by=current_user.id,
             expires_at=datetime.utcnow() + timedelta(days=7)
         )
-        
+
         company_db.add(invitation)
         company_db.commit()
         company_db.refresh(invitation)
-        
+
         # Send invitation email
         try:
             await email_service.send_user_invitation(
@@ -123,11 +123,15 @@ async def invite_user(
                 company_name=company.name,
                 inviter_name=current_user.full_name,
                 role=invite_data.role.value,
-                invitation_link=f"https://multitenant-frontend.onrender.com/company-login?invitation={invitation.unique_id}"
+                invitation_link=f"https://multitenant-frontend.onrender.com/setup-password/{invitation.unique_id}"
             )
+            print(f"[SUCCESS] Invitation email sent to {invite_data.email}")
         except Exception as e:
-            print(f"Warning: Failed to send invitation email: {str(e)}")
-        
+            print(f"[ERROR] Failed to send invitation email to {invite_data.email}: {str(e)}")
+            import traceback
+            print(f"[ERROR] Email error traceback:")
+            print(traceback.format_exc())
+
         return {
             "id": str(invitation.id),
             "unique_id": str(invitation.unique_id),
@@ -139,11 +143,15 @@ async def invite_user(
             "is_used": invitation.is_used,
             "created_at": invitation.created_at
         }
-        
+
+    except HTTPException:
+        # Re-raise HTTPException as-is (don't convert to 500)
+        company_db.rollback()
+        raise
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
-        print(f"[ERROR] Full exception in invite_user:")
+        print(f"[ERROR] Unexpected exception in invite_user:")
         print(error_traceback)
         print(f"[ERROR] Exception type: {type(e).__name__}")
         print(f"[ERROR] Exception message: {str(e)}")

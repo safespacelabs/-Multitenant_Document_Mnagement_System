@@ -522,12 +522,45 @@ const userManagementAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch permissions');
     }
-    
+
+    return response.json();
+  },
+
+  getInvitationDetails: async (uniqueId) => {
+    const response = await fetch(buildApiUrl(`/api/user-management/invitation/${uniqueId}`), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Invalid or expired invitation');
+    }
+
+    return response.json();
+  },
+
+  setupPassword: async (setupData) => {
+    const response = await fetch(buildApiUrl('/api/user-management/setup-password'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(setupData)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to set password');
+    }
+
     return response.json();
   }
 };
