@@ -40,10 +40,6 @@ services:
     staticPublishPath: ./build
     rootDir: frontend
     plan: free
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
     envVars:
       - key: REACT_APP_API_URL
         value: https://multitenant-backend-mlap.onrender.com
