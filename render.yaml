@@ -37,7 +37,7 @@ services:
     name: multitenant-frontend
     env: static
     buildCommand: "npm install && npm run build:prod"
-    staticPublishPath: ./build
+    staticPublishPath: build
     rootDir: frontend
     plan: free
     envVars:
