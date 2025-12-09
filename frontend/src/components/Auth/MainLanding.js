@@ -166,7 +166,8 @@ const MainLanding = () => {
             </div>
           </div>
 
-          {/* Company Access Row */}
+          {/* Company Access Row - HIDDEN: Company login is accessible via direct URL only */}
+          {/*
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1.5 shadow-lg">
             <div className="bg-white rounded-lg shadow-md overflow-hidden border border-blue-100">
               <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4">
@@ -184,11 +185,10 @@ const MainLanding = () => {
                     Enter Your Company ID
                   </h4>
                   <p className="text-base text-gray-600 mb-6 max-w-xl mx-auto">
-                    Access your organization's secure document management portal. 
+                    Access your organization's secure document management portal.
                     Each company operates in complete isolation with role-based access control.
                   </p>
-                  
-                  {/* Company ID Input */}
+
                   <div className="max-w-sm mx-auto mb-6">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -208,7 +208,7 @@ const MainLanding = () => {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="max-w-sm mx-auto space-y-3">
                   <button
                     onClick={handleCompanyAccess}
@@ -232,12 +232,11 @@ const MainLanding = () => {
                       </>
                     )}
                   </button>
-                  
-                                     {/* Direct Company Login Link */}
+
                    <div className="text-center">
                      <span className="text-sm text-gray-600">or</span>
                    </div>
-                   
+
                    <button
                      onClick={() => navigate('/company-login')}
                      className="w-full px-6 py-3 rounded-lg transition-all duration-200 flex items-center justify-center text-base font-semibold shadow-md bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 hover:shadow-lg transform hover:-translate-y-0.5"
@@ -249,9 +248,11 @@ const MainLanding = () => {
               </div>
             </div>
           </div>
+          */}
         </div>
 
-                 {/* Direct Company Login Highlight */}
+                 {/* Quick Company Access - HIDDEN: Company login is accessible via direct URL only */}
+         {/*
          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl shadow-lg p-8 mb-8 border border-green-200">
            <div className="text-center">
              <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
@@ -275,6 +276,7 @@ const MainLanding = () => {
              </button>
            </div>
          </div>
+         */}
 
          {/* How It Works Section */}
          <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-lg p-8">
@@ -343,13 +345,17 @@ const MainLanding = () => {
                   <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
                   <p className="text-sm text-gray-700">Manage documents and collaborate securely</p>
                 </div>
+                {/* HIDDEN: Direct login reference removed from landing page */}
+                {/*
                 <div className="flex items-start space-x-3">
                   <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
                   <p className="text-sm text-gray-700">Use direct login if you know your company</p>
                 </div>
+                */}
               </div>
-              
-              {/* Direct Login Option */}
+
+              {/* Direct Login Option - HIDDEN: Company login accessible via direct URL only */}
+              {/*
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <button
                   onClick={() => navigate('/company-login')}
@@ -358,6 +364,7 @@ const MainLanding = () => {
                   Direct Company Login →
                 </button>
               </div>
+              */}
             </div>
           </div>
 
