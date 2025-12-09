@@ -166,6 +166,46 @@ const MainLanding = () => {
             </div>
           </div>
 
+          {/* Direct Company Login */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1.5 shadow-lg">
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-blue-100">
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4">
+                <div className="flex items-center justify-center">
+                  <Building className="h-7 w-7 mr-3" />
+                  <h3 className="text-xl font-bold">Company Login</h3>
+                </div>
+              </div>
+              <div className="p-8 text-center">
+                <div className="mb-6">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                    <Users className="h-8 w-8 text-blue-600" />
+                  </div>
+                  <h4 className="text-xl font-bold text-gray-900 mb-3">
+                    Company User Access
+                  </h4>
+                  <p className="text-base text-gray-600 mb-4 max-w-xl mx-auto">
+                    Access your organization's secure document management portal.
+                    Login with your company credentials to manage documents and collaborate.
+                  </p>
+                  <div className="flex items-center justify-center text-sm text-gray-500 mb-6">
+                    <Lock className="h-4 w-4 mr-2" />
+                    <span className="font-medium">Secure company-specific access</span>
+                  </div>
+                </div>
+                <div className="max-w-sm mx-auto">
+                  <button
+                    onClick={() => navigate('/company-login')}
+                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center text-base font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                  >
+                    <Building className="h-5 w-5 mr-2" />
+                    Company Login
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Company Access Row - HIDDEN: Company login is accessible via direct URL only */}
           {/*
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1.5 shadow-lg">
