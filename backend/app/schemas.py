@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field
-from datetime import datetime
+from pydantic import BaseModel, EmailStr, Field, validator
+from datetime import datetime, date
 from typing import List, Optional, Any, Dict
 from enum import Enum
 
@@ -599,6 +599,263 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
     full_name: Optional[str] = None
     role: Optional[UserRole] = None
+
+    class Config:
+        from_attributes = True
+
+# Extended User Schemas for comprehensive user management
+
+class UserCreateExtended(BaseModel):
+    """Extended user creation schema with all fields from usertable.csv"""
+
+    # Basic Identity (Required)
+    username: str
+    email: EmailStr
+    first_name: str
+    last_name: str
+    gender: str  # M, F, Male, Female, Other, Not Specified
+
+    # Employment (Required)
+    employee_id: str
+    hire_date: date
+    title: str
+    division: str
+    department: str
+    location: str
+    job_code: str
+    manager: str = "NO_MANAGER"  # Username of manager or 'NO_MANAGER'
+
+    # Address (Required)
+    address_line1: str
+    city: str
+    state: str
+    zip_code: str
+    country: str = "United States"
+
+    # System (Auto-populated or defaults)
+    role: UserRole  # hr_admin, hr_manager, employee, customer
+    timezone: str = "US/Pacific"
+    default_locale: str = "en_US"
+    status: str = "active"
+
+    # Optional Fields
+    middle_initial: Optional[str] = None
+    display_name: Optional[str] = None
+    address_line2: Optional[str] = None
+    business_phone: Optional[str] = None
+    business_fax: Optional[str] = None
+    hr: Optional[str] = None
+    business_unit: Optional[str] = None
+    matrix_manager: Optional[str] = None
+    second_manager: Optional[str] = None
+    custom_manager: Optional[str] = None
+    review_frequency: Optional[str] = None
+    last_review_date: Optional[date] = None
+
+    # Custom Fields (Optional)
+    custom01: Optional[str] = None  # Career Level
+    custom02: Optional[str] = None  # Eligibility Flag
+    custom03: Optional[str] = None  # L04 Org Unit
+    custom04: Optional[str] = None  # L05 Org Unit
+    custom05: Optional[str] = None  # L06 Org Unit
+    custom06: Optional[str] = None  # L07 Org Unit
+    custom07: Optional[str] = None  # L08 Org Unit
+    custom08: Optional[str] = None  # Company
+    custom09: Optional[str] = None  # EESubgroup
+    custom10: Optional[str] = None  # Union
+    custom11: Optional[str] = None
+    custom12: Optional[str] = None
+    custom13: Optional[str] = None
+    custom14: Optional[str] = None
+    custom15: Optional[str] = None
+
+    # Auth & Access (Optional)
+    login_method: Optional[str] = None
+    proxy: Optional[str] = None
+    assignment_id_external: Optional[str] = None
+
+    @validator('email')
+    def email_must_be_lowercase(cls, v):
+        return v.lower()
+
+    @validator('gender')
+    def gender_must_be_valid(cls, v):
+        valid = ['M', 'F', 'Male', 'Female', 'Other', 'Not Specified']
+        if v not in valid:
+            raise ValueError(f'Gender must be one of: {valid}')
+        return v
+
+    class Config:
+        from_attributes = True
+
+
+class UserResponseExtended(BaseModel):
+    """Extended user response schema with all fields"""
+
+    # Existing fields
+    id: str
+    username: str
+    email: str
+    full_name: str
+    role: str
+    company_id: Optional[str] = None
+    created_at: datetime
+    is_active: bool
+
+    # Phase 1: Core Identity & Employment
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    middle_initial: Optional[str] = None
+    gender: Optional[str] = None
+    employee_id: Optional[str] = None
+    status: Optional[str] = None
+    hire_date: Optional[date] = None
+    timezone: Optional[str] = None
+    default_locale: Optional[str] = None
+    display_name: Optional[str] = None
+
+    # Phase 2: Organizational Hierarchy
+    manager: Optional[str] = None
+    division: Optional[str] = None
+    department: Optional[str] = None
+    location: Optional[str] = None
+    job_code: Optional[str] = None
+    title: Optional[str] = None
+    hr: Optional[str] = None
+    business_unit: Optional[str] = None
+    matrix_manager: Optional[str] = None
+    second_manager: Optional[str] = None
+    custom_manager: Optional[str] = None
+
+    # Phase 3: Contact & Address
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    country: Optional[str] = None
+    business_phone: Optional[str] = None
+    business_fax: Optional[str] = None
+
+    # Phase 4: Review & Performance
+    review_frequency: Optional[str] = None
+    last_review_date: Optional[date] = None
+    assignment_uuid: Optional[str] = None
+
+    # Phase 5: Custom Fields
+    custom01: Optional[str] = None
+    custom02: Optional[str] = None
+    custom03: Optional[str] = None
+    custom04: Optional[str] = None
+    custom05: Optional[str] = None
+    custom06: Optional[str] = None
+    custom07: Optional[str] = None
+    custom08: Optional[str] = None
+    custom09: Optional[str] = None
+    custom10: Optional[str] = None
+    custom11: Optional[str] = None
+    custom12: Optional[str] = None
+    custom13: Optional[str] = None
+    custom14: Optional[str] = None
+    custom15: Optional[str] = None
+
+    # Phase 6: Auth & Access
+    login_method: Optional[str] = None
+    proxy: Optional[str] = None
+    assignment_id_external: Optional[str] = None
+
+    # Additional fields
+    s3_folder: Optional[str] = None
+    password_set: Optional[bool] = None
+    created_by: Optional[str] = None
+    unique_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UserUpdateExtended(BaseModel):
+    """Extended user update schema - all fields optional"""
+
+    # Basic fields
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    role: Optional[UserRole] = None
+
+    # Core Identity
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    middle_initial: Optional[str] = None
+    gender: Optional[str] = None
+    employee_id: Optional[str] = None
+    status: Optional[str] = None
+    hire_date: Optional[date] = None
+    timezone: Optional[str] = None
+    default_locale: Optional[str] = None
+    display_name: Optional[str] = None
+
+    # Organizational
+    manager: Optional[str] = None
+    division: Optional[str] = None
+    department: Optional[str] = None
+    location: Optional[str] = None
+    job_code: Optional[str] = None
+    title: Optional[str] = None
+    hr: Optional[str] = None
+    business_unit: Optional[str] = None
+    matrix_manager: Optional[str] = None
+    second_manager: Optional[str] = None
+    custom_manager: Optional[str] = None
+
+    # Address
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    country: Optional[str] = None
+    business_phone: Optional[str] = None
+    business_fax: Optional[str] = None
+
+    # Review & Performance
+    review_frequency: Optional[str] = None
+    last_review_date: Optional[date] = None
+
+    # Custom Fields
+    custom01: Optional[str] = None
+    custom02: Optional[str] = None
+    custom03: Optional[str] = None
+    custom04: Optional[str] = None
+    custom05: Optional[str] = None
+    custom06: Optional[str] = None
+    custom07: Optional[str] = None
+    custom08: Optional[str] = None
+    custom09: Optional[str] = None
+    custom10: Optional[str] = None
+    custom11: Optional[str] = None
+    custom12: Optional[str] = None
+    custom13: Optional[str] = None
+    custom14: Optional[str] = None
+    custom15: Optional[str] = None
+
+    # Auth & Access
+    login_method: Optional[str] = None
+    proxy: Optional[str] = None
+    assignment_id_external: Optional[str] = None
+
+    # Activity status
+    is_active: Optional[bool] = None
+
+    class Config:
+        from_attributes = True
+
+
+class BulkUserImportResponse(BaseModel):
+    """Response for bulk user import operation"""
+    imported_count: int
+    imported_users: List[str]
+    errors: List[str]
 
     class Config:
         from_attributes = True

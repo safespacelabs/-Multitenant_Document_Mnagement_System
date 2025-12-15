@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Boolean, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Boolean, JSON, Date
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.dialects.postgresql import UUID as PostgreSQL_UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -9,21 +10,85 @@ CompanyBase = declarative_base()
 
 class User(CompanyBase):
     __tablename__ = "users"
-    
+
+    # Existing fields (keep for backward compatibility)
     id = Column(String, primary_key=True, default=lambda: f"user_{uuid.uuid4().hex[:8]}")
-    username = Column(String, unique=True, nullable=False)
-    email = Column(String, unique=True, nullable=False)
+    username = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=True)  # Can be null for pending users
-    full_name = Column(String, nullable=False)
+    full_name = Column(String, nullable=False)  # Keep for backward compatibility
     role = Column(String, nullable=False, default="customer")  # hr_admin, hr_manager, employee, customer
     s3_folder = Column(String, nullable=False)
-    company_id = Column(String, nullable=True)  # Company ID for multi-tenancy (temporarily nullable for existing users)
+    company_id = Column(String, nullable=True, index=True)  # Company ID for multi-tenancy
     unique_id = Column(String, unique=True, nullable=True)  # For initial registration
     password_set = Column(Boolean, default=False)  # Track if password has been set
     created_by = Column(String, ForeignKey("users.id"), nullable=True)  # Who registered this user
     created_at = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
-    
+
+    # Phase 1: Core Identity & Employment Fields
+    first_name = Column(String, nullable=True)  # Nullable for existing users
+    last_name = Column(String, nullable=True)  # Nullable for existing users
+    middle_initial = Column(String, nullable=True)
+    gender = Column(String, nullable=True, default='Not Specified')
+    employee_id = Column(String, unique=True, nullable=True, index=True)  # Nullable initially
+    status = Column(String, nullable=True, default='active')  # active/inactive
+    hire_date = Column(Date, nullable=True)
+    timezone = Column(String, nullable=True, default='US/Pacific')
+    default_locale = Column(String, nullable=True, default='en_US')
+    display_name = Column(String, nullable=True)
+
+    # Phase 2: Organizational Hierarchy
+    manager = Column(String, nullable=True, default='NO_MANAGER')  # References username
+    division = Column(String, nullable=True, default='Unassigned')
+    department = Column(String, nullable=True, default='General')
+    location = Column(String, nullable=True, default='Remote')
+    job_code = Column(String, nullable=True, default='00000000')
+    title = Column(String, nullable=True, default='Employee')
+    hr = Column(String, nullable=True)  # HR representative
+    business_unit = Column(String, nullable=True)
+    matrix_manager = Column(String, nullable=True)
+    second_manager = Column(String, nullable=True)
+    custom_manager = Column(String, nullable=True)
+
+    # Phase 3: Contact & Address Information
+    address_line1 = Column(String, nullable=True, default='Address Not Provided')
+    address_line2 = Column(String, nullable=True)
+    city = Column(String, nullable=True, default='Unknown')
+    state = Column(String, nullable=True, default='CA')
+    zip_code = Column(String, nullable=True, default='00000')
+    country = Column(String, nullable=True, default='United States')
+    business_phone = Column(String, nullable=True)
+    business_fax = Column(String, nullable=True)
+
+    # Phase 4: Review & Performance Tracking
+    review_frequency = Column(String, nullable=True)
+    last_review_date = Column(Date, nullable=True)
+    assignment_uuid = Column(PostgreSQL_UUID(as_uuid=True), default=uuid.uuid4, nullable=True)
+
+    # Phase 5: Custom Fields (15 custom fields)
+    custom01 = Column(String, nullable=True)  # Career Level
+    custom02 = Column(String, nullable=True)  # Eligibility Flag
+    custom03 = Column(String, nullable=True)  # L04 Org Unit
+    custom04 = Column(String, nullable=True)  # L05 Org Unit
+    custom05 = Column(String, nullable=True)  # L06 Org Unit
+    custom06 = Column(String, nullable=True)  # L07 Org Unit
+    custom07 = Column(String, nullable=True)  # L08 Org Unit
+    custom08 = Column(String, nullable=True)  # Company
+    custom09 = Column(String, nullable=True)  # EESubgroup
+    custom10 = Column(String, nullable=True)  # Union
+    custom11 = Column(String, nullable=True)
+    custom12 = Column(String, nullable=True)
+    custom13 = Column(String, nullable=True)
+    custom14 = Column(String, nullable=True)
+    custom15 = Column(String, nullable=True)
+
+    # Phase 6: Authentication & Access Control
+    login_method = Column(String, nullable=True)
+    proxy = Column(String, nullable=True)
+    assignment_id_external = Column(String, nullable=True)
+
+    # Relationships
     documents = relationship("Document", back_populates="user")
     created_users = relationship("User", remote_side=[id])  # Users this user created
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")

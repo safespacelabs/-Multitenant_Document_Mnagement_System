@@ -1716,17 +1716,127 @@ export const hrAdminAPI = {
   },
 };
 
-export { 
-  authAPI, 
-  documentsAPI, 
-  companiesAPI, 
-  usersAPI, 
+// Extended Users API for comprehensive user management
+const usersExtendedAPI = {
+  // Create user with extended profile
+  createExtended: async (userData) => {
+    const response = await fetch(buildApiUrl('/api/users/create-extended'), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create user');
+    }
+
+    return response.json();
+  },
+
+  // Get user's extended profile
+  getExtended: async (userId) => {
+    const response = await fetch(buildApiUrl(`/api/users/${userId}/extended`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get user profile');
+    }
+
+    return response.json();
+  },
+
+  // Update user's extended profile
+  updateExtended: async (userId, userData) => {
+    const response = await fetch(buildApiUrl(`/api/users/${userId}/extended`), {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update user profile');
+    }
+
+    return response.json();
+  },
+
+  // Bulk import users from CSV
+  bulkImport: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(buildApiUrl('/api/users/bulk-import'), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        // Note: Don't set Content-Type for FormData, browser will set it automatically with boundary
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to import users');
+    }
+
+    return response.json();
+  },
+
+  // List all users with extended profiles
+  listExtended: async (filters = {}) => {
+    const queryParams = new URLSearchParams(filters).toString();
+    const url = buildApiUrl(`/api/users/extended/list${queryParams ? '?' + queryParams : ''}`);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to list users');
+    }
+
+    return response.json();
+  },
+};
+
+// Convenience functions for backward compatibility
+export const createExtendedUser = (userData) => usersExtendedAPI.createExtended(userData);
+export const getExtendedUser = (userId) => usersExtendedAPI.getExtended(userId);
+export const updateExtendedUser = (userId, userData) => usersExtendedAPI.updateExtended(userId, userData);
+export const bulkImportUsers = (file) => usersExtendedAPI.bulkImport(file);
+export const listExtendedUsers = (filters) => usersExtendedAPI.listExtended(filters);
+
+export {
+  authAPI,
+  documentsAPI,
+  companiesAPI,
+  usersAPI,
   userManagementAPI,
-  chatAPI, 
-  systemChatAPI, 
+  chatAPI,
+  systemChatAPI,
   systemDocumentsAPI,
   systemAdminAPI,
-  esignatureAPI
+  esignatureAPI,
+  usersExtendedAPI
 };
 
 // Export apiClient for backward compatibility
@@ -1741,5 +1851,6 @@ export const apiClient = {
   systemDocuments: systemDocumentsAPI,
   systemAdmin: systemAdminAPI,
   esignature: esignatureAPI,
-  hrAdmin: hrAdminAPI
+  hrAdmin: hrAdminAPI,
+  usersExtended: usersExtendedAPI
 };
