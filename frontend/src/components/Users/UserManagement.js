@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { userManagementAPI, usersAPI } from '../../services/api';
 import { useAuth } from '../../utils/auth';
+import ExtendedUserForm from './ExtendedUserForm';
 import { 
   Users, 
   UserPlus, 
@@ -707,132 +708,35 @@ function UserManagement({ companyId, onClose }) {
           </div>
         )}
 
-        {/* Create User Modal */}
+        {/* Create User Modal - Extended User Form */}
         {showCreateUserModal && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-60">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-lg bg-white">
-              <div className="mt-3">
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-                  <UserPlus className="h-6 w-6 text-green-600" />
+            <div className="relative top-10 mx-auto p-6 border w-full max-w-5xl shadow-lg rounded-lg bg-white my-10">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                    <UserPlus className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">Create New User</h3>
+                    <p className="text-gray-600 mt-1">Complete extended user profile with all organizational details</p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mt-4 text-center">Create New User</h3>
-                
-                <form onSubmit={handleCreateUser} className="mt-6 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Username *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={createUserForm.username}
-                      onChange={(e) => setCreateUserForm({...createUserForm, username: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter username"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={createUserForm.email}
-                      onChange={(e) => setCreateUserForm({...createUserForm, email: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="user@example.com"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={createUserForm.full_name}
-                      onChange={(e) => setCreateUserForm({...createUserForm, full_name: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter full name"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Role *
-                    </label>
-                    <select
-                      required
-                      value={createUserForm.role}
-                      onChange={(e) => setCreateUserForm({...createUserForm, role: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {availableRoles.map(role => (
-                        <option key={role} value={role}>
-                          {roleConfig[role].label} - {roleConfig[role].description}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Password *
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={createUserForm.password}
-                      onChange={(e) => setCreateUserForm({...createUserForm, password: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter password"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Confirm Password *
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={createUserForm.confirmPassword}
-                      onChange={(e) => setCreateUserForm({...createUserForm, confirmPassword: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Confirm password"
-                    />
-                  </div>
-                  
-                  <div className="flex justify-end space-x-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowCreateUserModal(false);
-                        setCreateUserForm({
-                          username: '',
-                          email: '',
-                          full_name: '',
-                          role: 'customer',
-                          password: '',
-                          confirmPassword: ''
-                        });
-                      }}
-                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                    >
-                      Create User
-                    </button>
-                  </div>
-                </form>
+                <button
+                  onClick={() => setShowCreateUserModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
               </div>
+
+              <ExtendedUserForm
+                onSuccess={(userData) => {
+                  setShowCreateUserModal(false);
+                  fetchData(); // Refresh the user list
+                }}
+                onCancel={() => setShowCreateUserModal(false)}
+              />
             </div>
           </div>
         )}

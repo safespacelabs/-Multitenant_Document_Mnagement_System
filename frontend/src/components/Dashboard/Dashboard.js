@@ -4,7 +4,7 @@ import { useAuth } from '../../utils/auth';
 import { documentsAPI, usersAPI, companiesAPI, systemDocumentsAPI } from '../../services/api';
 import { EnhancedDocumentManager } from '../Documents';
 import { DocumentManagement } from '../Features';
-import { HRAdminDashboard, UserManagement, MailingSystem, ExtendedUserCreation, BulkUserImportPage } from '../Features';
+import { HRAdminDashboard, UserManagement, MailingSystem } from '../Features';
 import Chatbot from '../Chat/Chatbot';
 import { Analytics } from '../Features';
 import ESignatureManager from '../ESignature/ESignatureManager';
@@ -31,9 +31,7 @@ import {
   ChevronDown,
   User,
   AlertCircle,
-  Mail,
-  UserPlus,
-  Upload
+  Mail
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -416,11 +414,6 @@ const Dashboard = () => {
 
     if (['hr_admin', 'hr_manager'].includes(user.role)) {
       baseItems.splice(2, 0, { id: 'users', name: 'User Management', icon: Users, path: `${basePath}/users`, color: 'pink' });
-      baseItems.splice(3, 0, { id: 'create-user', name: 'Create Extended User', icon: UserPlus, path: `${basePath}/create-extended-user`, color: 'blue' });
-    }
-
-    if (user.role === 'hr_admin') {
-      baseItems.splice(4, 0, { id: 'bulk-import', name: 'Bulk User Import', icon: Upload, path: `${basePath}/bulk-import-users`, color: 'purple' });
     }
 
     baseItems.push({ id: 'testing', name: 'Testing', icon: SettingsIcon, path: `${basePath}/testing`, color: 'yellow' });
@@ -496,16 +489,6 @@ const Dashboard = () => {
     // User Management
     if (path === '/dashboard/users' && ['hr_admin', 'hr_manager', 'system_admin'].includes(user.role)) {
       return <UserManagement />;
-    }
-
-    // Create Extended User
-    if (path === '/dashboard/create-extended-user' && ['hr_admin', 'hr_manager'].includes(user.role)) {
-      return <ExtendedUserCreation />;
-    }
-
-    // Bulk User Import
-    if (path === '/dashboard/bulk-import-users' && user.role === 'hr_admin') {
-      return <BulkUserImportPage />;
     }
 
     // E-Signature
