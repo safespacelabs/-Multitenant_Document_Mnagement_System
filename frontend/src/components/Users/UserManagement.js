@@ -708,7 +708,7 @@ function UserManagement({ companyId, onClose }) {
           </div>
         )}
 
-        {/* Create User Modal - Extended User Form */}
+        {/* Create User Modal - Extended User Form with 53+ fields */}
         {showCreateUserModal && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-60">
             <div className="relative top-10 mx-auto p-6 border w-full max-w-5xl shadow-lg rounded-lg bg-white my-10">
