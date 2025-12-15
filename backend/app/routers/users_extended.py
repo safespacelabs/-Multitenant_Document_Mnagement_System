@@ -20,8 +20,8 @@ from app.schemas import (
 )
 from app.models_company import User
 from app.auth import get_current_user
-from app.utils.company_context import get_company_db_dependency
-from app.utils.permissions import require_roles
+from app.database import get_management_db, get_company_db
+from app import models
 from passlib.context import CryptContext
 
 router = APIRouter(prefix="/users", tags=["users-extended"])
@@ -33,7 +33,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 async def create_user_extended(
     user_data: UserCreateExtended,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_company_db_dependency)
+    management_db: Session = Depends(get_management_db)
 ):
     """
     Create a new user with extended profile information.
@@ -47,6 +47,17 @@ async def create_user_extended(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions. Only HR Admin and HR Manager can create users with extended profiles."
         )
+
+    # Get company from management database
+    company = management_db.query(models.Company).filter(
+        models.Company.id == current_user.company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    db = next(company_db_gen)
 
     # Check if username already exists
     existing_user = db.query(User).filter(User.username == user_data.username).first()
@@ -165,7 +176,7 @@ async def create_user_extended(
 async def get_user_extended(
     user_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_company_db_dependency)
+    management_db: Session = Depends(get_management_db)
 ):
     """
     Get extended user profile information.
@@ -173,6 +184,17 @@ async def get_user_extended(
     HR Admin and HR Manager can view any user's extended profile.
     Regular users can only view their own profile.
     """
+    # Get company from management database
+    company = management_db.query(models.Company).filter(
+        models.Company.id == current_user.company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    db = next(company_db_gen)
+
     # Get user from database
     user = db.query(User).filter(User.id == user_id).first()
 
@@ -198,7 +220,7 @@ async def update_user_extended(
     user_id: str,
     user_data: UserUpdateExtended,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_company_db_dependency)
+    management_db: Session = Depends(get_management_db)
 ):
     """
     Update user with extended profile information.
@@ -206,6 +228,17 @@ async def update_user_extended(
     HR Admin and HR Manager can update any user.
     Regular users can update their own non-critical fields.
     """
+    # Get company from management database
+    company = management_db.query(models.Company).filter(
+        models.Company.id == current_user.company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    db = next(company_db_gen)
+
     # Get user from database
     user = db.query(User).filter(User.id == user_id).first()
 
@@ -256,7 +289,7 @@ async def update_user_extended(
 async def bulk_import_users(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_company_db_dependency)
+    management_db: Session = Depends(get_management_db)
 ):
     """
     Bulk import users from CSV file matching the usertable.csv schema.
@@ -283,6 +316,17 @@ async def bulk_import_users(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File must be a CSV file"
         )
+
+    # Get company from management database
+    company = management_db.query(models.Company).filter(
+        models.Company.id == current_user.company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    db = next(company_db_gen)
 
     # Read CSV file
     contents = await file.read()
@@ -474,7 +518,7 @@ async def list_users_extended(
     division: str = None,
     status: str = None,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_company_db_dependency)
+    management_db: Session = Depends(get_management_db)
 ):
     """
     List all users with extended profile information.
@@ -488,6 +532,17 @@ async def list_users_extended(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only HR Admin and HR Manager can list all users"
         )
+
+    # Get company from management database
+    company = management_db.query(models.Company).filter(
+        models.Company.id == current_user.company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    # Get company database connection
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    db = next(company_db_gen)
 
     # Build query
     query = db.query(User)
