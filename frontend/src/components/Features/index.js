@@ -9,4 +9,8 @@ export { default as Settings } from './Settings';
 export { default as HRAdminDashboard } from './HRAdminDashboard';
 
 export { default as MailingSystem } from './MailingSystem';
-export { default as AIAssistant } from './AIAssistant'; 
+export { default as AIAssistant } from './AIAssistant';
+
+// Extended User Management
+export { default as ExtendedUserCreation } from './ExtendedUserCreation';
+export { default as BulkUserImportPage } from './BulkUserImportPage'; 
