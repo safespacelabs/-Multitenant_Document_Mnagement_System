@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { userManagementAPI, usersAPI } from '../../services/api';
+import ExtendedUserForm from '../Users/ExtendedUserForm';
 
 const UserManagement = () => {
   const { user, company } = useAuth();
@@ -503,113 +504,30 @@ const UserManagement = () => {
           </div>
         )}
 
-        {/* Create User Modal */}
+        {/* Create User Modal - Extended User Form */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-              <div className="mt-3">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Create New User</h3>
-                <form onSubmit={handleCreateUser} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      value={createForm.username}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, username: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={createForm.email}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      value={createForm.full_name}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, full_name: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Role
-                    </label>
-                    <select
-                      value={createForm.role}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, role: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {getAvailableRoles().map(role => (
-                        <option key={role} value={role}>
-                          {role.replace('_', ' ').toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      value={createForm.password}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Confirm Password
-                    </label>
-                    <input
-                      type="password"
-                      value={createForm.confirm_password}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, confirm_password: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="flex space-x-3 pt-4">
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="flex-1 bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600 disabled:opacity-50"
-                    >
-                      {loading ? 'Creating...' : 'Create User'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowCreateModal(false)}
-                      className="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
+            <div className="relative top-10 mx-auto p-6 border w-full max-w-5xl shadow-lg rounded-lg bg-white my-10">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">Create New User (Extended Profile)</h3>
+                  <p className="text-gray-600 mt-1">Complete extended user profile with all organizational details</p>
+                </div>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors text-2xl font-bold"
+                >
+                  &times;
+                </button>
               </div>
+
+              <ExtendedUserForm
+                onSuccess={(userData) => {
+                  setShowCreateModal(false);
+                  loadUsers(); // Refresh the user list
+                }}
+                onCancel={() => setShowCreateModal(false)}
+              />
             </div>
           </div>
         )}
