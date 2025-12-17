@@ -6,7 +6,7 @@ export { default as CompanyManagement } from './CompanyManagement';
 export { default as ChatInterface } from '../Chat/Chatbot';  // Updated to use new ChatGPT-style Chatbot
 export { default as Analytics } from './Analytics';
 export { default as Settings } from './Settings';
-export { default as HRAdminDashboard } from './HRAdminDashboard';
+export { default as HRAdminDashboard, DocumentHealthTab } from './HRAdminDashboard';
 
 export { default as MailingSystem } from './MailingSystem';
 export { default as AIAssistant } from './AIAssistant'; 

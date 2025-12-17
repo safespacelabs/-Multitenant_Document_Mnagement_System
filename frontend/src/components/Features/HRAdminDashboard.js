@@ -1178,3 +1178,4 @@ const CategoryDrillDownModal = ({ category, onClose }) => (
 );
 
 export default HRAdminDashboard;
+export { DocumentHealthTab, CategoryDrillDownModal };

@@ -2335,13 +2335,24 @@ def calculate_compliance_status(doc, doc_analysis):
 @router.get("/hr/health-snapshot", response_model=schemas.DocumentHealthSnapshotResponse)
 async def get_hr_health_snapshot(
     current_user: CompanyUser = Depends(auth.get_current_company_user),
-    company_db: Session = Depends(get_company_db)
+    management_db: Session = Depends(get_management_db)
 ):
     """Get document health snapshot for compliance tracking"""
-    try:
-        if current_user.role not in ['hr_admin', 'hr_manager']:
-            raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+    if current_user.role not in ['hr_admin', 'hr_manager']:
+        raise HTTPException(status_code=403, detail="Access denied. HR role required.")
 
+    # Get company database
+    company = management_db.query(models.Company).filter(
+        models.Company.id == current_user.company_id
+    ).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+
+    try:
         # Query all documents with analysis
         docs_query = company_db.query(
             CompanyDocument, DocumentAnalysis
@@ -2473,6 +2484,8 @@ async def get_hr_health_snapshot(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get health snapshot: {str(e)}")
+    finally:
+        company_db.close()
 
 # Add CORS preflight handler for upload endpoint
 @router.options("/upload")

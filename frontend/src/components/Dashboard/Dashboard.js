@@ -4,15 +4,15 @@ import { useAuth } from '../../utils/auth';
 import { documentsAPI, usersAPI, companiesAPI, systemDocumentsAPI } from '../../services/api';
 import { EnhancedDocumentManager } from '../Documents';
 import { DocumentManagement } from '../Features';
-import { HRAdminDashboard, UserManagement, MailingSystem } from '../Features';
+import { HRAdminDashboard, UserManagement, MailingSystem, DocumentHealthTab } from '../Features';
 import Chatbot from '../Chat/Chatbot';
 import { Analytics } from '../Features';
 import ESignatureManager from '../ESignature/ESignatureManager';
 import TestingInterface from '../Testing/TestingInterface';
 import Sidebar from '../Layout/Sidebar';
 import Header from '../Layout/Header';
-import { 
-  Home, 
+import {
+  Home,
   FileText,
   Users,
   BarChart3,
@@ -31,7 +31,8 @@ import {
   ChevronDown,
   User,
   AlertCircle,
-  Mail
+  Mail,
+  Activity
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -414,7 +415,7 @@ const Dashboard = () => {
 
     if (['hr_admin', 'hr_manager'].includes(user.role)) {
       baseItems.splice(2, 0, { id: 'users', name: 'User Management', icon: Users, path: `${basePath}/users`, color: 'pink' });
-      baseItems.splice(3, 0, { id: 'hr-admin', name: 'HR Dashboard', icon: Grid, path: `${basePath}/hr-admin`, color: 'indigo' });
+      baseItems.splice(3, 0, { id: 'document-health', name: 'Document Health', icon: Activity, path: `${basePath}/document-health`, color: 'green' });
     }
 
     baseItems.push({ id: 'testing', name: 'Testing', icon: SettingsIcon, path: `${basePath}/testing`, color: 'yellow' });
@@ -472,11 +473,6 @@ const Dashboard = () => {
       );
     }
     
-    // HR Admin Dashboard
-    if (path === '/dashboard/hr-admin' && ['hr_admin', 'hr_manager'].includes(user.role)) {
-      return <HRAdminDashboard />;
-    }
-    
     // Document Management
     if (path === '/dashboard/documents') {
       return <DocumentManagement />;
@@ -486,7 +482,12 @@ const Dashboard = () => {
     if (path === '/dashboard/analytics') {
       return <Analytics />;
     }
-    
+
+    // Document Health
+    if (path === '/dashboard/document-health' && ['hr_admin', 'hr_manager'].includes(user.role)) {
+      return <DocumentHealthTab />;
+    }
+
     // User Management
     if (path === '/dashboard/users' && ['hr_admin', 'hr_manager', 'system_admin'].includes(user.role)) {
       return <UserManagement />;
@@ -566,11 +567,11 @@ const Dashboard = () => {
            />
            {['hr_admin', 'hr_manager'].includes(user?.role) && (
              <QuickActionCard
-               title="HR Admin"
-               description="HR management dashboard"
-               icon={Users}
-               color="indigo"
-               onClick={() => navigate('/dashboard/hr-admin')}
+               title="Document Health"
+               description="Monitor compliance posture"
+               icon={Activity}
+               color="green"
+               onClick={() => navigate('/dashboard/document-health')}
              />
            )}
         </div>
