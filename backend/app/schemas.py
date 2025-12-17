@@ -451,6 +451,48 @@ class DocumentAnalyticsSummaryResponse(BaseModel):
     top_viewed_documents: List[DocumentSummaryResponse]
     recent_activity: List[Dict[str, Any]]
 
+# Document Health Snapshot schemas
+class AffectedDocument(BaseModel):
+    document_id: str
+    filename: str
+    document_type: Optional[str]
+    expiry_date: Optional[date]
+    days_until_expiry: Optional[int]
+    status: str  # "compliant", "at_risk", "non_compliant"
+    missing_fields: List[str]
+
+class AffectedEmployee(BaseModel):
+    user_id: str
+    full_name: str
+    email: str
+    employee_id: Optional[str]
+    department: Optional[str]
+    documents: List[AffectedDocument]
+
+class CategoryHealthMetrics(BaseModel):
+    category_name: str
+    category_key: str
+    icon: str
+    total_documents: int
+    compliant_count: int
+    at_risk_count: int
+    non_compliant_count: int
+    compliance_percentage: float
+    status: str  # "Healthy" (>=90%), "Watch" (70-89%), "Critical" (<70%)
+    affected_employees: List[AffectedEmployee]
+
+class DocumentHealthSnapshotResponse(BaseModel):
+    total_documents: int
+    compliant_count: int
+    at_risk_count: int
+    non_compliant_count: int
+    compliant_percentage: float
+    at_risk_percentage: float
+    non_compliant_percentage: float
+    categories: List[CategoryHealthMetrics]
+    last_updated: datetime
+    target_threshold: float = 95.0
+
 class CompanyUserCredentialsResponse(BaseModel):
     """User credentials and access information for HR admins"""
     id: str

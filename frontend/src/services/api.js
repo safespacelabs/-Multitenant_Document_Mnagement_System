@@ -1039,6 +1039,22 @@ const documentsAPI = {
     }
     
     return response.json();
+  },
+
+  getHRHealthSnapshot: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/hr/health-snapshot'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get HR health snapshot');
+    }
+
+    return response.json();
   }
 };
 

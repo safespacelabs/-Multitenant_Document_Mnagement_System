@@ -30,6 +30,30 @@ from ..models import SystemDocument, SystemUser
 
 router = APIRouter()
 
+# Category mapping for Document Health Snapshot
+HEALTH_CATEGORY_MAPPING = {
+    "i9_work_auth": {
+        "display_name": "I-9 & Work Authorization",
+        "icon": "briefcase",
+        "keywords": ["i-9", "i9", "work authorization", "visa", "employment eligibility", "work permit"]
+    },
+    "safety_osha": {
+        "display_name": "Safety / OSHA",
+        "icon": "shield",
+        "keywords": ["osha", "safety", "training", "hazard", "certification"]
+    },
+    "payroll_davis_bacon": {
+        "display_name": "Payroll & Davis-Bacon",
+        "icon": "dollar-sign",
+        "keywords": ["payroll", "davis-bacon", "wage", "certified payroll"]
+    },
+    "employee_relations": {
+        "display_name": "Employee Relations",
+        "icon": "users",
+        "keywords": ["performance", "review", "disciplinary", "complaint", "hr policy", "relations"]
+    }
+}
+
 def get_allowed_extensions():
     return ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'csv', 'xlsx', 'xls']
 
@@ -2263,6 +2287,192 @@ async def get_hr_compliance_violations(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get compliance violations: {str(e)}")
+
+# Helper functions for Document Health Snapshot
+def categorize_document(doc, doc_analysis):
+    """Categorize document based on type/category/folder"""
+    doc_text = " ".join([
+        doc.document_category or "",
+        doc.document_subcategory or "",
+        doc_analysis.document_type if doc_analysis else "",
+        doc.original_filename
+    ]).lower()
+
+    for cat_key, cat_info in HEALTH_CATEGORY_MAPPING.items():
+        if any(keyword in doc_text for keyword in cat_info["keywords"]):
+            return cat_key
+
+    return "employee_relations"  # Default category
+
+def calculate_compliance_status(doc, doc_analysis):
+    """Calculate compliance status based on expiry and metadata"""
+    from datetime import date
+    today = date.today()
+
+    # Check expiry
+    if doc_analysis and doc_analysis.expiry_detected and doc_analysis.expiry_date:
+        if doc_analysis.expiry_date < today:
+            return "non_compliant", f"Expired on {doc_analysis.expiry_date}", doc_analysis.expiry_date
+
+        days_until = (doc_analysis.expiry_date - today).days
+        if 30 <= days_until <= 60:
+            return "at_risk", f"Expiring in {days_until} days", doc_analysis.expiry_date
+
+    # Check missing metadata
+    missing = []
+    if not doc.document_category:
+        missing.append("category")
+    if not doc.document_subcategory:
+        missing.append("subcategory")
+    if not doc_analysis or not doc_analysis.document_type:
+        missing.append("document_type")
+
+    if len(missing) >= 2:
+        return "at_risk", "Missing metadata", None
+
+    return "compliant", "Active", None
+
+@router.get("/hr/health-snapshot", response_model=schemas.DocumentHealthSnapshotResponse)
+async def get_hr_health_snapshot(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    company_db: Session = Depends(get_company_db)
+):
+    """Get document health snapshot for compliance tracking"""
+    try:
+        if current_user.role not in ['hr_admin', 'hr_manager']:
+            raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+
+        # Query all documents with analysis
+        docs_query = company_db.query(
+            CompanyDocument, DocumentAnalysis
+        ).outerjoin(
+            DocumentAnalysis,
+            CompanyDocument.id == DocumentAnalysis.document_id
+        ).filter(
+            CompanyDocument.company_id == current_user.company_id
+        ).all()
+
+        # Categorize and calculate status
+        categorized_docs = {key: [] for key in HEALTH_CATEGORY_MAPPING.keys()}
+        all_statuses = []
+
+        for doc, analysis in docs_query:
+            cat_key = categorize_document(doc, analysis)
+            status, reason, expiry = calculate_compliance_status(doc, analysis)
+
+            categorized_docs[cat_key].append({
+                "doc": doc,
+                "analysis": analysis,
+                "status": status,
+                "reason": reason,
+                "expiry": expiry
+            })
+            all_statuses.append(status)
+
+        # Calculate overall metrics
+        total = len(docs_query)
+        compliant_cnt = all_statuses.count("compliant")
+        at_risk_cnt = all_statuses.count("at_risk")
+        non_compliant_cnt = all_statuses.count("non_compliant")
+
+        # Build category metrics
+        categories = []
+        for cat_key, cat_info in HEALTH_CATEGORY_MAPPING.items():
+            cat_docs = categorized_docs[cat_key]
+            cat_total = len(cat_docs)
+
+            if cat_total == 0:
+                continue  # Skip empty categories
+
+            cat_compliant = sum(1 for d in cat_docs if d["status"] == "compliant")
+            cat_at_risk = sum(1 for d in cat_docs if d["status"] == "at_risk")
+            cat_non_compliant = sum(1 for d in cat_docs if d["status"] == "non_compliant")
+            cat_compliance_pct = round((cat_compliant / cat_total) * 100, 1)
+
+            # Determine status badge
+            if cat_compliance_pct >= 90:
+                cat_status = "Healthy"
+            elif cat_compliance_pct >= 70:
+                cat_status = "Watch"
+            else:
+                cat_status = "Critical"
+
+            # Group by employee for drill-down
+            employee_docs = {}
+            for item in cat_docs:
+                doc = item["doc"]
+                user = company_db.query(CompanyUser).filter(
+                    CompanyUser.id == doc.user_id
+                ).first()
+
+                if not user:
+                    continue
+
+                if user.id not in employee_docs:
+                    employee_docs[user.id] = {
+                        "user": user,
+                        "documents": []
+                    }
+
+                missing_fields = []
+                if not doc.document_category:
+                    missing_fields.append("category")
+                if not doc.document_subcategory:
+                    missing_fields.append("subcategory")
+                if not item["analysis"] or not item["analysis"].document_type:
+                    missing_fields.append("document_type")
+
+                employee_docs[user.id]["documents"].append({
+                    "document_id": doc.id,
+                    "filename": doc.original_filename,
+                    "document_type": item["analysis"].document_type if item["analysis"] else None,
+                    "expiry_date": item["expiry"],
+                    "days_until_expiry": (item["expiry"] - date.today()).days if item["expiry"] else None,
+                    "status": item["status"],
+                    "missing_fields": missing_fields
+                })
+
+            # Build affected employees list
+            affected = []
+            for user_id, emp_data in employee_docs.items():
+                user = emp_data["user"]
+                affected.append(schemas.AffectedEmployee(
+                    user_id=user.id,
+                    full_name=user.full_name,
+                    email=user.email,
+                    employee_id=user.employee_id,
+                    department=user.department,
+                    documents=[schemas.AffectedDocument(**d) for d in emp_data["documents"]]
+                ))
+
+            categories.append(schemas.CategoryHealthMetrics(
+                category_name=cat_info["display_name"],
+                category_key=cat_key,
+                icon=cat_info["icon"],
+                total_documents=cat_total,
+                compliant_count=cat_compliant,
+                at_risk_count=cat_at_risk,
+                non_compliant_count=cat_non_compliant,
+                compliance_percentage=cat_compliance_pct,
+                status=cat_status,
+                affected_employees=affected
+            ))
+
+        return schemas.DocumentHealthSnapshotResponse(
+            total_documents=total,
+            compliant_count=compliant_cnt,
+            at_risk_count=at_risk_cnt,
+            non_compliant_count=non_compliant_cnt,
+            compliant_percentage=round((compliant_cnt / total * 100), 1) if total > 0 else 0,
+            at_risk_percentage=round((at_risk_cnt / total * 100), 1) if total > 0 else 0,
+            non_compliant_percentage=round((non_compliant_cnt / total * 100), 1) if total > 0 else 0,
+            categories=categories,
+            last_updated=datetime.utcnow(),
+            target_threshold=95.0
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get health snapshot: {str(e)}")
 
 # Add CORS preflight handler for upload endpoint
 @router.options("/upload")

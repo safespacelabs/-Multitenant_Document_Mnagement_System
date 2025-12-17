@@ -43,7 +43,8 @@ import {
   UserCheck,
   FileSignature,
   User,
-  Folder
+  Folder,
+  Activity
 } from 'lucide-react';
 
 const HRAdminDashboard = () => {
@@ -186,7 +187,8 @@ const HRAdminDashboard = () => {
             { id: 'documents', label: 'Documents', icon: FileText },
             { id: 'workflows', label: 'Workflows', icon: Clipboard },
             { id: 'compliance', label: 'Compliance', icon: Shield },
-            { id: 'analytics', label: 'Analytics', icon: TrendingUp }
+            { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+            { id: 'health', label: 'Document Health', icon: Activity }
           ].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -215,6 +217,7 @@ const HRAdminDashboard = () => {
         {activeTab === 'workflows' && <WorkflowsTab workflows={workflows} navigate={navigate} />}
         {activeTab === 'compliance' && <ComplianceTab violations={complianceViolations} navigate={navigate} />}
         {activeTab === 'analytics' && <AnalyticsTab analytics={analytics} navigate={navigate} />}
+        {activeTab === 'health' && <DocumentHealthTab />}
       </div>
     </div>
   );
@@ -794,6 +797,380 @@ const AnalyticsTab = ({ analytics, navigate }) => (
               <div className="text-sm text-gray-500">Export analytics data</div>
             </div>
           </div>
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// Document Health Tab Component
+const DocumentHealthTab = () => {
+  const [healthData, setHealthData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [error, setError] = useState(null);
+
+  const loadHealthData = async () => {
+    try {
+      setError(null);
+      const data = await documentsAPI.getHRHealthSnapshot();
+      setHealthData(data);
+      setLastUpdated(new Date());
+      setLoading(false);
+    } catch (err) {
+      console.error('Failed to load health snapshot:', err);
+      setError(err.message || 'Failed to load document health data');
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHealthData();
+    const interval = setInterval(loadHealthData, 30000); // 30s polling
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <div className="text-gray-500">Loading document health data...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-red-800">
+            <AlertTriangle className="h-5 w-5" />
+            <span className="font-semibold">Error loading data</span>
+          </div>
+          <p className="text-red-700 mt-2">{error}</p>
+          <button
+            onClick={loadHealthData}
+            className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!healthData) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <div className="text-gray-500">No data available</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header with Live Indicator */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Document Health Snapshot</h2>
+          <p className="text-gray-600 mt-1">Compliance posture across all HR evidence documents</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            Live
+          </div>
+          {lastUpdated && (
+            <div className="text-sm text-gray-600">
+              Updated {Math.floor((new Date() - lastUpdated) / 1000 / 60)} min ago
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Top Metric Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+          <div className="flex items-center justify-between mb-2">
+            <FileText className="h-10 w-10 text-blue-600" />
+          </div>
+          <div className="text-3xl font-bold text-blue-900 mb-1">{healthData.total_documents.toLocaleString()}</div>
+          <div className="text-sm font-semibold text-blue-700">Total Documents</div>
+          <div className="text-xs text-blue-600 mt-1">Tracked across employees, contractors, cases</div>
+        </div>
+
+        <div className="bg-green-50 p-6 rounded-xl border border-green-200">
+          <div className="flex items-center justify-between mb-2">
+            <CheckCircle className="h-10 w-10 text-green-600" />
+          </div>
+          <div className="text-3xl font-bold text-green-900 mb-1">{healthData.compliant_percentage}%</div>
+          <div className="text-sm font-semibold text-green-700">Compliant</div>
+          <div className="text-xs text-green-600 mt-1">Meets policy + regulatory checks</div>
+        </div>
+
+        <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200">
+          <div className="flex items-center justify-between mb-2">
+            <AlertTriangle className="h-10 w-10 text-yellow-600" />
+          </div>
+          <div className="text-3xl font-bold text-yellow-900 mb-1">{healthData.at_risk_percentage}%</div>
+          <div className="text-sm font-semibold text-yellow-700">At Risk</div>
+          <div className="text-xs text-yellow-600 mt-1">Due soon or missing metadata</div>
+        </div>
+
+        <div className="bg-red-50 p-6 rounded-xl border border-red-200">
+          <div className="flex items-center justify-between mb-2">
+            <X className="h-10 w-10 text-red-600" />
+          </div>
+          <div className="text-3xl font-bold text-red-900 mb-1">{healthData.non_compliant_percentage}%</div>
+          <div className="text-sm font-semibold text-red-700">Non-Compliant</div>
+          <div className="text-xs text-red-600 mt-1">Action required to reduce exposure</div>
+        </div>
+      </div>
+
+      {/* Overall Compliance Progress Bar */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-semibold">Overall compliance</h3>
+          <span className="text-sm text-gray-600">Target ≥ {healthData.target_threshold}%</span>
+        </div>
+
+        <div className="w-full h-8 bg-gray-200 rounded-full overflow-hidden flex">
+          {healthData.compliant_percentage > 0 && (
+            <div
+              className="bg-green-600 flex items-center justify-center text-white text-xs font-semibold"
+              style={{ width: `${healthData.compliant_percentage}%` }}
+            >
+              {healthData.compliant_percentage > 10 && `${healthData.compliant_percentage}%`}
+            </div>
+          )}
+          {healthData.at_risk_percentage > 0 && (
+            <div
+              className="bg-yellow-500 flex items-center justify-center text-white text-xs font-semibold"
+              style={{ width: `${healthData.at_risk_percentage}%` }}
+            >
+              {healthData.at_risk_percentage > 5 && `${healthData.at_risk_percentage}%`}
+            </div>
+          )}
+          {healthData.non_compliant_percentage > 0 && (
+            <div
+              className="bg-red-500 flex items-center justify-center text-white text-xs font-semibold"
+              style={{ width: `${healthData.non_compliant_percentage}%` }}
+            >
+              {healthData.non_compliant_percentage > 5 && `${healthData.non_compliant_percentage}%`}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-6 mt-4 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-600 rounded"></div>
+            <span>{healthData.compliant_percentage}% compliant</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+            <span>{healthData.at_risk_percentage}% at risk</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-red-500 rounded"></div>
+            <span>{healthData.non_compliant_percentage}% non-compliant</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Category Compliance Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {healthData.categories.map(category => (
+          <div
+            key={category.category_key}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setSelectedCategory(category)}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              {category.icon === 'briefcase' && <FileSignature className="h-8 w-8 text-blue-600" />}
+              {category.icon === 'shield' && <Shield className="h-8 w-8 text-blue-600" />}
+              {category.icon === 'dollar-sign' && <Target className="h-8 w-8 text-blue-600" />}
+              {category.icon === 'users' && <Users className="h-8 w-8 text-blue-600" />}
+              <h3 className="text-lg font-semibold">{category.category_name}</h3>
+            </div>
+
+            <div className="text-4xl font-bold mb-2">{category.compliance_percentage}%</div>
+            <div className="text-sm text-gray-600 mb-2">{category.compliant_count} compliant</div>
+
+            <div className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold mb-4 ${
+              category.status === 'Healthy' ? 'bg-green-100 text-green-800' :
+              category.status === 'Watch' ? 'bg-yellow-100 text-yellow-800' :
+              'bg-red-100 text-red-800'
+            }`}>
+              {category.status}
+            </div>
+
+            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-4">
+              <div
+                className={`h-full ${
+                  category.status === 'Healthy' ? 'bg-green-600' :
+                  category.status === 'Watch' ? 'bg-yellow-500' :
+                  'bg-red-500'
+                }`}
+                style={{ width: `${category.compliance_percentage}%` }}
+              ></div>
+            </div>
+
+            <div className="space-y-1 text-sm text-gray-600">
+              <div className="flex justify-between">
+                <span>At Risk:</span>
+                <span className="font-semibold">{category.at_risk_count}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Non-Compliant:</span>
+                <span className="font-semibold">{category.non_compliant_count}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="text-sm text-gray-600 bg-blue-50 p-4 rounded-lg border border-blue-200">
+        <strong>Tip:</strong> Click any category to drill into affected employees/cases, see missing fields, and apply AI auto-classification or remediation workflows.
+      </div>
+
+      {/* Drill-down Modal */}
+      {selectedCategory && (
+        <CategoryDrillDownModal
+          category={selectedCategory}
+          onClose={() => setSelectedCategory(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+// Category Drill-Down Modal Component
+const CategoryDrillDownModal = ({ category, onClose }) => (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="p-6 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
+        <div>
+          <h2 className="text-2xl font-bold">{category.category_name}</h2>
+          <p className="text-gray-600 mt-1">Affected Employees & Documents</p>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <X className="h-6 w-6 text-gray-400" />
+        </button>
+      </div>
+
+      {/* Stats Summary */}
+      <div className="p-6 bg-gray-50 border-b border-gray-200 flex-shrink-0">
+        <div className="grid grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">{category.total_documents}</div>
+            <div className="text-sm text-gray-600">Total Documents</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">{category.compliant_count}</div>
+            <div className="text-sm text-gray-600">Compliant</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-yellow-600">{category.at_risk_count}</div>
+            <div className="text-sm text-gray-600">At Risk</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-red-600">{category.non_compliant_count}</div>
+            <div className="text-sm text-gray-600">Non-Compliant</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable Employee List */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {category.affected_employees.length === 0 ? (
+          <div className="text-center text-gray-500 py-12">
+            <CheckCircle className="h-12 w-12 mx-auto mb-3 text-green-500" />
+            <p>All documents in this category are compliant!</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {category.affected_employees.map(employee => (
+              <div key={employee.user_id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                {/* Employee Header */}
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <User className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-lg truncate">{employee.full_name}</div>
+                    <div className="text-sm text-gray-600 truncate">{employee.email}</div>
+                    {employee.department && (
+                      <div className="text-sm text-gray-600">{employee.department}</div>
+                    )}
+                  </div>
+                  <div className="flex-shrink-0">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                      {employee.documents.length} {employee.documents.length === 1 ? 'doc' : 'docs'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Document List */}
+                <div className="space-y-2">
+                  {employee.documents.map(doc => (
+                    <div key={doc.document_id} className="flex items-center justify-between p-3 bg-white rounded border border-gray-200">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <FileText className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{doc.filename}</div>
+                          <div className="text-sm text-gray-600">
+                            {doc.document_type || 'Unknown type'}
+                            {doc.expiry_date && ` • Expires: ${new Date(doc.expiry_date).toLocaleDateString()}`}
+                            {doc.days_until_expiry !== null && doc.days_until_expiry >= 0 && ` (${doc.days_until_expiry} days)`}
+                          </div>
+                          {doc.missing_fields.length > 0 && (
+                            <div className="text-sm text-red-600 mt-1">
+                              Missing: {doc.missing_fields.join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                          doc.status === 'compliant' ? 'bg-green-100 text-green-800' :
+                          doc.status === 'at_risk' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {doc.status === 'compliant' ? 'COMPLIANT' :
+                           doc.status === 'at_risk' ? 'AT RISK' :
+                           'NON-COMPLIANT'}
+                        </span>
+                        <button className="p-2 hover:bg-gray-100 rounded transition-colors">
+                          <Download className="h-4 w-4 text-gray-600" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer Actions */}
+      <div className="p-6 border-t border-gray-200 flex gap-4 flex-shrink-0">
+        <button className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+          Export Report
+        </button>
+        <button className="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-semibold">
+          Send Reminders
+        </button>
+        <button
+          onClick={onClose}
+          className="flex-1 bg-gray-200 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+        >
+          Close
         </button>
       </div>
     </div>
