@@ -414,6 +414,7 @@ const Dashboard = () => {
 
     if (['hr_admin', 'hr_manager'].includes(user.role)) {
       baseItems.splice(2, 0, { id: 'users', name: 'User Management', icon: Users, path: `${basePath}/users`, color: 'pink' });
+      baseItems.splice(3, 0, { id: 'hr-admin', name: 'HR Dashboard', icon: Grid, path: `${basePath}/hr-admin`, color: 'indigo' });
     }
 
     baseItems.push({ id: 'testing', name: 'Testing', icon: SettingsIcon, path: `${basePath}/testing`, color: 'yellow' });
