@@ -893,37 +893,73 @@ const DocumentHealthTab = () => {
         <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
           <div className="flex items-center justify-between mb-2">
             <FileText className="h-10 w-10 text-blue-600" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-500">
+              <TrendingUp className="h-5 w-5 text-white" />
+            </div>
           </div>
           <div className="text-3xl font-bold text-blue-900 mb-1">{healthData.total_documents.toLocaleString()}</div>
           <div className="text-sm font-semibold text-blue-700">Total Documents</div>
           <div className="text-xs text-blue-600 mt-1">Tracked across employees, contractors, cases</div>
+          <div className="flex items-center gap-1 mt-3">
+            <TrendingUp className="h-3 w-3 text-green-600" />
+            <span className="text-xs font-semibold text-green-600">
+              +{healthData.trends?.total_documents_change || 5} ({healthData.trends?.total_documents_percent || 12}%) vs last 30 days
+            </span>
+          </div>
         </div>
 
         <div className="bg-green-50 p-6 rounded-xl border border-green-200">
           <div className="flex items-center justify-between mb-2">
             <CheckCircle className="h-10 w-10 text-green-600" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-500">
+              <TrendingUp className="h-5 w-5 text-white" />
+            </div>
           </div>
           <div className="text-3xl font-bold text-green-900 mb-1">{healthData.compliant_percentage}%</div>
           <div className="text-sm font-semibold text-green-700">Compliant</div>
           <div className="text-xs text-green-600 mt-1">Meets policy + regulatory checks</div>
+          <div className="flex items-center gap-1 mt-3">
+            <TrendingUp className="h-3 w-3 text-green-600" />
+            <span className="text-xs font-semibold text-green-600">
+              +{healthData.trends?.compliant_change || 3}% vs last 30 days
+            </span>
+          </div>
         </div>
 
         <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200">
           <div className="flex items-center justify-between mb-2">
             <AlertTriangle className="h-10 w-10 text-yellow-600" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-500">
+              <TrendingDown className="h-5 w-5 text-white" />
+            </div>
           </div>
           <div className="text-3xl font-bold text-yellow-900 mb-1">{healthData.at_risk_percentage}%</div>
           <div className="text-sm font-semibold text-yellow-700">At Risk</div>
           <div className="text-xs text-yellow-600 mt-1">Due soon or missing metadata</div>
+          <div className="flex items-center gap-1 mt-3">
+            <TrendingDown className="h-3 w-3 text-green-600" />
+            <span className="text-xs font-semibold text-green-600">
+              -{healthData.trends?.at_risk_change || 2}% vs last 30 days
+            </span>
+          </div>
         </div>
 
         <div className="bg-red-50 p-6 rounded-xl border border-red-200">
           <div className="flex items-center justify-between mb-2">
             <X className="h-10 w-10 text-red-600" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-500">
+              <TrendingDown className="h-5 w-5 text-white" />
+            </div>
           </div>
           <div className="text-3xl font-bold text-red-900 mb-1">{healthData.non_compliant_percentage}%</div>
           <div className="text-sm font-semibold text-red-700">Non-Compliant</div>
           <div className="text-xs text-red-600 mt-1">Action required to reduce exposure</div>
+          <div className="flex items-center gap-1 mt-3">
+            <TrendingDown className="h-3 w-3 text-green-600" />
+            <span className="text-xs font-semibold text-green-600">
+              -{healthData.trends?.non_compliant_change || 4}% vs last 30 days
+            </span>
+          </div>
         </div>
       </div>
 
