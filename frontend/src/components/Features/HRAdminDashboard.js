@@ -805,16 +805,38 @@ const AnalyticsTab = ({ analytics, navigate }) => (
 
 // Document Health Tab Component
 const DocumentHealthTab = () => {
+  const { user } = useAuth();
   const [healthData, setHealthData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
 
-  const loadHealthData = async () => {
+  // Check if current user is HR or Manager
+  const isHROrManager = user?.role && ['hr_admin', 'hr_manager', 'manager'].includes(user.role);
+
+  const loadEmployees = async () => {
+    if (!isHROrManager) return; // Only load employees for HR/Manager
+
+    try {
+      setLoadingEmployees(true);
+      const employeesList = await documentsAPI.getHREmployeesList();
+      setEmployees(employeesList || []);
+    } catch (err) {
+      console.error('Failed to load employees:', err);
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
+  const loadHealthData = async (userId = null) => {
     try {
       setError(null);
-      const data = await documentsAPI.getHRHealthSnapshot();
+      setLoading(true);
+      const data = await documentsAPI.getHRHealthSnapshot(userId);
       setHealthData(data);
       setLastUpdated(new Date());
       setLoading(false);
@@ -826,10 +848,20 @@ const DocumentHealthTab = () => {
   };
 
   useEffect(() => {
-    loadHealthData();
-    const interval = setInterval(loadHealthData, 30000); // 30s polling
-    return () => clearInterval(interval);
+    loadEmployees(); // Load employees list for dropdown
+    loadHealthData(selectedUserId); // Load initial health data
   }, []);
+
+  useEffect(() => {
+    // Reload data when selected user changes
+    loadHealthData(selectedUserId);
+
+    // Set up polling only if no specific user is selected (viewing all)
+    if (!selectedUserId) {
+      const interval = setInterval(() => loadHealthData(selectedUserId), 30000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedUserId]);
 
   if (loading) {
     return (
@@ -869,22 +901,48 @@ const DocumentHealthTab = () => {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header with Live Indicator */}
-      <div className="flex items-center justify-between">
+      {/* Header with Live Indicator and User Selector */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Document Health Snapshot</h2>
-          <p className="text-gray-600 mt-1">Compliance posture across all HR evidence documents</p>
+          <p className="text-gray-600 mt-1">
+            {selectedUserId
+              ? `Viewing compliance status for selected employee`
+              : `Compliance posture across all HR evidence documents`}
+          </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            Live
-          </div>
-          {lastUpdated && (
-            <div className="text-sm text-gray-600">
-              Updated {Math.floor((new Date() - lastUpdated) / 1000 / 60)} min ago
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          {/* User Selector Dropdown - Only for HR/Manager */}
+          {isHROrManager && (
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-gray-500" />
+              <select
+                value={selectedUserId || ''}
+                onChange={(e) => setSelectedUserId(e.target.value || null)}
+                disabled={loadingEmployees}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm min-w-[200px]"
+              >
+                <option value="">All Employees</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.full_name || emp.email}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              Live
+            </div>
+            {lastUpdated && (
+              <div className="text-sm text-gray-600">
+                Updated {Math.floor((new Date() - lastUpdated) / 1000 / 60)} min ago
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

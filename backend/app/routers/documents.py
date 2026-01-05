@@ -2334,12 +2334,24 @@ def calculate_compliance_status(doc, doc_analysis):
 
 @router.get("/hr/health-snapshot", response_model=schemas.DocumentHealthSnapshotResponse)
 async def get_hr_health_snapshot(
+    user_id: Optional[str] = None,
     current_user: CompanyUser = Depends(auth.get_current_company_user),
     management_db: Session = Depends(get_management_db)
 ):
-    """Get document health snapshot for compliance tracking"""
-    if current_user.role not in ['hr_admin', 'hr_manager']:
-        raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+    """
+    Get document health snapshot for compliance tracking
+
+    Args:
+        user_id: Optional user ID to filter documents.
+                 - For regular employees: automatically filtered to their own documents (parameter ignored)
+                 - For HR/Managers: can filter by any user, or see all if not specified
+    """
+    # Role-based access control
+    is_hr_or_manager = current_user.role in ['hr_admin', 'hr_manager', 'manager']
+
+    # Regular employees can only see their own documents
+    if not is_hr_or_manager:
+        user_id = current_user.id  # Force to their own ID for security
 
     # Get company database
     company = management_db.query(models.Company).filter(
@@ -2353,15 +2365,21 @@ async def get_hr_health_snapshot(
     company_db = next(company_db_gen)
 
     try:
-        # Query all documents with analysis
-        docs_query = company_db.query(
+        # Build query for documents with analysis
+        query = company_db.query(
             CompanyDocument, DocumentAnalysis
         ).outerjoin(
             DocumentAnalysis,
             CompanyDocument.id == DocumentAnalysis.document_id
         ).filter(
             CompanyDocument.company_id == current_user.company_id
-        ).all()
+        )
+
+        # Apply user filter if specified
+        if user_id:
+            query = query.filter(CompanyDocument.user_id == user_id)
+
+        docs_query = query.all()
 
         # Categorize and calculate status
         categorized_docs = {key: [] for key in HEALTH_CATEGORY_MAPPING.keys()}

@@ -1041,8 +1041,12 @@ const documentsAPI = {
     return response.json();
   },
 
-  getHRHealthSnapshot: async () => {
-    const response = await fetch(buildApiUrl('/api/documents/hr/health-snapshot'), {
+  getHRHealthSnapshot: async (userId = null) => {
+    const url = userId
+      ? buildApiUrl(`/api/documents/hr/health-snapshot?user_id=${userId}`)
+      : buildApiUrl('/api/documents/hr/health-snapshot');
+
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`

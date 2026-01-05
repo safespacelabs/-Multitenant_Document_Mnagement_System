@@ -413,9 +413,13 @@ const Dashboard = () => {
       baseItems.splice(2, 0, { id: 'companies', name: 'Companies', icon: Building2, path: `${basePath}/companies`, color: 'teal' });
     }
 
+    // Document Health is available for all company users (not system_admin)
+    if (user.role !== 'system_admin') {
+      baseItems.splice(2, 0, { id: 'document-health', name: 'Document Health', icon: Activity, path: `${basePath}/document-health`, color: 'green' });
+    }
+
     if (['hr_admin', 'hr_manager'].includes(user.role)) {
-      baseItems.splice(2, 0, { id: 'users', name: 'User Management', icon: Users, path: `${basePath}/users`, color: 'pink' });
-      baseItems.splice(3, 0, { id: 'document-health', name: 'Document Health', icon: Activity, path: `${basePath}/document-health`, color: 'green' });
+      baseItems.splice(3, 0, { id: 'users', name: 'User Management', icon: Users, path: `${basePath}/users`, color: 'pink' });
     }
 
     baseItems.push({ id: 'testing', name: 'Testing', icon: SettingsIcon, path: `${basePath}/testing`, color: 'yellow' });
@@ -483,8 +487,8 @@ const Dashboard = () => {
       return <Analytics />;
     }
 
-    // Document Health
-    if (path === '/dashboard/document-health' && ['hr_admin', 'hr_manager'].includes(user.role)) {
+    // Document Health - Available for all company users
+    if (path === '/dashboard/document-health' && user.role !== 'system_admin') {
       return <DocumentHealthTab />;
     }
 
@@ -565,7 +569,7 @@ const Dashboard = () => {
              color="yellow"
              onClick={() => navigate('/dashboard/testing')}
            />
-           {['hr_admin', 'hr_manager'].includes(user?.role) && (
+           {user?.role !== 'system_admin' && (
              <QuickActionCard
                title="Document Health"
                description="Monitor compliance posture"
