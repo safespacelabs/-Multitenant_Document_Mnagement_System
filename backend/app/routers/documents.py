@@ -2365,6 +2365,20 @@ async def get_hr_health_snapshot(
     company_db = next(company_db_gen)
 
     try:
+        # Debug: Log current user and company info
+        logger.info(f"📊 Document Health - User: {current_user.username}, Company: {current_user.company_id}, Role: {current_user.role}")
+        logger.info(f"🔍 User filter: {user_id if user_id else 'ALL USERS'}")
+
+        # First, check total documents in company
+        total_docs_count = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id
+        ).count()
+        logger.info(f"📄 Total documents in company database: {total_docs_count}")
+
+        # Check how many have analysis
+        total_with_analysis = company_db.query(DocumentAnalysis).count()
+        logger.info(f"🤖 Total documents with AI analysis: {total_with_analysis}")
+
         # Build query for documents with analysis
         query = company_db.query(
             CompanyDocument, DocumentAnalysis
@@ -2378,8 +2392,10 @@ async def get_hr_health_snapshot(
         # Apply user filter if specified
         if user_id:
             query = query.filter(CompanyDocument.user_id == user_id)
+            logger.info(f"👤 Filtering for user_id: {user_id}")
 
         docs_query = query.all()
+        logger.info(f"✅ Query returned {len(docs_query)} document records")
 
         # Categorize and calculate status
         categorized_docs = {key: [] for key in HEALTH_CATEGORY_MAPPING.keys()}
@@ -2501,7 +2517,113 @@ async def get_hr_health_snapshot(
         )
 
     except Exception as e:
+        logger.error(f"❌ Failed to get health snapshot: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get health snapshot: {str(e)}")
+    finally:
+        company_db.close()
+
+@router.post("/hr/process-unanalyzed-documents")
+async def process_unanalyzed_documents(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """
+    Process all documents that don't have AI analysis yet.
+    This is useful for existing documents that were uploaded before AI analysis was enabled.
+    """
+    if current_user.role not in ['hr_admin', 'hr_manager']:
+        raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+
+    # Get company database
+    company = management_db.query(models.Company).filter(
+        models.Company.id == current_user.company_id
+    ).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+
+    try:
+        # Find documents without analysis
+        docs_without_analysis = company_db.query(CompanyDocument).outerjoin(
+            DocumentAnalysis,
+            CompanyDocument.id == DocumentAnalysis.document_id
+        ).filter(
+            CompanyDocument.company_id == current_user.company_id,
+            DocumentAnalysis.id.is_(None)  # No analysis record exists
+        ).all()
+
+        logger.info(f"📊 Found {len(docs_without_analysis)} documents without AI analysis")
+
+        if len(docs_without_analysis) == 0:
+            return {
+                "message": "All documents have been analyzed",
+                "processed": 0,
+                "total": 0
+            }
+
+        processed_count = 0
+        failed_count = 0
+        errors = []
+
+        for doc in docs_without_analysis:
+            try:
+                logger.info(f"🤖 Processing document {doc.id}: {doc.original_filename}")
+
+                # Download file from S3
+                file_content = await aws_service.download_file_from_s3(
+                    company.s3_bucket_name,
+                    doc.s3_key
+                )
+
+                # Get user information
+                user = company_db.query(CompanyUser).filter(
+                    CompanyUser.id == doc.user_id
+                ).first()
+
+                user_name = user.full_name if user else "Unknown User"
+                user_email = user.email if user else "unknown@example.com"
+
+                # Process with AI
+                analysis_result = await document_analysis_service.process_document_upload(
+                    document_id=doc.id,
+                    file_content=file_content,
+                    filename=doc.original_filename,
+                    folder_name=doc.folder_name or "",
+                    user_id=doc.user_id,
+                    user_name=user_name,
+                    user_email=user_email,
+                    company_db=company_db
+                )
+
+                if analysis_result["success"]:
+                    processed_count += 1
+                    logger.info(f"✅ Successfully analyzed document {doc.id}")
+                else:
+                    failed_count += 1
+                    error_msg = f"Document {doc.id}: {analysis_result.get('error', 'Unknown error')}"
+                    errors.append(error_msg)
+                    logger.error(f"❌ {error_msg}")
+
+            except Exception as e:
+                failed_count += 1
+                error_msg = f"Document {doc.id}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(f"❌ Failed to process document {doc.id}: {str(e)}")
+
+        return {
+            "message": f"Processed {processed_count} documents successfully, {failed_count} failed",
+            "processed": processed_count,
+            "failed": failed_count,
+            "total": len(docs_without_analysis),
+            "errors": errors[:10] if errors else []  # Return first 10 errors
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to process unanalyzed documents: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process documents: {str(e)}")
     finally:
         company_db.close()
 

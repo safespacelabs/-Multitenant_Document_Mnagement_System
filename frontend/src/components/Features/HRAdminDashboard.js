@@ -814,6 +814,8 @@ const DocumentHealthTab = () => {
   const [employees, setEmployees] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [processingDocs, setProcessingDocs] = useState(false);
+  const [processResult, setProcessResult] = useState(null);
 
   // Check if current user is HR or Manager
   const isHROrManager = user?.role && ['hr_admin', 'hr_manager', 'manager'].includes(user.role);
@@ -844,6 +846,33 @@ const DocumentHealthTab = () => {
       console.error('Failed to load health snapshot:', err);
       setError(err.message || 'Failed to load document health data');
       setLoading(false);
+    }
+  };
+
+  const handleProcessUnanalyzedDocs = async () => {
+    if (!isHROrManager) return;
+
+    try {
+      setProcessingDocs(true);
+      setProcessResult(null);
+      const result = await documentsAPI.processUnanalyzedDocuments();
+      setProcessResult(result);
+
+      // Reload health data after processing
+      if (result.processed > 0) {
+        await loadHealthData(selectedUserId);
+      }
+    } catch (err) {
+      console.error('Failed to process documents:', err);
+      setProcessResult({
+        message: err.message || 'Failed to process documents',
+        processed: 0,
+        failed: 0,
+        total: 0,
+        errors: [err.message]
+      });
+    } finally {
+      setProcessingDocs(false);
     }
   };
 
@@ -932,6 +961,27 @@ const DocumentHealthTab = () => {
             </div>
           )}
 
+          {/* Process Unanalyzed Documents Button - Only for HR/Manager */}
+          {isHROrManager && (
+            <button
+              onClick={handleProcessUnanalyzedDocs}
+              disabled={processingDocs}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {processingDocs ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Activity className="h-4 w-4" />
+                  Analyze Documents
+                </>
+              )}
+            </button>
+          )}
+
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -945,6 +995,43 @@ const DocumentHealthTab = () => {
           </div>
         </div>
       </div>
+
+      {/* Processing Result Banner */}
+      {processResult && (
+        <div className={`rounded-lg p-4 ${processResult.processed > 0 ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'}`}>
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className={`font-semibold ${processResult.processed > 0 ? 'text-green-800' : 'text-yellow-800'}`}>
+                {processResult.message}
+              </p>
+              {processResult.total > 0 && (
+                <p className={`text-sm mt-1 ${processResult.processed > 0 ? 'text-green-700' : 'text-yellow-700'}`}>
+                  Processed: {processResult.processed} / {processResult.total} documents
+                  {processResult.failed > 0 && ` (${processResult.failed} failed)`}
+                </p>
+              )}
+              {processResult.errors && processResult.errors.length > 0 && (
+                <details className="mt-2">
+                  <summary className={`text-sm cursor-pointer ${processResult.processed > 0 ? 'text-green-700' : 'text-yellow-700'}`}>
+                    View errors
+                  </summary>
+                  <ul className={`text-xs mt-1 space-y-1 ${processResult.processed > 0 ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {processResult.errors.map((err, idx) => (
+                      <li key={idx}>• {err}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+            <button
+              onClick={() => setProcessResult(null)}
+              className={`ml-4 ${processResult.processed > 0 ? 'text-green-600 hover:text-green-800' : 'text-yellow-600 hover:text-yellow-800'}`}
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Top Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

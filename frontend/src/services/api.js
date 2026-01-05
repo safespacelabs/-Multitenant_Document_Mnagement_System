@@ -1059,6 +1059,23 @@ const documentsAPI = {
     }
 
     return response.json();
+  },
+
+  processUnanalyzedDocuments: async () => {
+    const response = await fetch(buildApiUrl('/api/documents/hr/process-unanalyzed-documents'), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to process unanalyzed documents');
+    }
+
+    return response.json();
   }
 };
 
