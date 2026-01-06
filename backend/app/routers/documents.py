@@ -2367,17 +2367,31 @@ async def get_hr_health_snapshot(
     try:
         # Debug: Log current user and company info
         logger.info(f"📊 Document Health - User: {current_user.username}, Company: {current_user.company_id}, Role: {current_user.role}")
-        logger.info(f"🔍 User filter: {user_id if user_id else 'ALL USERS'}")
+        logger.info(f"🔍 User filter parameter received: {user_id if user_id else 'NONE (should show ALL USERS)'}")
+        logger.info(f"🆔 Current user ID: {current_user.id}")
 
-        # First, check total documents in company
-        total_docs_count = company_db.query(CompanyDocument).filter(
+        # First, check total documents in company WITHOUT any filters
+        all_docs = company_db.query(CompanyDocument).filter(
             CompanyDocument.company_id == current_user.company_id
-        ).count()
-        logger.info(f"📄 Total documents in company database: {total_docs_count}")
+        ).all()
+        logger.info(f"📄 Total documents in company database: {len(all_docs)}")
+
+        # Log sample of documents and their user_ids
+        if len(all_docs) > 0:
+            logger.info(f"📋 Sample documents (first 5):")
+            for i, doc in enumerate(all_docs[:5]):
+                logger.info(f"  Doc {i+1}: ID={doc.id}, user_id={doc.user_id}, filename={doc.original_filename}")
+
+        # Get unique user IDs from documents
+        unique_user_ids = set(doc.user_id for doc in all_docs)
+        logger.info(f"👥 Unique user IDs with documents: {unique_user_ids}")
 
         # Check how many have analysis
-        total_with_analysis = company_db.query(DocumentAnalysis).count()
-        logger.info(f"🤖 Total documents with AI analysis: {total_with_analysis}")
+        all_analysis = company_db.query(DocumentAnalysis).all()
+        logger.info(f"🤖 Total DocumentAnalysis records: {len(all_analysis)}")
+        if len(all_analysis) > 0:
+            analyzed_doc_ids = {a.document_id for a in all_analysis}
+            logger.info(f"📊 Document IDs with analysis: {analyzed_doc_ids}")
 
         # Build query for documents with analysis
         query = company_db.query(
@@ -2391,11 +2405,19 @@ async def get_hr_health_snapshot(
 
         # Apply user filter if specified
         if user_id:
+            logger.info(f"⚠️ APPLYING USER FILTER for user_id: {user_id}")
             query = query.filter(CompanyDocument.user_id == user_id)
-            logger.info(f"👤 Filtering for user_id: {user_id}")
+        else:
+            logger.info(f"✅ NO USER FILTER - should return ALL company documents")
 
         docs_query = query.all()
-        logger.info(f"✅ Query returned {len(docs_query)} document records")
+        logger.info(f"✅ Final query returned {len(docs_query)} document records")
+
+        # Log details of what was returned
+        if len(docs_query) > 0:
+            logger.info(f"📝 Returned documents:")
+            for i, (doc, analysis) in enumerate(docs_query[:5]):
+                logger.info(f"  Result {i+1}: Doc ID={doc.id}, user_id={doc.user_id}, has_analysis={analysis is not None}")
 
         # Categorize and calculate status
         categorized_docs = {key: [] for key in HEALTH_CATEGORY_MAPPING.keys()}
@@ -2546,6 +2568,21 @@ async def process_unanalyzed_documents(
     company_db = next(company_db_gen)
 
     try:
+        # Log company and user info
+        logger.info(f"🔧 Process Unanalyzed - User: {current_user.username}, Company: {current_user.company_id}, Role: {current_user.role}")
+
+        # First check total documents in company
+        all_docs = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id
+        ).all()
+        logger.info(f"📄 Total documents in company: {len(all_docs)}")
+
+        # Check which have analysis
+        all_analysis = company_db.query(DocumentAnalysis).all()
+        analyzed_doc_ids = {a.document_id for a in all_analysis}
+        logger.info(f"🤖 Documents with analysis: {len(analyzed_doc_ids)}")
+        logger.info(f"📊 Analysis doc IDs: {analyzed_doc_ids}")
+
         # Find documents without analysis
         docs_without_analysis = company_db.query(CompanyDocument).outerjoin(
             DocumentAnalysis,
@@ -2557,7 +2594,13 @@ async def process_unanalyzed_documents(
 
         logger.info(f"📊 Found {len(docs_without_analysis)} documents without AI analysis")
 
+        if len(docs_without_analysis) > 0:
+            logger.info(f"📋 Documents needing analysis:")
+            for i, doc in enumerate(docs_without_analysis[:10]):
+                logger.info(f"  {i+1}. Doc ID={doc.id}, user_id={doc.user_id}, file={doc.original_filename}")
+
         if len(docs_without_analysis) == 0:
+            logger.info("✅ All documents already have analysis")
             return {
                 "message": "All documents have been analyzed",
                 "processed": 0,
