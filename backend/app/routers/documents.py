@@ -2341,6 +2341,83 @@ def calculate_compliance_status(doc, doc_analysis):
 
     return "compliant", "Active", None
 
+@router.get("/hr/database-diagnostic")
+async def get_database_diagnostic(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """
+    Diagnostic endpoint to check database contents
+    TEMPORARY - for debugging only
+    """
+    if current_user.role not in ['hr_admin', 'hr_manager', 'system_admin']:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Get company database
+    company = management_db.query(models.Company).filter(
+        models.Company.id == current_user.company_id
+    ).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+
+    try:
+        # Get all documents
+        all_docs = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id
+        ).all()
+
+        # Get all users
+        all_users = company_db.query(CompanyUser).filter(
+            CompanyUser.company_id == current_user.company_id
+        ).all()
+
+        # Get all analysis records
+        all_analysis = company_db.query(DocumentAnalysis).all()
+
+        # Build diagnostic info
+        docs_by_user = {}
+        for doc in all_docs:
+            if doc.user_id not in docs_by_user:
+                docs_by_user[doc.user_id] = []
+            docs_by_user[doc.user_id].append({
+                "id": doc.id,
+                "filename": doc.original_filename,
+                "created_at": doc.created_at.isoformat() if doc.created_at else None,
+                "has_analysis": any(a.document_id == doc.id for a in all_analysis)
+            })
+
+        users_info = []
+        for user in all_users:
+            doc_count = len(docs_by_user.get(user.id, []))
+            users_info.append({
+                "id": user.id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "role": user.role,
+                "document_count": doc_count,
+                "documents": docs_by_user.get(user.id, [])
+            })
+
+        return {
+            "company_id": current_user.company_id,
+            "company_name": company.name,
+            "total_documents": len(all_docs),
+            "total_users": len(all_users),
+            "total_analysis_records": len(all_analysis),
+            "users": users_info,
+            "documents_without_analysis": len([d for d in all_docs if not any(a.document_id == d.id for a in all_analysis)])
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Diagnostic failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Diagnostic failed: {str(e)}")
+    finally:
+        company_db.close()
+
 @router.get("/hr/health-snapshot", response_model=schemas.DocumentHealthSnapshotResponse)
 async def get_hr_health_snapshot(
     user_id: Optional[str] = None,
