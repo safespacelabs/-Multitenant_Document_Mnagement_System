@@ -16,7 +16,7 @@ from sqlalchemy import func
 from app.database import get_management_db, get_company_db
 from app import models, schemas
 from app import auth
-from app.models_company import Document as CompanyDocument, User as CompanyUser, DocumentCategory, DocumentFolder, DocumentAccess, DocumentAuditLog
+from app.models_company import Document as CompanyDocument, User as CompanyUser, DocumentCategory, DocumentFolder, DocumentAccess, DocumentAuditLog, HRManagedDocument
 from app.models_document_analysis import DocumentAnalysis
 from app.services.aws_service import aws_service
 from app.services.document_analysis_service import document_analysis_service
@@ -2365,10 +2365,18 @@ async def get_database_diagnostic(
     company_db = next(company_db_gen)
 
     try:
-        # Get all documents
-        all_docs = company_db.query(CompanyDocument).filter(
+        # Get all CompanyDocument records
+        company_docs = company_db.query(CompanyDocument).filter(
             CompanyDocument.company_id == current_user.company_id
         ).all()
+
+        # Get all HRManagedDocument records
+        hr_docs = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.company_id == current_user.company_id
+        ).all()
+
+        # Combine all documents
+        all_docs = list(company_docs) + list(hr_docs)
 
         # Get all users
         all_users = company_db.query(CompanyUser).filter(
@@ -2383,9 +2391,15 @@ async def get_database_diagnostic(
         for doc in all_docs:
             if doc.user_id not in docs_by_user:
                 docs_by_user[doc.user_id] = []
+
+            # Determine filename based on document type
+            filename = getattr(doc, 'original_filename', None) or getattr(doc, 'filename', 'Unknown')
+            doc_type = "HR-managed" if isinstance(doc, HRManagedDocument) else "Regular"
+
             docs_by_user[doc.user_id].append({
                 "id": doc.id,
-                "filename": doc.original_filename,
+                "filename": filename,
+                "document_type": doc_type,
                 "created_at": doc.created_at.isoformat() if doc.created_at else None,
                 "has_analysis": any(a.document_id == doc.id for a in all_analysis)
             })
@@ -2456,17 +2470,27 @@ async def get_hr_health_snapshot(
         logger.info(f"🔍 User filter parameter received: {user_id if user_id else 'NONE (should show ALL USERS)'}")
         logger.info(f"🆔 Current user ID: {current_user.id}")
 
-        # First, check total documents in company WITHOUT any filters
-        all_docs = company_db.query(CompanyDocument).filter(
+        # Get CompanyDocument records
+        company_docs = company_db.query(CompanyDocument).filter(
             CompanyDocument.company_id == current_user.company_id
         ).all()
-        logger.info(f"📄 Total documents in company database: {len(all_docs)}")
+
+        # Get HRManagedDocument records
+        hr_docs = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.company_id == current_user.company_id
+        ).all()
+
+        # Combine all documents
+        all_docs = list(company_docs) + list(hr_docs)
+        logger.info(f"📄 Total CompanyDocuments: {len(company_docs)}, HRManagedDocuments: {len(hr_docs)}, Total: {len(all_docs)}")
 
         # Log sample of documents and their user_ids
         if len(all_docs) > 0:
             logger.info(f"📋 Sample documents (first 5):")
             for i, doc in enumerate(all_docs[:5]):
-                logger.info(f"  Doc {i+1}: ID={doc.id}, user_id={doc.user_id}, filename={doc.original_filename}")
+                doc_type = "HR-managed" if isinstance(doc, HRManagedDocument) else "Regular"
+                filename = getattr(doc, 'original_filename', None) or getattr(doc, 'filename', 'Unknown')
+                logger.info(f"  Doc {i+1}: ID={doc.id}, user_id={doc.user_id}, type={doc_type}, filename={filename}")
 
         # Get unique user IDs from documents
         unique_user_ids = set(doc.user_id for doc in all_docs)
@@ -2479,31 +2503,29 @@ async def get_hr_health_snapshot(
             analyzed_doc_ids = {a.document_id for a in all_analysis}
             logger.info(f"📊 Document IDs with analysis: {analyzed_doc_ids}")
 
-        # Build query for documents with analysis
-        query = company_db.query(
-            CompanyDocument, DocumentAnalysis
-        ).outerjoin(
-            DocumentAnalysis,
-            CompanyDocument.id == DocumentAnalysis.document_id
-        ).filter(
-            CompanyDocument.company_id == current_user.company_id
-        )
-
         # Apply user filter if specified
         if user_id:
             logger.info(f"⚠️ APPLYING USER FILTER for user_id: {user_id}")
-            query = query.filter(CompanyDocument.user_id == user_id)
+            all_docs = [doc for doc in all_docs if doc.user_id == user_id]
+            logger.info(f"✅ After user filter: {len(all_docs)} documents")
         else:
-            logger.info(f"✅ NO USER FILTER - should return ALL company documents")
+            logger.info(f"✅ NO USER FILTER - showing ALL company documents")
 
-        docs_query = query.all()
+        # Build combined document-analysis pairs
+        docs_query = []
+        for doc in all_docs:
+            # Find matching analysis record
+            analysis = next((a for a in all_analysis if a.document_id == doc.id), None)
+            docs_query.append((doc, analysis))
+
         logger.info(f"✅ Final query returned {len(docs_query)} document records")
 
         # Log details of what was returned
         if len(docs_query) > 0:
             logger.info(f"📝 Returned documents:")
             for i, (doc, analysis) in enumerate(docs_query[:5]):
-                logger.info(f"  Result {i+1}: Doc ID={doc.id}, user_id={doc.user_id}, has_analysis={analysis is not None}")
+                doc_type = "HR-managed" if isinstance(doc, HRManagedDocument) else "Regular"
+                logger.info(f"  Result {i+1}: Doc ID={doc.id}, type={doc_type}, user_id={doc.user_id}, has_analysis={analysis is not None}")
 
         # Categorize and calculate status
         categorized_docs = {key: [] for key in HEALTH_CATEGORY_MAPPING.keys()}
@@ -2657,11 +2679,19 @@ async def process_unanalyzed_documents(
         # Log company and user info
         logger.info(f"🔧 Process Unanalyzed - User: {current_user.username}, Company: {current_user.company_id}, Role: {current_user.role}")
 
-        # First check total documents in company
-        all_docs = company_db.query(CompanyDocument).filter(
+        # Get CompanyDocument records
+        company_docs = company_db.query(CompanyDocument).filter(
             CompanyDocument.company_id == current_user.company_id
         ).all()
-        logger.info(f"📄 Total documents in company: {len(all_docs)}")
+
+        # Get HRManagedDocument records
+        hr_docs = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.company_id == current_user.company_id
+        ).all()
+
+        # Combine all documents
+        all_docs = list(company_docs) + list(hr_docs)
+        logger.info(f"📄 Total CompanyDocuments: {len(company_docs)}, HRManagedDocuments: {len(hr_docs)}, Total: {len(all_docs)}")
 
         # Check which have analysis
         all_analysis = company_db.query(DocumentAnalysis).all()
@@ -2670,20 +2700,16 @@ async def process_unanalyzed_documents(
         logger.info(f"📊 Analysis doc IDs: {analyzed_doc_ids}")
 
         # Find documents without analysis
-        docs_without_analysis = company_db.query(CompanyDocument).outerjoin(
-            DocumentAnalysis,
-            CompanyDocument.id == DocumentAnalysis.document_id
-        ).filter(
-            CompanyDocument.company_id == current_user.company_id,
-            DocumentAnalysis.id.is_(None)  # No analysis record exists
-        ).all()
+        docs_without_analysis = [doc for doc in all_docs if doc.id not in analyzed_doc_ids]
 
         logger.info(f"📊 Found {len(docs_without_analysis)} documents without AI analysis")
 
         if len(docs_without_analysis) > 0:
             logger.info(f"📋 Documents needing analysis:")
             for i, doc in enumerate(docs_without_analysis[:10]):
-                logger.info(f"  {i+1}. Doc ID={doc.id}, user_id={doc.user_id}, file={doc.original_filename}")
+                doc_type = "HR-managed" if isinstance(doc, HRManagedDocument) else "Regular"
+                filename = getattr(doc, 'original_filename', None) or getattr(doc, 'filename', 'Unknown')
+                logger.info(f"  {i+1}. Doc ID={doc.id}, type={doc_type}, user_id={doc.user_id}, file={filename}")
 
         if len(docs_without_analysis) == 0:
             logger.info("✅ All documents already have analysis")
