@@ -2234,20 +2234,29 @@ async def get_hr_employees_list(
         employees = company_db.query(CompanyUser).filter(
             CompanyUser.company_id == current_user.company_id
         ).offset(skip).limit(limit).all()
-        
-        return [
-            schemas.EmployeeSummaryResponse(
+
+        # Build response with document counts
+        response = []
+        for emp in employees:
+            # Count documents for this user
+            doc_count = company_db.query(CompanyDocument).filter(
+                CompanyDocument.user_id == emp.id,
+                CompanyDocument.company_id == current_user.company_id
+            ).count()
+
+            response.append(schemas.EmployeeSummaryResponse(
                 id=emp.id,
                 full_name=emp.full_name,
                 email=emp.email,
                 role=emp.role,
-                department=None,  # Would need department field
+                department=emp.department if hasattr(emp, 'department') else None,
                 status="active" if emp.is_active else "inactive",
-                documents_count=len(emp.documents),
+                documents_count=doc_count,
                 last_login=None,  # Would need login tracking
                 created_at=emp.created_at
-            ) for emp in employees
-        ]
+            ))
+
+        return response
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get employees list: {str(e)}")
