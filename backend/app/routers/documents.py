@@ -2470,19 +2470,21 @@ async def get_hr_health_snapshot(
         logger.info(f"🔍 User filter parameter received: {user_id if user_id else 'NONE (should show ALL USERS)'}")
         logger.info(f"🆔 Current user ID: {current_user.id}")
 
-        # Get CompanyDocument records
+        # Get CompanyDocument records (excluding file_missing)
         company_docs = company_db.query(CompanyDocument).filter(
-            CompanyDocument.company_id == current_user.company_id
+            CompanyDocument.company_id == current_user.company_id,
+            CompanyDocument.status != "file_missing"
         ).all()
 
-        # Get HRManagedDocument records
+        # Get HRManagedDocument records (excluding file_missing)
         hr_docs = company_db.query(HRManagedDocument).filter(
-            HRManagedDocument.company_id == current_user.company_id
+            HRManagedDocument.company_id == current_user.company_id,
+            HRManagedDocument.status != "file_missing"
         ).all()
 
         # Combine all documents
         all_docs = list(company_docs) + list(hr_docs)
-        logger.info(f"📄 Total CompanyDocuments: {len(company_docs)}, HRManagedDocuments: {len(hr_docs)}, Total: {len(all_docs)}")
+        logger.info(f"📄 Total CompanyDocuments: {len(company_docs)}, HRManagedDocuments: {len(hr_docs)}, Total: {len(all_docs)} (excluding file_missing)")
 
         # Log sample of documents and their user_ids
         if len(all_docs) > 0:
@@ -2774,6 +2776,7 @@ async def process_unanalyzed_documents(
                 file_content = None
                 download_successful = False
                 last_error = None
+                successful_key = None
 
                 try:
                     file_content = await aws_service.download_file(
@@ -2781,29 +2784,73 @@ async def process_unanalyzed_documents(
                         s3_key
                     )
                     download_successful = True
+                    successful_key = s3_key
                     logger.info(f"  ✅ Downloaded using stored S3 key")
                 except Exception as download_error:
                     last_error = download_error
                     logger.warning(f"  ⚠️ Download failed with stored key: {str(download_error)}")
 
-                    # For HR documents, try reconstructed key
+                    # For HR documents, try multiple recovery strategies
                     if isinstance(doc, HRManagedDocument) and 'folder' in locals() and folder:
-                        logger.info(f"  🔄 Trying reconstructed S3 key...")
+                        # Strategy 1: Try reconstructed key
+                        logger.info(f"  🔄 Strategy 1: Trying reconstructed S3 key...")
                         try:
                             file_content = await aws_service.download_file(
                                 company.s3_bucket_name,
                                 reconstructed_key
                             )
                             download_successful = True
+                            successful_key = reconstructed_key
                             logger.info(f"  ✅ Downloaded using reconstructed key")
-
-                            # Update the document's S3 key in the database to the correct one
-                            doc.s3_key = reconstructed_key
-                            company_db.commit()
-                            logger.info(f"  📝 Updated document S3 key in database")
                         except Exception as second_error:
                             last_error = second_error
-                            logger.error(f"  ❌ Download also failed with reconstructed key: {str(second_error)}")
+                            logger.error(f"  ❌ Reconstructed key also failed: {str(second_error)}")
+
+                            # Strategy 2: List folder contents and find matching filename
+                            logger.info(f"  🔄 Strategy 2: Searching S3 folder for matching filename...")
+                            try:
+                                prefix = f"users/{doc.user_id}/hr_folders/{folder.name}/"
+                                logger.info(f"  📂 Listing S3 prefix: {prefix}")
+
+                                if not aws_service.use_mock:
+                                    response = aws_service.s3_client.list_objects_v2(
+                                        Bucket=company.s3_bucket_name,
+                                        Prefix=prefix
+                                    )
+
+                                    if 'Contents' in response:
+                                        logger.info(f"  📝 Found {len(response['Contents'])} files in folder")
+                                        # Look for a file that matches the original filename
+                                        for obj in response['Contents']:
+                                            obj_key = obj['Key']
+                                            obj_filename = obj_key.split('/')[-1]
+                                            logger.info(f"    - Found in S3: {obj_filename}")
+
+                                            # Try exact filename match or close match
+                                            if obj_filename == doc.original_filename or \
+                                               obj_filename.lower() == doc.original_filename.lower():
+                                                logger.info(f"  🎯 Found matching file: {obj_key}")
+                                                try:
+                                                    file_content = await aws_service.download_file(
+                                                        company.s3_bucket_name,
+                                                        obj_key
+                                                    )
+                                                    download_successful = True
+                                                    successful_key = obj_key
+                                                    logger.info(f"  ✅ Downloaded using discovered key")
+                                                    break
+                                                except Exception as third_error:
+                                                    logger.error(f"  ❌ Failed to download discovered file: {str(third_error)}")
+                                    else:
+                                        logger.warning(f"  ⚠️ No files found in S3 folder {prefix}")
+                            except Exception as search_error:
+                                logger.error(f"  ❌ S3 search failed: {str(search_error)}")
+
+                        # Update database if we found a working key
+                        if download_successful and successful_key and successful_key != doc.s3_key:
+                            doc.s3_key = successful_key
+                            company_db.commit()
+                            logger.info(f"  📝 Updated document S3 key in database to: {successful_key}")
 
                 if not download_successful:
                     # Mark document as having missing file to prevent repeated processing attempts
@@ -2862,6 +2909,66 @@ async def process_unanalyzed_documents(
         raise HTTPException(status_code=500, detail=f"Failed to process documents: {str(e)}")
     finally:
         company_db.close()
+
+@router.get("/hr/s3-diagnostics/{user_id}")
+async def s3_diagnostics(
+    user_id: str,
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """
+    Diagnostic endpoint to list what files actually exist in S3 for a user.
+    Helps identify S3 key mismatches.
+    """
+    if current_user.role not in ['hr_admin', 'hr_manager']:
+        raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+
+    # Get company database
+    company = management_db.query(models.Company).filter(
+        models.Company.id == current_user.company_id
+    ).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    try:
+        # List all files in S3 for this user
+        prefix = f"users/{user_id}/hr_folders/"
+
+        logger.info(f"🔍 Listing S3 files with prefix: {prefix} in bucket: {company.s3_bucket_name}")
+
+        if aws_service.use_mock:
+            # For mock service
+            files = []
+            if company.s3_bucket_name in aws_service.mock_service.uploaded_files:
+                for key in aws_service.mock_service.uploaded_files[company.s3_bucket_name]:
+                    if key.startswith(prefix):
+                        files.append(key)
+        else:
+            # For real S3
+            files = []
+            try:
+                response = aws_service.s3_client.list_objects_v2(
+                    Bucket=company.s3_bucket_name,
+                    Prefix=prefix
+                )
+
+                if 'Contents' in response:
+                    files = [obj['Key'] for obj in response['Contents']]
+            except Exception as e:
+                logger.error(f"Failed to list S3 objects: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to list S3 files: {str(e)}")
+
+        return {
+            "bucket": company.s3_bucket_name,
+            "prefix": prefix,
+            "total_files": len(files),
+            "files": files
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed S3 diagnostics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to run diagnostics: {str(e)}")
 
 @router.get("/hr/missing-files")
 async def list_missing_file_documents(
