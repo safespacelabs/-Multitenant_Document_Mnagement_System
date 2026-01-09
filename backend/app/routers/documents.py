@@ -2679,14 +2679,17 @@ async def process_unanalyzed_documents(
         # Log company and user info
         logger.info(f"🔧 Process Unanalyzed - User: {current_user.username}, Company: {current_user.company_id}, Role: {current_user.role}")
 
-        # Get CompanyDocument records
+        # Get CompanyDocument records (active ones only)
         company_docs = company_db.query(CompanyDocument).filter(
-            CompanyDocument.company_id == current_user.company_id
+            CompanyDocument.company_id == current_user.company_id,
+            CompanyDocument.status == "active"
         ).all()
 
-        # Get HRManagedDocument records
+        # Get HRManagedDocument records (active ones only)
         hr_docs = company_db.query(HRManagedDocument).filter(
-            HRManagedDocument.company_id == current_user.company_id
+            HRManagedDocument.company_id == current_user.company_id,
+            HRManagedDocument.is_active == True,
+            HRManagedDocument.status == "active"
         ).all()
 
         # Combine all documents
@@ -2727,13 +2730,7 @@ async def process_unanalyzed_documents(
             try:
                 logger.info(f"🤖 Processing document {doc.id}: {doc.original_filename}")
 
-                # Download file from S3
-                file_content = await aws_service.download_file(
-                    company.s3_bucket_name,
-                    doc.s3_key
-                )
-
-                # Get user information
+                # Get user information first
                 user = company_db.query(CompanyUser).filter(
                     CompanyUser.id == doc.user_id
                 ).first()
@@ -2741,12 +2738,86 @@ async def process_unanalyzed_documents(
                 user_name = user.full_name if user else "Unknown User"
                 user_email = user.email if user else "unknown@example.com"
 
+                # Get folder_name based on document type and prepare S3 key
+                folder_name = ""
+                s3_key = doc.s3_key
+
+                if isinstance(doc, HRManagedDocument):
+                    # For HR-managed documents, get folder name from the relationship
+                    if doc.folder_id:
+                        from app.models_company import UserFolder
+                        import re
+
+                        folder = company_db.query(UserFolder).filter(
+                            UserFolder.id == doc.folder_id
+                        ).first()
+
+                        if folder:
+                            folder_name = folder.name
+
+                            # Try to reconstruct S3 key if the stored one fails
+                            # This matches the format used in upload_file_to_hr_folder
+                            safe_folder_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder.name)
+                            safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', doc.original_filename)
+                            reconstructed_key = f"users/{doc.user_id}/hr_folders/{safe_folder_name}/{safe_filename}"
+
+                            # Try the stored key first, then reconstructed key
+                            logger.info(f"  Stored S3 key: {s3_key}")
+                            logger.info(f"  Reconstructed S3 key: {reconstructed_key}")
+
+                            # We'll try the stored key first in the download attempt
+                else:
+                    # For regular documents, use the folder_name attribute
+                    folder_name = getattr(doc, 'folder_name', '') or ""
+
+                # Try to download file from S3, with fallback to reconstructed key for HR docs
+                file_content = None
+                download_successful = False
+                last_error = None
+
+                try:
+                    file_content = await aws_service.download_file(
+                        company.s3_bucket_name,
+                        s3_key
+                    )
+                    download_successful = True
+                    logger.info(f"  ✅ Downloaded using stored S3 key")
+                except Exception as download_error:
+                    last_error = download_error
+                    logger.warning(f"  ⚠️ Download failed with stored key: {str(download_error)}")
+
+                    # For HR documents, try reconstructed key
+                    if isinstance(doc, HRManagedDocument) and 'folder' in locals() and folder:
+                        logger.info(f"  🔄 Trying reconstructed S3 key...")
+                        try:
+                            file_content = await aws_service.download_file(
+                                company.s3_bucket_name,
+                                reconstructed_key
+                            )
+                            download_successful = True
+                            logger.info(f"  ✅ Downloaded using reconstructed key")
+
+                            # Update the document's S3 key in the database to the correct one
+                            doc.s3_key = reconstructed_key
+                            company_db.commit()
+                            logger.info(f"  📝 Updated document S3 key in database")
+                        except Exception as second_error:
+                            last_error = second_error
+                            logger.error(f"  ❌ Download also failed with reconstructed key: {str(second_error)}")
+
+                if not download_successful:
+                    error_msg = f"File not found in S3. Stored key: {s3_key}"
+                    if isinstance(doc, HRManagedDocument):
+                        error_msg += f", Tried reconstructed key: {reconstructed_key if 'reconstructed_key' in locals() else 'N/A'}"
+                    error_msg += f". This document may need to be re-uploaded. Error: {str(last_error)}"
+                    raise Exception(error_msg)
+
                 # Process with AI
                 analysis_result = await document_analysis_service.process_document_upload(
                     document_id=doc.id,
                     file_content=file_content,
                     filename=doc.original_filename,
-                    folder_name=doc.folder_name or "",
+                    folder_name=folder_name,
                     user_id=doc.user_id,
                     user_name=user_name,
                     user_email=user_email,
