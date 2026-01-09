@@ -16,7 +16,7 @@ from sqlalchemy import func
 from app.database import get_management_db, get_company_db
 from app import models, schemas
 from app import auth
-from app.models_company import Document as CompanyDocument, User as CompanyUser, DocumentCategory, DocumentFolder, DocumentAccess, DocumentAuditLog, HRManagedDocument
+from app.models_company import Document as CompanyDocument, User as CompanyUser, DocumentCategory, DocumentFolder, DocumentAccess, DocumentAuditLog, HRManagedDocument, UserFolder
 from app.models_document_analysis import DocumentAnalysis
 from app.services.aws_service import aws_service
 from app.services.document_analysis_service import document_analysis_service
@@ -2679,17 +2679,17 @@ async def process_unanalyzed_documents(
         # Log company and user info
         logger.info(f"🔧 Process Unanalyzed - User: {current_user.username}, Company: {current_user.company_id}, Role: {current_user.role}")
 
-        # Get CompanyDocument records (active ones only)
+        # Get CompanyDocument records (active ones only, excluding file_missing)
         company_docs = company_db.query(CompanyDocument).filter(
             CompanyDocument.company_id == current_user.company_id,
             CompanyDocument.status == "active"
         ).all()
 
-        # Get HRManagedDocument records (active ones only)
+        # Get HRManagedDocument records (active ones only, excluding file_missing)
         hr_docs = company_db.query(HRManagedDocument).filter(
             HRManagedDocument.company_id == current_user.company_id,
             HRManagedDocument.is_active == True,
-            HRManagedDocument.status == "active"
+            HRManagedDocument.status.in_(["active"])  # Explicitly only active, not file_missing
         ).all()
 
         # Combine all documents
@@ -2806,10 +2806,20 @@ async def process_unanalyzed_documents(
                             logger.error(f"  ❌ Download also failed with reconstructed key: {str(second_error)}")
 
                 if not download_successful:
+                    # Mark document as having missing file to prevent repeated processing attempts
+                    if not doc.metadata_json:
+                        doc.metadata_json = {}
+                    doc.metadata_json['file_missing'] = True
+                    doc.metadata_json['file_missing_date'] = datetime.utcnow().isoformat()
+                    doc.metadata_json['missing_s3_key'] = s3_key
+                    doc.status = "file_missing"
+                    company_db.commit()
+
                     error_msg = f"File not found in S3. Stored key: {s3_key}"
                     if isinstance(doc, HRManagedDocument):
                         error_msg += f", Tried reconstructed key: {reconstructed_key if 'reconstructed_key' in locals() else 'N/A'}"
-                    error_msg += f". This document may need to be re-uploaded. Error: {str(last_error)}"
+                    error_msg += f". Document marked as 'file_missing' and will be skipped in future analysis."
+                    logger.warning(f"📝 Marked document {doc.id} as file_missing")
                     raise Exception(error_msg)
 
                 # Process with AI
@@ -2850,6 +2860,83 @@ async def process_unanalyzed_documents(
     except Exception as e:
         logger.error(f"❌ Failed to process unanalyzed documents: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to process documents: {str(e)}")
+    finally:
+        company_db.close()
+
+@router.get("/hr/missing-files")
+async def list_missing_file_documents(
+    current_user: CompanyUser = Depends(auth.get_current_company_user),
+    management_db: Session = Depends(get_management_db)
+):
+    """
+    List all documents that have missing files in S3.
+    This helps HR admins identify documents that need to be re-uploaded.
+    """
+    if current_user.role not in ['hr_admin', 'hr_manager']:
+        raise HTTPException(status_code=403, detail="Access denied. HR role required.")
+
+    # Get company database
+    company = management_db.query(models.Company).filter(
+        models.Company.id == current_user.company_id
+    ).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    company_db_gen = get_company_db(str(company.id), str(company.database_url))
+    company_db = next(company_db_gen)
+
+    try:
+        # Get documents with missing files
+        company_docs = company_db.query(CompanyDocument).filter(
+            CompanyDocument.company_id == current_user.company_id,
+            CompanyDocument.status == "file_missing"
+        ).all()
+
+        hr_docs = company_db.query(HRManagedDocument).filter(
+            HRManagedDocument.company_id == current_user.company_id,
+            HRManagedDocument.status == "file_missing"
+        ).all()
+
+        # Format response
+        missing_files = []
+
+        for doc in company_docs:
+            missing_files.append({
+                "id": doc.id,
+                "type": "regular",
+                "filename": doc.original_filename,
+                "user_id": doc.user_id,
+                "folder_name": getattr(doc, 'folder_name', None),
+                "missing_since": doc.metadata_json.get('file_missing_date') if doc.metadata_json else None,
+                "s3_key": doc.metadata_json.get('missing_s3_key') if doc.metadata_json else doc.s3_key,
+                "created_at": doc.created_at.isoformat() if doc.created_at else None
+            })
+
+        for doc in hr_docs:
+            folder = company_db.query(UserFolder).filter(
+                UserFolder.id == doc.folder_id
+            ).first() if doc.folder_id else None
+
+            missing_files.append({
+                "id": doc.id,
+                "type": "hr_managed",
+                "filename": doc.original_filename,
+                "user_id": doc.user_id,
+                "folder_name": folder.name if folder else None,
+                "missing_since": doc.metadata_json.get('file_missing_date') if doc.metadata_json else None,
+                "s3_key": doc.metadata_json.get('missing_s3_key') if doc.metadata_json else doc.s3_key,
+                "created_at": doc.created_at.isoformat() if doc.created_at else None
+            })
+
+        return {
+            "total": len(missing_files),
+            "documents": missing_files
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to list missing file documents: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list missing files: {str(e)}")
     finally:
         company_db.close()
 
