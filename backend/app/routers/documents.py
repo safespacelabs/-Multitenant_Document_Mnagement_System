@@ -2728,7 +2728,7 @@ async def process_unanalyzed_documents(
                 logger.info(f"🤖 Processing document {doc.id}: {doc.original_filename}")
 
                 # Download file from S3
-                file_content = await aws_service.download_file_from_s3(
+                file_content = await aws_service.download_file(
                     company.s3_bucket_name,
                     doc.s3_key
                 )
