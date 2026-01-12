@@ -320,10 +320,28 @@ class AnthropicService:
                 "verbatim_extracted_text": "ALL text transcribed line-by-line as seen",
                 "key_value_pairs": {"Auto-detected labeled fields mapped to values (e.g., 'Surname': 'STEVENS')"},
                 "tables": [{"caption": "optional", "headers": ["..."], "rows": [["..."]] }],
-                "warnings": ["list any uncertainty or missing fields"]
+                "warnings": ["list any uncertainty or missing fields"],
+                "compliance_analysis": {
+                    "status": "compliant/at_risk/non_compliant - Overall compliance status",
+                    "reasons": [
+                        {
+                            "reason_type": "expiry/missing_data/incomplete_information/regulatory_issue",
+                            "reason_message": "Clear, specific description of the compliance issue or confirmation",
+                            "severity": "high/medium/low",
+                            "details": {
+                                "action_required": "Specific action needed to resolve the issue",
+                                "affected_fields": ["list of fields with issues"],
+                                "regulatory_context": "Which regulation or requirement this relates to if applicable"
+                            }
+                        }
+                    ],
+                    "is_expiring_soon": true/false,
+                    "has_missing_critical_data": true/false,
+                    "regulatory_category": "HR/Immigration/Safety/Payroll/Other based on document type"
+                }
             }
             
-            CRITICAL INSTRUCTIONS: 
+            CRITICAL INSTRUCTIONS:
             - Look at the ENTIRE document image
             - Extract EVERY piece of text and information visible
             - The summary must cover ALL visible content in detail
@@ -333,6 +351,17 @@ class AnthropicService:
             - Set expiry_detected to true if any expiry date is found
             - Calculate urgency_level based on how soon the expiry date is
             - Extract all important dates and categorize them properly
+
+            COMPLIANCE ANALYSIS INSTRUCTIONS:
+            - Analyze the document for compliance issues based on document type
+            - For ID documents (passport, green card, I-9, etc.): Check expiry dates, missing fields, validity
+            - For HR documents: Check completeness, required signatures, dates
+            - For safety/OSHA documents: Check certification dates, training records
+            - Set status to "non_compliant" if document is expired or has critical missing data
+            - Set status to "at_risk" if document is expiring soon (< 60 days) or has minor issues
+            - Set status to "compliant" if document is valid and complete
+            - Provide specific, actionable reasons for any compliance issues
+            - Include regulatory context when applicable (USCIS, OSHA, IRS, etc.)
             - Only respond with valid JSON, no additional text.
             """
             )
@@ -575,10 +604,28 @@ class AnthropicService:
                 "document_sections": ["list of all sections, paragraphs, and content blocks in the document"],
                 "key_findings": ["ALL key findings, important details, and significant information from the document"],
                 "data_points": ["ALL numerical data, statistics, measurements, and quantitative information"],
-                "action_items": ["ALL action items, tasks, requirements, and next steps mentioned"]
+                "action_items": ["ALL action items, tasks, requirements, and next steps mentioned"],
+                "compliance_analysis": {
+                    "status": "compliant/at_risk/non_compliant - Overall compliance status based on document analysis",
+                    "reasons": [
+                        {
+                            "reason_type": "expiry/missing_data/incomplete_information/regulatory_issue",
+                            "reason_message": "Clear, specific description of the compliance issue or confirmation",
+                            "severity": "high/medium/low - Impact level of this compliance item",
+                            "details": {
+                                "action_required": "Specific action needed to resolve the issue or maintain compliance",
+                                "affected_fields": ["list of fields or sections with issues"],
+                                "regulatory_context": "Which regulation or requirement this relates to if applicable"
+                            }
+                        }
+                    ],
+                    "is_expiring_soon": true/false,
+                    "has_missing_critical_data": true/false,
+                    "regulatory_category": "HR/Immigration/Safety/Payroll/Other based on document type"
+                }
             }
             
-            CRITICAL INSTRUCTIONS: 
+            CRITICAL INSTRUCTIONS:
             - Scan the ENTIRE document content
             - Extract EVERY piece of text and information
             - The summary must cover ALL content in detail
@@ -588,6 +635,17 @@ class AnthropicService:
             - Set expiry_detected to true if any expiry date is found
             - Calculate urgency_level based on how soon the expiry date is
             - Extract all important dates and categorize them properly
+
+            COMPLIANCE ANALYSIS INSTRUCTIONS:
+            - Analyze the document for compliance issues based on document type
+            - For ID documents (passport, green card, I-9, etc.): Check expiry dates, missing fields, validity
+            - For HR documents: Check completeness, required signatures, dates
+            - For safety/OSHA documents: Check certification dates, training records
+            - Set status to "non_compliant" if document is expired or has critical missing data
+            - Set status to "at_risk" if document is expiring soon (< 60 days) or has minor issues
+            - Set status to "compliant" if document is valid and complete
+            - Provide specific, actionable reasons for any compliance issues
+            - Include regulatory context when applicable (USCIS, OSHA, IRS, etc.)
             - Only respond with valid JSON, no additional text.
             """
             )

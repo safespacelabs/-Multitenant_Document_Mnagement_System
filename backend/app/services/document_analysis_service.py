@@ -74,6 +74,7 @@ class DocumentAnalysisService:
                 key_findings=metadata.get('key_findings', []),
                 data_points=metadata.get('data_points', []),
                 action_items=metadata.get('action_items', []),
+                compliance_analysis=metadata.get('compliance_analysis', {}),  # AI-generated compliance analysis
                 extracted_at=datetime.utcnow(),
                 ai_model=metadata.get('ai_model'),
                 processing_status='success' if metadata.get('processing_status') == 'success' else 'failed',

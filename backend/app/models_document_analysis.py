@@ -39,6 +39,7 @@ class DocumentAnalysis(Base):
     key_findings = Column(ARRAY(String))  # Array of key findings
     data_points = Column(ARRAY(String))  # Array of numerical data and statistics
     action_items = Column(ARRAY(String))  # Array of action items and tasks
+    compliance_analysis = Column(JSON)  # AI-generated detailed compliance analysis with reasons
     extracted_at = Column(DateTime)
     ai_model = Column(String(100))
     processing_status = Column(String(20), default='pending')

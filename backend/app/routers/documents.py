@@ -2314,32 +2314,181 @@ def categorize_document(doc, doc_analysis):
     return "employee_relations"  # Default category
 
 def calculate_compliance_status(doc, doc_analysis):
-    """Calculate compliance status based on expiry and metadata"""
+    """
+    Calculate compliance status based on AI analysis and metadata
+    Returns: (status, legacy_reason, expiry_date, reasons_list)
+
+    Priority:
+    1. AI-generated compliance analysis (from Anthropic Claude)
+    2. Fallback to basic checks if AI analysis not available
+    """
     from datetime import date
     today = date.today()
 
+    reasons = []
+    status = "compliant"
+    expiry_date = None
+    legacy_reason = "Active"
+
+    # Priority 1: Use AI-generated compliance analysis if available
+    if doc_analysis and hasattr(doc_analysis, 'compliance_analysis') and doc_analysis.compliance_analysis:
+        ai_compliance = doc_analysis.compliance_analysis
+
+        # Extract AI-determined status
+        ai_status = ai_compliance.get('status', 'compliant')
+        if ai_status in ['compliant', 'at_risk', 'non_compliant']:
+            status = ai_status
+
+        # Extract AI-generated reasons
+        ai_reasons = ai_compliance.get('reasons', [])
+        if ai_reasons and isinstance(ai_reasons, list):
+            for ai_reason in ai_reasons:
+                if isinstance(ai_reason, dict):
+                    reasons.append({
+                        "reason_type": ai_reason.get('reason_type', 'unknown'),
+                        "reason_message": ai_reason.get('reason_message', 'AI analysis available'),
+                        "severity": ai_reason.get('severity', 'medium'),
+                        "details": ai_reason.get('details', {})
+                    })
+
+        # Set legacy reason from first AI reason if available
+        if reasons:
+            legacy_reason = reasons[0].get('reason_message', 'AI analysis complete')
+
+        # Extract expiry date if available from AI analysis
+        if doc_analysis.expiry_detected and doc_analysis.expiry_date:
+            expiry_date = doc_analysis.expiry_date
+
+        # If AI provided comprehensive analysis, return it
+        if reasons:
+            logger.info(f"✅ Using AI-generated compliance analysis for document {doc.id}: {status}")
+            return status, legacy_reason, expiry_date, reasons
+
+    # Priority 2: Fallback to basic analysis if AI compliance not available
+    logger.info(f"⚠️ No AI compliance analysis available for document {doc.id}, using fallback logic")
+
+    # Check if document has been analyzed at all
+    if not doc_analysis:
+        reasons.append({
+            "reason_type": "no_analysis",
+            "reason_message": "Document has not been processed by AI analysis",
+            "severity": "medium",
+            "details": {"action_required": "Process document to extract metadata"}
+        })
+        status = "at_risk"
+        legacy_reason = "Not analyzed"
+
     # Check expiry
     if doc_analysis and doc_analysis.expiry_detected and doc_analysis.expiry_date:
-        if doc_analysis.expiry_date < today:
-            return "non_compliant", f"Expired on {doc_analysis.expiry_date}", doc_analysis.expiry_date
-
+        expiry_date = doc_analysis.expiry_date
         days_until = (doc_analysis.expiry_date - today).days
-        if 30 <= days_until <= 60:
-            return "at_risk", f"Expiring in {days_until} days", doc_analysis.expiry_date
 
-    # Check missing metadata
-    missing = []
+        if doc_analysis.expiry_date < today:
+            reasons.append({
+                "reason_type": "expiry",
+                "reason_message": f"Document expired on {doc_analysis.expiry_date.strftime('%B %d, %Y')}",
+                "severity": "high",
+                "details": {
+                    "expiry_date": str(doc_analysis.expiry_date),
+                    "days_overdue": abs(days_until),
+                    "action_required": "Renew or update document immediately"
+                }
+            })
+            status = "non_compliant"
+            legacy_reason = f"Expired on {doc_analysis.expiry_date}"
+        elif days_until <= 30:
+            reasons.append({
+                "reason_type": "expiry",
+                "reason_message": f"Document expires in {days_until} days",
+                "severity": "high" if days_until <= 7 else "medium",
+                "details": {
+                    "expiry_date": str(doc_analysis.expiry_date),
+                    "days_remaining": days_until,
+                    "action_required": "Plan to renew document soon"
+                }
+            })
+            if status != "non_compliant":
+                status = "at_risk"
+                legacy_reason = f"Expiring in {days_until} days"
+        elif days_until <= 60:
+            reasons.append({
+                "reason_type": "expiry",
+                "reason_message": f"Document expires in {days_until} days",
+                "severity": "low",
+                "details": {
+                    "expiry_date": str(doc_analysis.expiry_date),
+                    "days_remaining": days_until,
+                    "action_required": "Monitor expiry date"
+                }
+            })
+            if status == "compliant":
+                status = "at_risk"
+                legacy_reason = f"Expiring in {days_until} days"
+
+    # Check missing metadata - detailed breakdown
+    missing_fields = []
+
     if not doc.document_category:
-        missing.append("category")
+        missing_fields.append("category")
+
     if not doc.document_subcategory:
-        missing.append("subcategory")
+        missing_fields.append("subcategory")
+
     if not doc_analysis or not doc_analysis.document_type:
-        missing.append("document_type")
+        missing_fields.append("document_type")
 
-    if len(missing) >= 2:
-        return "at_risk", "Missing metadata", None
+    # Add reasons for missing metadata
+    if missing_fields:
+        severity = "high" if len(missing_fields) >= 2 else "low"
+        reasons.append({
+            "reason_type": "missing_metadata",
+            "reason_message": f"Missing {len(missing_fields)} required field(s): {', '.join(missing_fields)}",
+            "severity": severity,
+            "details": {
+                "missing_fields": missing_fields,
+                "action_required": "Add missing document metadata"
+            }
+        })
 
-    return "compliant", "Active", None
+        # Update status if missing multiple fields
+        if len(missing_fields) >= 2 and status == "compliant":
+            status = "at_risk"
+            legacy_reason = "Missing metadata"
+
+    # Check for incomplete analysis data
+    if doc_analysis:
+        incomplete_data = []
+
+        if not doc_analysis.key_entities or doc_analysis.key_entities == "{}":
+            incomplete_data.append("key_entities")
+
+        if not doc_analysis.summary or len(doc_analysis.summary.strip()) < 10:
+            incomplete_data.append("summary")
+
+        if incomplete_data and len(incomplete_data) >= 1:
+            reasons.append({
+                "reason_type": "incomplete_data",
+                "reason_message": f"AI analysis incomplete: {', '.join(incomplete_data)} not extracted",
+                "severity": "low",
+                "details": {
+                    "incomplete_fields": incomplete_data,
+                    "action_required": "Re-process document for complete analysis"
+                }
+            })
+
+    # If no issues found, add compliant reason
+    if not reasons:
+        reasons.append({
+            "reason_type": "compliant",
+            "reason_message": "Document is fully compliant with all requirements",
+            "severity": "low",
+            "details": {
+                "compliant_checks": ["expiry", "metadata", "analysis"],
+                "last_checked": str(today)
+            }
+        })
+
+    return status, legacy_reason, expiry_date, reasons
 
 @router.get("/hr/database-diagnostic")
 async def get_database_diagnostic(
@@ -2535,14 +2684,15 @@ async def get_hr_health_snapshot(
 
         for doc, analysis in docs_query:
             cat_key = categorize_document(doc, analysis)
-            status, reason, expiry = calculate_compliance_status(doc, analysis)
+            status, reason, expiry, reasons = calculate_compliance_status(doc, analysis)
 
             categorized_docs[cat_key].append({
                 "doc": doc,
                 "analysis": analysis,
                 "status": status,
                 "reason": reason,
-                "expiry": expiry
+                "expiry": expiry,
+                "reasons": reasons
             })
             all_statuses.append(status)
 
@@ -2599,6 +2749,11 @@ async def get_hr_health_snapshot(
                 if not item["analysis"] or not item["analysis"].document_type:
                     missing_fields.append("document_type")
 
+                # Convert reasons dict list to ComplianceReason schema objects
+                compliance_reasons = [
+                    schemas.ComplianceReason(**reason) for reason in item["reasons"]
+                ]
+
                 employee_docs[user.id]["documents"].append({
                     "document_id": doc.id,
                     "filename": doc.original_filename,
@@ -2606,7 +2761,8 @@ async def get_hr_health_snapshot(
                     "expiry_date": item["expiry"],
                     "days_until_expiry": (item["expiry"] - date.today()).days if item["expiry"] else None,
                     "status": item["status"],
-                    "missing_fields": missing_fields
+                    "missing_fields": missing_fields,
+                    "reasons": compliance_reasons
                 })
 
             # Build affected employees list

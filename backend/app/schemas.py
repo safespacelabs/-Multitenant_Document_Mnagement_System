@@ -452,6 +452,13 @@ class DocumentAnalyticsSummaryResponse(BaseModel):
     recent_activity: List[Dict[str, Any]]
 
 # Document Health Snapshot schemas
+class ComplianceReason(BaseModel):
+    """Detailed compliance reason for a document"""
+    reason_type: str  # "expiry", "missing_metadata", "incomplete_data", "no_analysis"
+    reason_message: str  # Human-readable description
+    severity: str  # "high", "medium", "low"
+    details: Optional[Dict[str, Any]] = None  # Additional context
+
 class AffectedDocument(BaseModel):
     document_id: str
     filename: str
@@ -460,6 +467,7 @@ class AffectedDocument(BaseModel):
     days_until_expiry: Optional[int]
     status: str  # "compliant", "at_risk", "non_compliant"
     missing_fields: List[str]
+    reasons: List[ComplianceReason] = []  # Detailed list of compliance issues
 
 class AffectedEmployee(BaseModel):
     user_id: str

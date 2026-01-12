@@ -1298,38 +1298,72 @@ const CategoryDrillDownModal = ({ category, onClose }) => (
                 {/* Document List */}
                 <div className="space-y-2">
                   {employee.documents.map(doc => (
-                    <div key={doc.document_id} className="flex items-center justify-between p-3 bg-white rounded border border-gray-200">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <FileText className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{doc.filename}</div>
-                          <div className="text-sm text-gray-600">
-                            {doc.document_type || 'Unknown type'}
-                            {doc.expiry_date && ` • Expires: ${new Date(doc.expiry_date).toLocaleDateString()}`}
-                            {doc.days_until_expiry !== null && doc.days_until_expiry >= 0 && ` (${doc.days_until_expiry} days)`}
-                          </div>
-                          {doc.missing_fields.length > 0 && (
-                            <div className="text-sm text-red-600 mt-1">
-                              Missing: {doc.missing_fields.join(', ')}
+                    <div key={doc.document_id} className="bg-white rounded border border-gray-200 overflow-hidden">
+                      <div className="flex items-center justify-between p-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <FileText className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{doc.filename}</div>
+                            <div className="text-sm text-gray-600">
+                              {doc.document_type || 'Unknown type'}
+                              {doc.expiry_date && ` • Expires: ${new Date(doc.expiry_date).toLocaleDateString()}`}
+                              {doc.days_until_expiry !== null && doc.days_until_expiry >= 0 && ` (${doc.days_until_expiry} days)`}
                             </div>
-                          )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                            doc.status === 'compliant' ? 'bg-green-100 text-green-800' :
+                            doc.status === 'at_risk' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {doc.status === 'compliant' ? 'COMPLIANT' :
+                             doc.status === 'at_risk' ? 'AT RISK' :
+                             'NON-COMPLIANT'}
+                          </span>
+                          <button className="p-2 hover:bg-gray-100 rounded transition-colors">
+                            <Download className="h-4 w-4 text-gray-600" />
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-                          doc.status === 'compliant' ? 'bg-green-100 text-green-800' :
-                          doc.status === 'at_risk' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {doc.status === 'compliant' ? 'COMPLIANT' :
-                           doc.status === 'at_risk' ? 'AT RISK' :
-                           'NON-COMPLIANT'}
-                        </span>
-                        <button className="p-2 hover:bg-gray-100 rounded transition-colors">
-                          <Download className="h-4 w-4 text-gray-600" />
-                        </button>
-                      </div>
+                      {/* Detailed Reasons Section */}
+                      {doc.reasons && doc.reasons.length > 0 && (
+                        <div className="px-3 pb-3 border-t border-gray-100 pt-2 space-y-2">
+                          {doc.reasons.map((reason, idx) => (
+                            <div key={idx} className={`flex items-start gap-2 p-2 rounded text-xs ${
+                              reason.severity === 'high' ? 'bg-red-50 border-l-2 border-red-500' :
+                              reason.severity === 'medium' ? 'bg-yellow-50 border-l-2 border-yellow-500' :
+                              'bg-blue-50 border-l-2 border-blue-500'
+                            }`}>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {reason.severity === 'high' && <AlertTriangle className="h-3 w-3 text-red-600" />}
+                                  {reason.severity === 'medium' && <Clock className="h-3 w-3 text-yellow-600" />}
+                                  {reason.severity === 'low' && <CheckCircle className="h-3 w-3 text-blue-600" />}
+                                  <span className={`font-semibold ${
+                                    reason.severity === 'high' ? 'text-red-800' :
+                                    reason.severity === 'medium' ? 'text-yellow-800' :
+                                    'text-blue-800'
+                                  }`}>
+                                    {reason.reason_message}
+                                  </span>
+                                </div>
+                                {reason.details && reason.details.action_required && (
+                                  <div className={`text-xs mt-1 ${
+                                    reason.severity === 'high' ? 'text-red-700' :
+                                    reason.severity === 'medium' ? 'text-yellow-700' :
+                                    'text-blue-700'
+                                  }`}>
+                                    Action: {reason.details.action_required}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
