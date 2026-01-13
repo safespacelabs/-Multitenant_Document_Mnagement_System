@@ -2459,8 +2459,8 @@ def calculate_compliance_status(doc, doc_analysis):
     if doc_analysis:
         incomplete_data = []
 
-        if not doc_analysis.key_entities or doc_analysis.key_entities == "{}":
-            incomplete_data.append("key_entities")
+        if not doc_analysis.entities or doc_analysis.entities == "{}":
+            incomplete_data.append("entities")
 
         if not doc_analysis.summary or len(doc_analysis.summary.strip()) < 10:
             incomplete_data.append("summary")
