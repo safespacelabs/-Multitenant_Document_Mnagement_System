@@ -8,8 +8,7 @@ import uuid
 import json
 import re
 from io import BytesIO
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta, date
 from sqlalchemy import or_
 from sqlalchemy import func
 
@@ -2322,7 +2321,6 @@ def calculate_compliance_status(doc, doc_analysis):
     1. AI-generated compliance analysis (from Anthropic Claude)
     2. Fallback to basic checks if AI analysis not available
     """
-    from datetime import date
     today = date.today()
 
     reasons = []
