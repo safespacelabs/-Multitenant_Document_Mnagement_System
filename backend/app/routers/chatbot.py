@@ -9,21 +9,144 @@ from app.services.intelligent_ai_service import intelligent_ai_service
 from app.services.document_analysis_service import document_analysis_service
 from app.services.hr_admin_database_service import hr_admin_database_service
 from app.services.rag_service import rag_service
+from app.services.hr_action_service import hr_action_service
 import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-async def process_enhanced_chat_query(query: str, current_user: CompanyUser, company_db: Session, company_id: str, document_ids: list = None) -> tuple[str, list]:
-    """Enhanced chat processing with automatic query type detection (I9, documents, or general)"""
+async def process_enhanced_chat_query(query: str, current_user: CompanyUser, company_db: Session, company_id: str, document_ids: list = None, session_id: str = None) -> tuple[str, list, dict]:
+    """Enhanced chat processing with automatic query type detection (I9, documents, HR actions, or general)"""
     try:
         query_lower = query.lower()
+        hr_action_data = None
 
-        # Check if user is HR admin and provide comprehensive database access
+        # Check if user is HR admin - first check for actionable HR intents
         if current_user.role in ['hr_admin', 'hr_manager']:
-            # HR admin gets access to entire company database
+            # Detect HR action intents (create user, upload document, etc.)
+            intent_result = await hr_action_service.detect_intent(query, current_user.role)
+
+            if intent_result.get('intent') and intent_result.get('confidence', 0) > 0.7:
+                if not intent_result.get('allowed'):
+                    return "Sorry, you don't have permission to perform this action.", [], None
+
+                intent = intent_result['intent']
+
+                if intent == 'create_user':
+                    # Extract user parameters from query
+                    params = await hr_action_service.extract_user_params(query)
+
+                    # Create pending action for confirmation
+                    action, confirmation_message = await hr_action_service.create_pending_action(
+                        company_db=company_db,
+                        company_id=company_id,
+                        hr_user_id=str(current_user.id),
+                        session_id=session_id,
+                        action_type='create_user',
+                        extracted_params=params
+                    )
+
+                    hr_action_data = {
+                        'action_id': action.id,
+                        'action_type': 'create_user',
+                        'status': 'pending_confirmation',
+                        'params': params
+                    }
+
+                    return confirmation_message, [], hr_action_data
+
+                elif intent == 'upload_document':
+                    # Extract document upload parameters
+                    params = await hr_action_service.extract_document_upload_params(query, company_db)
+
+                    # Create pending action for confirmation
+                    action, confirmation_message = await hr_action_service.create_pending_action(
+                        company_db=company_db,
+                        company_id=company_id,
+                        hr_user_id=str(current_user.id),
+                        session_id=session_id,
+                        action_type='upload_document',
+                        extracted_params=params
+                    )
+
+                    hr_action_data = {
+                        'action_id': action.id,
+                        'action_type': 'upload_document',
+                        'status': 'pending_confirmation',
+                        'params': params
+                    }
+
+                    return confirmation_message, [], hr_action_data
+
+            # Check for confirmation responses to pending actions
+            if query_lower.strip() in ['yes', 'y', 'confirm', 'proceed', 'ok', 'no', 'n', 'cancel', 'abort']:
+                # Check if there's a pending action for this session
+                pending_action = await hr_action_service.get_pending_action(
+                    company_db=company_db,
+                    session_id=session_id,
+                    hr_user_id=str(current_user.id)
+                )
+
+                if pending_action:
+                    confirmation_result = await hr_action_service.process_confirmation(
+                        company_db=company_db,
+                        action_id=pending_action.id,
+                        user_response=query,
+                        hr_user_id=str(current_user.id)
+                    )
+
+                    if confirmation_result.get('status') == 'confirmed':
+                        # Execute the confirmed action
+                        if pending_action.action_type == 'create_user':
+                            # Get company info for execution
+                            from app.database import get_management_db
+                            management_db_gen = get_management_db()
+                            management_db = next(management_db_gen)
+
+                            try:
+                                company = management_db.query(models.Company).filter(
+                                    models.Company.id == company_id
+                                ).first()
+
+                                execution_result = await hr_action_service.execute_user_creation(
+                                    company_db=company_db,
+                                    company_id=company_id,
+                                    params=pending_action.extracted_params,
+                                    created_by_id=str(current_user.id),
+                                    created_by_name=current_user.full_name,
+                                    company_name=company.name if company else "Company",
+                                    s3_bucket_name=company.s3_bucket_name if company else None
+                                )
+
+                                # Update action record
+                                pending_action.action_status = 'executed' if execution_result['success'] else 'failed'
+                                pending_action.executed_at = datetime.utcnow()
+                                pending_action.execution_result = execution_result
+                                if execution_result.get('user_id'):
+                                    pending_action.created_resource_id = execution_result['user_id']
+                                company_db.commit()
+
+                                if execution_result['success']:
+                                    return f"**User Created Successfully**\n\n{execution_result['message']}\n\n- **Username:** {execution_result['username']}\n- **Email:** {execution_result['email']}\n- **Role:** {execution_result['role'].replace('_', ' ').title()}", [], {'action_completed': True, 'result': execution_result}
+                                else:
+                                    return f"**User Creation Failed**\n\n{execution_result.get('error', 'Unknown error occurred')}", [], {'action_failed': True, 'error': execution_result.get('error')}
+                            finally:
+                                management_db.close()
+
+                    elif confirmation_result.get('status') == 'cancelled':
+                        return "Action cancelled.", [], {'action_cancelled': True}
+
+                    elif confirmation_result.get('status') == 'modified':
+                        return confirmation_result.get('confirmation_message', 'Parameters updated. Please confirm again.'), [], {
+                            'action_id': pending_action.id,
+                            'action_type': pending_action.action_type,
+                            'status': 'pending_confirmation',
+                            'params': confirmation_result.get('updated_params')
+                        }
+
+            # If not an action intent, fall through to normal HR admin query processing
             hr_admin_response = await hr_admin_database_service.process_hr_admin_query(query, company_db)
-            return hr_admin_response, []
+            return hr_admin_response, [], None
 
         # ===== AUTOMATIC I9 DETECTION =====
         # Check if query is specifically about I9 documents/forms
@@ -56,9 +179,9 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                     if count > 0:
                         docs_list = "\n".join([f"- {doc['employee_name']} (expires: {doc['expiration_date']})"
                                               for doc in expiring.get('documents', [])[:10]])
-                        return f"🏢 **I9 Forms Expiring in {days} Days:**\n\n{count} I9 form(s) expiring soon:\n\n{docs_list}", []
+                        return f"🏢 **I9 Forms Expiring in {days} Days:**\n\n{count} I9 form(s) expiring soon:\n\n{docs_list}", [], None
                     else:
-                        return f"✅ No I9 forms expiring in the next {days} days.", []
+                        return f"✅ No I9 forms expiring in the next {days} days.", [], None
 
                 elif any(action in query_lower for action in ['expired', 'past due', 'overdue']):
                     # Get expired I9 documents
@@ -71,9 +194,9 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                     if count > 0:
                         docs_list = "\n".join([f"- {doc['employee_name']} (expired: {doc['expiration_date']})"
                                               for doc in expired.get('documents', [])[:10]])
-                        return f"⚠️ **Expired I9 Forms:**\n\n{count} expired I9 form(s):\n\n{docs_list}\n\n**Action Required:** Please update these forms immediately.", []
+                        return f"⚠️ **Expired I9 Forms:**\n\n{count} expired I9 form(s):\n\n{docs_list}\n\n**Action Required:** Please update these forms immediately.", [], None
                     else:
-                        return f"✅ No expired I9 forms found.", []
+                        return f"✅ No expired I9 forms found.", [], None
 
                 elif any(action in query_lower for action in ['invalid', 'problem', 'issue', 'missing']):
                     # Get invalid I9 documents
@@ -86,9 +209,9 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                     if count > 0:
                         docs_list = "\n".join([f"- {doc['employee_name']} ({doc.get('issue', 'Issue detected')})"
                                               for doc in invalid.get('documents', [])[:10]])
-                        return f"⚠️ **Invalid/Problem I9 Forms:**\n\n{count} I9 form(s) with issues:\n\n{docs_list}", []
+                        return f"⚠️ **Invalid/Problem I9 Forms:**\n\n{count} I9 form(s) with issues:\n\n{docs_list}", [], None
                     else:
-                        return f"✅ No invalid I9 forms found.", []
+                        return f"✅ No invalid I9 forms found.", [], None
 
                 else:
                     # General I9 summary
@@ -107,11 +230,11 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                            f"✅ Valid: {valid}\n"
                            f"⏰ Expiring Soon: {expiring}\n"
                            f"⚠️ Expired: {expired}\n\n"
-                           f"Ask me specific questions like 'show expiring I9 forms' or 'which I9s are invalid'"), []
+                           f"Ask me specific questions like 'show expiring I9 forms' or 'which I9s are invalid'"), [], None
 
             except Exception as i9_error:
                 logger.warning(f"I9 service error: {str(i9_error)}")
-                return "I couldn't fetch I9 information at this time. The I9 tracking service may still be processing documents.", []
+                return "I couldn't fetch I9 information at this time. The I9 tracking service may still be processing documents.", [], None
 
         # ===== AUTOMATIC DOCUMENT DETECTION =====
         # Check if query mentions specific document names or asks about document content
@@ -155,7 +278,7 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                                 f"📄 I can see you have {company_docs_count} document(s) in the system, but they haven't been processed yet.\n\n"
                                 f"⏳ **Processing Status**: Documents typically take 10-15 seconds to process.\n\n"
                                 f"💡 **Tip**: Please wait a moment and try your question again. If you just uploaded a document, give it a few seconds to finish processing.",
-                                []
+                                [], None
                             )
                 except Exception as list_error:
                     logger.warning(f"Failed to list RAG documents: {str(list_error)}")
@@ -190,7 +313,7 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                     contexts = rag_result.get('contexts', [])
                     doc_ids = list(set([ctx.get('document_id') for ctx in contexts if ctx.get('document_id')]))
 
-                    return answer, doc_ids
+                    return answer, doc_ids, None
 
             except Exception as rag_error:
                 logger.warning(f"RAG service error, falling back to basic search: {str(rag_error)}")
@@ -224,9 +347,9 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                             answer += f"... and {len(expiring_docs) - 5} more documents with upcoming expiry dates.\n\n"
                         
                         answer += "💡 **Recommendation:** Please review these documents and take necessary action before they expire."
-                        
-                        return answer, [doc.document_id for doc in expiring_docs[:5]]
-                
+
+                        return answer, [doc.document_id for doc in expiring_docs[:5]], None
+
                 # General document search response
                 answer = f"📄 **Found {len(relevant_docs)} relevant documents:**\n\n"
                 
@@ -242,9 +365,9 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                         answer += f"   • {urgency_emoji} Expiry: {doc.expiry_date} ({doc.urgency_level.upper()})\n"
                     
                     answer += "\n"
-                
-                return answer, [doc.document_id for doc in relevant_docs]
-        
+
+                return answer, [doc.document_id for doc in relevant_docs], None
+
         # Check for folder-specific queries
         if 'folder' in query_lower:
             # Extract folder name from query (simple extraction)
@@ -267,9 +390,9 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                     
                     if len(folder_docs) > 10:
                         answer += f"... and {len(folder_docs) - 10} more documents in this folder."
-                    
-                    return answer, [doc.document_id for doc in folder_docs[:10]]
-        
+
+                    return answer, [doc.document_id for doc in folder_docs[:10]], None
+
         # Check for document type queries
         doc_types = ['passport', 'license', 'card', 'contract', 'report']
         for doc_type in doc_types:
@@ -282,9 +405,9 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
                         answer += f"   • Folder: {doc.folder_name}\n"
                         answer += f"   • Uploaded by: {doc.user_name}\n"
                         answer += f"   • Summary: {doc.summary[:100]}...\n\n"
-                    
-                    return answer, [doc.document_id for doc in type_docs[:5]]
-        
+
+                    return answer, [doc.document_id for doc in type_docs[:5]], None
+
         # Fallback to basic NLP service
         answer = nlp_service.process_query(
             query=query,
@@ -292,13 +415,13 @@ async def process_enhanced_chat_query(query: str, current_user: CompanyUser, com
             company_id=str(current_user.company_id),
             db=company_db
         )
-        
-        return answer, []
-        
+
+        return answer, [], None
+
     except Exception as e:
         # Fallback to basic response
         answer = f"I apologize, but I encountered an error processing your question: {str(e)}"
-        return answer, []
+        return answer, [], None
 
 # ===== SESSION MANAGEMENT ENDPOINTS =====
 
@@ -608,39 +731,44 @@ async def chat_with_bot(
                         combined_context += f"\n\n=== Document: {doc.filename} ===\n{doc.extracted_text}"
                         context_doc_names.append(doc.filename)
 
+                hr_action_data = None
                 if combined_context.strip():
                     # Answer using Anthropic with document context
                     answer = await anthropic_service.answer_question(combined_context, chat_request.question)
                     context_documents = context_doc_names
                 else:
                     logger.warning(f"Documents found but no text extracted, falling back to enhanced query")
-                    answer, context_documents = await process_enhanced_chat_query(
+                    answer, context_documents, hr_action_data = await process_enhanced_chat_query(
                         query=chat_request.question,
                         current_user=current_user,
                         company_db=company_db,
                         company_id=str(company.id),
-                        document_ids=chat_request.document_ids
+                        document_ids=chat_request.document_ids,
+                        session_id=session_id
                     )
             else:
                 logger.info(f"No session documents found for session {session_id}, using enhanced query")
                 # No session documents - use enhanced chat query (RAG, I9, etc.)
-                answer, context_documents = await process_enhanced_chat_query(
+                answer, context_documents, hr_action_data = await process_enhanced_chat_query(
                     query=chat_request.question,
                     current_user=current_user,
                     company_db=company_db,
                     company_id=str(company.id),
-                    document_ids=chat_request.document_ids
+                    document_ids=chat_request.document_ids,
+                    session_id=session_id
                 )
         except Exception as session_doc_error:
             logger.error(f"Error checking session documents: {str(session_doc_error)}")
             logger.info(f"Falling back to enhanced query due to error")
+            hr_action_data = None
             # Fall back to enhanced query if session document check fails
-            answer, context_documents = await process_enhanced_chat_query(
+            answer, context_documents, hr_action_data = await process_enhanced_chat_query(
                 query=chat_request.question,
                 current_user=current_user,
                 company_db=company_db,
                 company_id=str(company.id),
-                document_ids=chat_request.document_ids
+                document_ids=chat_request.document_ids,
+                session_id=session_id
             )
 
         # Save chat history linked to session
@@ -663,13 +791,19 @@ async def chat_with_bot(
         company_db.commit()
         company_db.refresh(chat_history)
 
-        return {
+        response = {
             "answer": answer,
             "context_documents": context_documents,
             "created_at": chat_history.created_at,
             "session_id": session_id  # Return session_id to frontend
         }
-        
+
+        # Include HR action data if present (for user creation, document upload, etc.)
+        if hr_action_data:
+            response["hr_action"] = hr_action_data
+
+        return response
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
     finally:

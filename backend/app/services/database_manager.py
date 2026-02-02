@@ -96,14 +96,18 @@ class DatabaseManager:
         """Create all company tables including E-signature tables dynamically"""
         try:
             engine = self.get_company_engine(company_id, database_url)
-            
+
             # Import company-specific models (includes E-signature models)
             from app.models_company import CompanyBase
-            
+
             # Create all company tables (including E-signature tables)
             CompanyBase.metadata.create_all(bind=engine)
-            
-            logger.info(f"✅ Created ALL company tables for company {company_id} including E-signature tables")
+
+            # Also create document analysis tables (expiry agent, HR actions, etc.)
+            from app.models_document_analysis import Base as DocumentAnalysisBase
+            DocumentAnalysisBase.metadata.create_all(bind=engine)
+
+            logger.info(f"✅ Created ALL company tables for company {company_id} including E-signature and document analysis tables")
             
             # Verify E-signature tables were created
             self._verify_esignature_tables(company_id, database_url)
@@ -137,7 +141,10 @@ class DatabaseManager:
                 # Force create missing tables
                 from app.models_company import CompanyBase
                 CompanyBase.metadata.create_all(bind=engine)
-                logger.info(f"✅ Force-created missing E-signature tables for company {company_id}")
+                # Also create document analysis tables
+                from app.models_document_analysis import Base as DocumentAnalysisBase
+                DocumentAnalysisBase.metadata.create_all(bind=engine)
+                logger.info(f"✅ Force-created missing tables for company {company_id}")
             else:
                 logger.info(f"✅ All E-signature tables exist for company {company_id}")
                 
@@ -186,15 +193,17 @@ class DatabaseManager:
             missing_tables = [table for table in esignature_tables if table not in existing_tables]
             
             if missing_tables:
-                logger.info(f"📋 Creating missing E-signature tables for company {company_id}: {missing_tables}")
-                
+                logger.info(f"📋 Creating missing tables for company {company_id}: {missing_tables}")
+
                 # Import the models to register them
                 from app.models_company import CompanyBase
-                
+                from app.models_document_analysis import Base as DocumentAnalysisBase
+
                 # Create the missing tables
                 CompanyBase.metadata.create_all(bind=company_db.bind)
-                
-                logger.info(f"✅ E-signature tables created for company {company_id}")
+                DocumentAnalysisBase.metadata.create_all(bind=company_db.bind)
+
+                logger.info(f"✅ All tables created for company {company_id}")
             else:
                 logger.info(f"✅ All E-signature tables already exist for company {company_id}")
                 

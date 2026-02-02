@@ -9,21 +9,37 @@ from sqlalchemy.orm import Session
 from app.database import get_management_db
 from app.services.database_manager import db_manager
 from app import models
-from app.routers import auth, companies, users, documents, chatbot, user_management, esignature, ai_assistant, hr_admin, hr_user_folders, users_extended
+from app.routers import auth, companies, users, documents, chatbot, user_management, esignature, ai_assistant, hr_admin, hr_user_folders, users_extended, expiry_agent
 from app.config import get_cors_origins, ENVIRONMENT, IS_DEVELOPMENT, IS_PRODUCTION
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     print("[STARTUP] Starting Multi-Tenant Document Management System")
-    
+
     # Create management database tables
     print("[DB] Creating management database tables...")
     models.Base.metadata.create_all(bind=db_manager.management_engine)
-    
+
+    # Start background scheduler for expiry agent
+    try:
+        from app.scheduler import start_scheduler
+        start_scheduler()
+        print("[OK] Background scheduler started")
+    except Exception as e:
+        print(f"[WARN] Failed to start background scheduler: {e}")
+
     yield
     # Shutdown
     print("[SHUTDOWN] Shutting down...")
+
+    # Stop background scheduler
+    try:
+        from app.scheduler import stop_scheduler
+        stop_scheduler()
+        print("[OK] Background scheduler stopped")
+    except Exception as e:
+        print(f"[WARN] Failed to stop background scheduler: {e}")
 
 app = FastAPI(
     title="Multi-Tenant Document Management System",
@@ -254,6 +270,10 @@ print("[OK] AI Assistant router included")
 app.include_router(hr_admin.router, prefix="/api/hr-admin", tags=["HR Admin"])
 app.include_router(hr_user_folders.router, prefix="/api/hr-user-folders", tags=["HR User Folders"])
 print("[OK] HR Admin router included")
+
+# Expiry Agent routes
+app.include_router(expiry_agent.router, prefix="/api/expiry-agent", tags=["Expiry Agent"])
+print("[OK] Expiry Agent router included")
 print("[SETUP] All routers included successfully!")
 
 @app.get("/")
