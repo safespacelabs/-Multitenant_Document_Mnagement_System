@@ -1863,11 +1863,11 @@ export const bulkImportUsers = (file) => usersExtendedAPI.bulkImport(file);
 export const listExtendedUsers = (filters) => usersExtendedAPI.listExtended(filters);
 
 // HR Chatbot API - For HR actions (create user, upload document, I9 compliance, etc.)
-// This uses /api/chatbot/ endpoint which has agentic capabilities
+// This uses /api/chat/ endpoint which has agentic capabilities
 const hrChatbotAPI = {
   // Send message to HR chatbot
   sendMessage: async (question, sessionId = null, documentIds = []) => {
-    const response = await fetch(buildApiUrl('/api/chatbot/'), {
+    const response = await fetch(buildApiUrl('/api/chat/'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1890,7 +1890,7 @@ const hrChatbotAPI = {
 
   // Create a new chat session
   createSession: async (title = 'New HR Chat') => {
-    const response = await fetch(buildApiUrl(`/api/chatbot/sessions?title=${encodeURIComponent(title)}`), {
+    const response = await fetch(buildApiUrl(`/api/chat/sessions?title=${encodeURIComponent(title)}`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1908,7 +1908,7 @@ const hrChatbotAPI = {
 
   // List all chat sessions
   listSessions: async () => {
-    const response = await fetch(buildApiUrl('/api/chatbot/sessions'), {
+    const response = await fetch(buildApiUrl('/api/chat/sessions'), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -1925,7 +1925,7 @@ const hrChatbotAPI = {
 
   // Get messages for a session
   getSessionMessages: async (sessionId) => {
-    const response = await fetch(buildApiUrl(`/api/chatbot/sessions/${sessionId}/messages`), {
+    const response = await fetch(buildApiUrl(`/api/chat/sessions/${sessionId}/messages`), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -1942,7 +1942,7 @@ const hrChatbotAPI = {
 
   // Delete a session
   deleteSession: async (sessionId) => {
-    const response = await fetch(buildApiUrl(`/api/chatbot/sessions/${sessionId}`), {
+    const response = await fetch(buildApiUrl(`/api/chat/sessions/${sessionId}`), {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -1959,7 +1959,7 @@ const hrChatbotAPI = {
 
   // Get expiring documents
   getExpiringDocuments: async (days = 30) => {
-    const response = await fetch(buildApiUrl(`/api/chatbot/expiring-documents?days=${days}`), {
+    const response = await fetch(buildApiUrl(`/api/chat/expiring-documents?days=${days}`), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -1976,7 +1976,7 @@ const hrChatbotAPI = {
 
   // Get chat history
   getHistory: async () => {
-    const response = await fetch(buildApiUrl('/api/chatbot/history'), {
+    const response = await fetch(buildApiUrl('/api/chat/history'), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
