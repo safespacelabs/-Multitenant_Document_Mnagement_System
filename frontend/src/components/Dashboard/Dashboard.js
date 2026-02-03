@@ -6,6 +6,7 @@ import { EnhancedDocumentManager } from '../Documents';
 import { DocumentManagement } from '../Features';
 import { HRAdminDashboard, UserManagement, MailingSystem, DocumentHealthTab } from '../Features';
 import Chatbot from '../Chat/Chatbot';
+import HRChatbot from '../Chat/HRChatbot';
 import { Analytics } from '../Features';
 import ESignatureManager from '../ESignature/ESignatureManager';
 import TestingInterface from '../Testing/TestingInterface';
@@ -32,7 +33,8 @@ import {
   User,
   AlertCircle,
   Mail,
-  Activity
+  Activity,
+  Bot
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -404,6 +406,7 @@ const Dashboard = () => {
       { id: 'esignature', name: 'E-Signature', icon: FileSignature, path: `${basePath}/esignature`, color: 'purple' },
       { id: 'mailing', name: 'Mailing System', icon: Mail, path: `${basePath}/mailing`, color: 'teal' },
       { id: 'chat', name: 'AI Assistant', icon: MessageCircle, path: `${basePath}/chat`, color: 'indigo' },
+      { id: 'hr-chatbot', name: 'HR Chatbot', icon: Bot, path: `${basePath}/hr-chatbot`, color: 'purple' },
       { id: 'analytics', name: 'Analytics', icon: BarChart3, path: `${basePath}/analytics`, color: 'orange' },
       { id: 'settings', name: 'Settings', icon: SettingsIcon, path: `${basePath}/settings`, color: 'gray' }
     ];
@@ -511,7 +514,12 @@ const Dashboard = () => {
      if (path === '/dashboard/chat') {
        return <Chatbot />;
      }
-     
+
+     // HR Chatbot - For HR actions (create user, upload document, I9 compliance)
+     if (path === '/dashboard/hr-chatbot') {
+       return <HRChatbot />;
+     }
+
      // Testing Interface
      if (path === '/dashboard/testing') {
        return <TestingInterface />;

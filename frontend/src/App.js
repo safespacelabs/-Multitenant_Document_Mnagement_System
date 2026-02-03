@@ -112,6 +112,7 @@ function App() {
             <Route path="/dashboard/analytics" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/esignature" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/chat" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/hr-chatbot" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/testing" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/mailing" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/system-dashboard/*" element={

@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { documentsAPI, systemDocumentsAPI } from '../../services/api';
-import { 
-  FileText, 
-  MessageCircle, 
-  BarChart3, 
-  Users, 
-  Settings, 
-  Building2, 
-  Crown, 
+import {
+  FileText,
+  MessageCircle,
+  BarChart3,
+  Users,
+  Settings,
+  Building2,
+  Crown,
   FileSignature,
   Home,
   Folder,
@@ -23,7 +23,8 @@ import {
   Bell,
   User,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Bot
 } from 'lucide-react';
 
 function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
@@ -92,6 +93,13 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }) {
       icon: MessageCircle,
       description: 'Chat with your documents',
       path: '/dashboard/chat'
+    },
+    {
+      id: 'hr-chatbot',
+      label: 'HR Chatbot',
+      icon: Bot,
+      description: 'Create users, manage docs, compliance',
+      path: '/dashboard/hr-chatbot'
     },
     {
       id: 'analytics',

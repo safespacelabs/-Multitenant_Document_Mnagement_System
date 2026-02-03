@@ -1862,6 +1862,136 @@ export const updateExtendedUser = (userId, userData) => usersExtendedAPI.updateE
 export const bulkImportUsers = (file) => usersExtendedAPI.bulkImport(file);
 export const listExtendedUsers = (filters) => usersExtendedAPI.listExtended(filters);
 
+// HR Chatbot API - For HR actions (create user, upload document, I9 compliance, etc.)
+// This uses /api/chatbot/ endpoint which has agentic capabilities
+const hrChatbotAPI = {
+  // Send message to HR chatbot
+  sendMessage: async (question, sessionId = null, documentIds = []) => {
+    const response = await fetch(buildApiUrl('/api/chatbot/'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify({
+        question: question,
+        session_id: sessionId,
+        document_ids: documentIds
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to send message');
+    }
+
+    return response.json();
+  },
+
+  // Create a new chat session
+  createSession: async (title = 'New HR Chat') => {
+    const response = await fetch(buildApiUrl(`/api/chatbot/sessions?title=${encodeURIComponent(title)}`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create session');
+    }
+
+    return response.json();
+  },
+
+  // List all chat sessions
+  listSessions: async () => {
+    const response = await fetch(buildApiUrl('/api/chatbot/sessions'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to list sessions');
+    }
+
+    return response.json();
+  },
+
+  // Get messages for a session
+  getSessionMessages: async (sessionId) => {
+    const response = await fetch(buildApiUrl(`/api/chatbot/sessions/${sessionId}/messages`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get session messages');
+    }
+
+    return response.json();
+  },
+
+  // Delete a session
+  deleteSession: async (sessionId) => {
+    const response = await fetch(buildApiUrl(`/api/chatbot/sessions/${sessionId}`), {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete session');
+    }
+
+    return response.json();
+  },
+
+  // Get expiring documents
+  getExpiringDocuments: async (days = 30) => {
+    const response = await fetch(buildApiUrl(`/api/chatbot/expiring-documents?days=${days}`), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get expiring documents');
+    }
+
+    return response.json();
+  },
+
+  // Get chat history
+  getHistory: async () => {
+    const response = await fetch(buildApiUrl('/api/chatbot/history'), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get chat history');
+    }
+
+    return response.json();
+  }
+};
+
 export {
   authAPI,
   documentsAPI,
@@ -1873,7 +2003,8 @@ export {
   systemDocumentsAPI,
   systemAdminAPI,
   esignatureAPI,
-  usersExtendedAPI
+  usersExtendedAPI,
+  hrChatbotAPI
 };
 
 // Export apiClient for backward compatibility
@@ -1889,5 +2020,6 @@ export const apiClient = {
   systemAdmin: systemAdminAPI,
   esignature: esignatureAPI,
   hrAdmin: hrAdminAPI,
-  usersExtended: usersExtendedAPI
+  usersExtended: usersExtendedAPI,
+  hrChatbot: hrChatbotAPI
 };
