@@ -1,0 +1,157 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add VPS to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create .env file for staging
+        run: |
+          cat > .env.staging << EOF
+          # Staging Environment Variables
+          ENVIRONMENT=staging
+          
+          # Database
+          STAGING_DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }}
+          
+          # Backend
+          STAGING_SECRET_KEY=${{ secrets.STAGING_SECRET_KEY }}
+          ALGORITHM=HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES=30
+          
+          # AWS
+          STAGING_AWS_ACCESS_KEY_ID=${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          STAGING_AWS_SECRET_ACCESS_KEY=${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION=us-west-1
+          
+          # AI
+          STAGING_ANTHROPIC_API_KEY=${{ secrets.STAGING_ANTHROPIC_API_KEY }}
+          EOF
+
+      - name: Copy files to VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p ~/multitenant-app"
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.venv' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/multitenant-app/
+
+      - name: Copy environment file
+        run: |
+          scp .env.staging ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/multitenant-app/.env.staging
+
+      - name: Deploy to Staging environment
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            cd ~/multitenant-app
+            
+            # Load environment variables
+            export $(cat .env.staging | xargs)
+            
+            # Stop existing containers
+            docker-compose -f docker-compose.staging.yml down
+            
+            # Remove old images
+            docker image prune -f
+            
+            # Build and start new containers
+            docker-compose -f docker-compose.staging.yml up -d --build
+            
+            # Wait for services to start
+            echo "Waiting for services to start..."
+            sleep 20
+            
+            # Check container status
+            docker-compose -f docker-compose.staging.yml ps
+          EOF
+
+      - name: Health check
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            # Check if containers are running
+            if ! docker ps | grep -q backend-staging; then
+              echo "Backend container not running!"
+              docker-compose -f docker-compose.staging.yml logs backend-staging
+              exit 1
+            fi
+            
+            if ! docker ps | grep -q frontend-staging; then
+              echo "Frontend container not running!"
+              docker-compose -f docker-compose.staging.yml logs frontend-staging
+              exit 1
+            fi
+            
+            # Test backend health endpoint
+            max_attempts=12
+            attempt=0
+            while [ $attempt -lt $max_attempts ]; do
+              if curl -f http://localhost:8002/health; then
+                echo "Backend is healthy!"
+                break
+              fi
+              attempt=$((attempt + 1))
+              echo "Attempt $attempt/$max_attempts failed. Retrying..."
+              sleep 5
+            done
+            
+            if [ $attempt -eq $max_attempts ]; then
+              echo "Backend health check failed after $max_attempts attempts"
+              docker-compose -f docker-compose.staging.yml logs backend-staging
+              exit 1
+            fi
+          EOF
+
+      - name: Run smoke tests
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            # Basic API smoke tests
+            echo "Running smoke tests..."
+            
+            # Test health endpoint
+            curl -f http://localhost:8002/health || exit 1
+            
+            # Test docs endpoint
+            curl -f http://localhost:8002/docs || exit 1
+            
+            echo "✅ Smoke tests passed!"
+          EOF
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f .env.staging
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Staging deployment successful!"
+            echo "Frontend: https://qaapp.safespacelabs.cloud"
+            echo "Backend:  https://qaapi.safespacelabs.cloud"
+            echo "Please perform QA testing before promoting to production."
+          else
+            echo "❌ Staging deployment failed!"
+          fi
