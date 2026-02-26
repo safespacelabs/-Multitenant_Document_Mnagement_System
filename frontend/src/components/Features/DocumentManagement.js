@@ -3,12 +3,12 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/auth';
 import { documentsAPI, systemDocumentsAPI } from '../../services/api';
 import DocumentESignatureIntegration from '../ESignature/DocumentESignatureIntegration';
-import { 
-  Upload, 
-  FileText, 
-  Download, 
-  Trash2, 
-  Eye, 
+import {
+  Upload,
+  FileText,
+  Download,
+  Trash2,
+  Eye,
   Search,
   Filter,
   FileIcon,
@@ -31,8 +31,8 @@ import {
   Zap
 } from 'lucide-react';
 
-// Backend base URL used throughout this component to avoid frontend proxy
-const BACKEND_BASE = 'https://multitenant-backend-mlap.onrender.com';
+// Backend base URL - reads from environment variable set at build time
+const BACKEND_BASE = process.env.REACT_APP_API_URL || 'https://devapi.safespacelabs.cloud';
 
 const DocumentManagement = () => {
   const { user } = useAuth();
@@ -51,15 +51,15 @@ const DocumentManagement = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
-  
+
   // Folder navigation state
   const [currentFolderPath, setCurrentFolderPath] = useState([]);
   const [showFolderNavigation, setShowFolderNavigation] = useState(false);
-  
+
   // Admin signing state
   const [showSigningModal, setShowSigningModal] = useState(false);
   const [selectedDocumentForSigning, setSelectedDocumentForSigning] = useState(null);
-  
+
   // HR User Folders state
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -76,23 +76,23 @@ const DocumentManagement = () => {
   });
   const [showUploadToUserFolder, setShowUploadToUserFolder] = useState(false);
   const [selectedUserFolder, setSelectedUserFolder] = useState(null);
-     const [companyUsers, setCompanyUsers] = useState([]);
-   const [userSearchTerm, setUserSearchTerm] = useState('');
-   const [filteredUsers, setFilteredUsers] = useState([]);
-   const [loadingUsers, setLoadingUsers] = useState(false);
-   const [loadingFolders, setLoadingFolders] = useState(false);
-   
-   // AI processing states
-   const [processingAI, setProcessingAI] = useState({});
-   const [aiAnalysisResults, setAiAnalysisResults] = useState({});
-   const [showAIAnalysis, setShowAIAnalysis] = useState({});
+  const [companyUsers, setCompanyUsers] = useState([]);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingFolders, setLoadingFolders] = useState(false);
+
+  // AI processing states
+  const [processingAI, setProcessingAI] = useState({});
+  const [aiAnalysisResults, setAiAnalysisResults] = useState({});
+  const [showAIAnalysis, setShowAIAnalysis] = useState({});
 
   // Determine if user is system admin
   const isSystemAdmin = user?.role === 'system_admin';
-  
+
   // Check if user can sign documents directly (admin roles)
   const canSignDirectly = user?.role === 'system_admin' || user?.role === 'hr_admin' || user?.role === 'hr_manager';
-  
+
   // Use appropriate API based on user role
   const docsAPI = isSystemAdmin ? systemDocumentsAPI : documentsAPI;
 
@@ -115,11 +115,11 @@ const DocumentManagement = () => {
     if (location.state?.selectedUserForDocuments && location.state?.showHRUserFolders) {
       const preSelectedUser = location.state.selectedUserForDocuments;
       console.log('🚀 Pre-selected user from navigation:', preSelectedUser);
-      
+
       // Set the selected user and directly show HR User Folders section
       setSelectedUser(preSelectedUser);
       setShowUserSearch(false); // Don't show search modal
-      
+
       // Clear the navigation state to prevent re-triggering
       window.history.replaceState({}, document.title);
     }
@@ -138,7 +138,7 @@ const DocumentManagement = () => {
       setLoading(true);
       const folderParam = selectedFolder === 'all' ? null : (selectedFolder === 'root' ? '' : selectedFolder);
       const response = await docsAPI.list(folderParam);
-      
+
       // Ensure documents is always an array
       let documentsData;
       if (Array.isArray(response)) {
@@ -151,7 +151,7 @@ const DocumentManagement = () => {
         console.warn('Unexpected documents response format:', response);
         documentsData = [];
       }
-      
+
       console.log('📄 Documents response:', response);
       console.log('📄 Processed documents data:', documentsData);
       setDocuments(documentsData);
@@ -167,12 +167,12 @@ const DocumentManagement = () => {
 
   const fetchFolders = async () => {
     try {
-      const response = isSystemAdmin ? 
-        await systemDocumentsAPI.getFolders() : 
+      const response = isSystemAdmin ?
+        await systemDocumentsAPI.getFolders() :
         await documentsAPI.folders();
-      
+
       console.log('📁 Folders API response:', response);
-      
+
       // Handle different response formats
       let foldersData;
       if (Array.isArray(response)) {
@@ -188,7 +188,7 @@ const DocumentManagement = () => {
         console.warn('Unexpected folders response format:', response);
         foldersData = [];
       }
-      
+
       console.log('📁 Processed folders data:', foldersData);
       setFolders(foldersData);
     } catch (err) {
@@ -204,14 +204,14 @@ const DocumentManagement = () => {
     try {
       setUploadingFile(file.name);
       setError('');
-      
+
       const folderName = selectedFolder === 'all' || selectedFolder === 'root' ? null : selectedFolder;
       await docsAPI.upload(file, folderName);
-      
+
       // Refresh documents and folders
       await fetchDocuments();
       await fetchFolders();
-      
+
       // Reset file input
       event.target.value = '';
     } catch (err) {
@@ -229,10 +229,10 @@ const DocumentManagement = () => {
       // Upload a dummy file to create the folder (this will trigger folder creation)
       const dummyFile = new File([''], 'folder_placeholder.txt', { type: 'text/plain' });
       await docsAPI.upload(dummyFile, newFolderName.trim());
-      
+
       // Refresh folders
       await fetchFolders();
-      
+
       setNewFolderName('');
       setShowNewFolder(false);
       setError('');
@@ -266,7 +266,7 @@ const DocumentManagement = () => {
     const newPath = [...currentFolderPath];
     newPath.pop();
     setCurrentFolderPath(newPath);
-    
+
     if (newPath.length === 0) {
       setSelectedFolder('all');
       setShowFolderNavigation(false);
@@ -290,7 +290,7 @@ const DocumentManagement = () => {
   const handleSignDocument = async () => {
     try {
       // Call the e-signature API to sign the document directly
-             const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/esignature/sign-document-directly/${selectedDocumentForSigning.id}`, {
+      const response = await fetch(`${BACKEND_BASE}/api/esignature/sign-document-directly/${selectedDocumentForSigning.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -345,7 +345,7 @@ const DocumentManagement = () => {
   const testBackendConnection = async () => {
     try {
       // Try to access a simple endpoint to test connectivity
-      const response = await fetch('https://multitenant-backend-mlap.onrender.com/api/hr-admin/company/users', { 
+      const response = await fetch(`${BACKEND_BASE}/api/hr-admin/company/users`, {
         method: 'HEAD',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -364,28 +364,28 @@ const DocumentManagement = () => {
       setLoadingUsers(true);
       const token = localStorage.getItem('access_token');
       console.log('🔑 Token for API call:', token ? `${token.substring(0, 20)}...` : 'No token found');
-      
+
       if (!token) {
         throw new Error('No access token found. Please log in again.');
       }
-      
-      const response = await fetch('https://multitenant-backend-mlap.onrender.com/api/hr-admin/company/users', {
+
+      const response = await fetch(`${BACKEND_BASE}/api/hr-admin/company/users`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (response.ok) {
         const usersData = await response.json();
         // Filter out system_admin users - only show company users
         const companyUsersOnly = usersData.filter(user => user.role !== 'system_admin');
         console.log('👥 Company users loaded:', companyUsersOnly.length, 'users');
-        console.log('👥 Company users details:', companyUsersOnly.map(u => ({ 
-          id: u.id, 
-          name: u.full_name, 
-          role: u.role, 
-          company_id: u.company_id 
+        console.log('👥 Company users details:', companyUsersOnly.map(u => ({
+          id: u.id,
+          name: u.full_name,
+          role: u.role,
+          company_id: u.company_id
         })));
         setCompanyUsers(companyUsersOnly);
         setFilteredUsers(companyUsersOnly);
@@ -408,8 +408,8 @@ const DocumentManagement = () => {
       setFilteredUsers(companyUsers);
       return;
     }
-    
-    const filtered = companyUsers.filter(user => 
+
+    const filtered = companyUsers.filter(user =>
       user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.username?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -422,15 +422,15 @@ const DocumentManagement = () => {
     console.log('👤 User ID:', user.id);
     console.log('👤 User name:', user.full_name);
     console.log('👤 User company_id:', user.company_id);
-    
+
     setSelectedUser(user);
     setShowUserSearch(false);
     setUserSearchTerm(''); // Clear search term
-    
+
     // Test the API endpoint before calling fetchUserFolders
     try {
       console.log('🧪 Testing API endpoint...');
-      const testResponse = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/users/${user.id}/folders`, {
+      const testResponse = await fetch(`${BACKEND_BASE}/api/hr-user-folders/users/${user.id}/folders`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
@@ -438,7 +438,7 @@ const DocumentManagement = () => {
       });
       console.log('🧪 Test response status:', testResponse.status);
       console.log('🧪 Test response headers:', Object.fromEntries(testResponse.headers.entries()));
-      
+
       if (!testResponse.ok) {
         const testError = await testResponse.json().catch(() => ({}));
         console.error('🧪 Test failed:', testResponse.status, testError);
@@ -446,7 +446,7 @@ const DocumentManagement = () => {
     } catch (testErr) {
       console.error('🧪 Test error:', testErr);
     }
-    
+
     await fetchUserFolders(user.id);
   };
 
@@ -455,8 +455,8 @@ const DocumentManagement = () => {
       setFilteredUsers(companyUsers);
       return;
     }
-    
-    const filtered = companyUsers.filter(user => 
+
+    const filtered = companyUsers.filter(user =>
       user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.username?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -469,18 +469,18 @@ const DocumentManagement = () => {
       setLoadingFolders(true);
       console.log('📁 Fetching folders for user:', userId);
       console.log('🔐 Access token:', localStorage.getItem('access_token') ? 'Present' : 'Missing');
-      console.log('🌐 Full URL:', `https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/users/${userId}/folders`);
-      
-      const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/users/${userId}/folders`, {
+      console.log('🌐 Full URL:', `${BACKEND_BASE}/api/hr-user-folders/users/${userId}/folders`);
+
+      const response = await fetch(`${BACKEND_BASE}/api/hr-user-folders/users/${userId}/folders`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
-      
+
       console.log('📥 Response status:', response.status);
       console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Folders loaded:', data);
@@ -505,13 +505,13 @@ const DocumentManagement = () => {
     setSelectedUserFolder(folder);
     try {
       console.log('📂 Opening folder:', folder.id, folder.display_name);
-      const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders/${folder.id}`, {
+      const response = await fetch(`${BACKEND_BASE}/api/hr-user-folders/folders/${folder.id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Folder contents loaded:', data);
@@ -531,17 +531,17 @@ const DocumentManagement = () => {
 
   const createUserFolder = async (e) => {
     e.preventDefault();
-    
+
     // Ensure user_id is set from selected user
     if (!newUserFolder.user_id) {
       setError('User ID is required. Please try again.');
       return;
     }
-    
+
     try {
       console.log('📁 Creating folder with data:', newUserFolder);
-      
-      const response = await fetch('https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders', {
+
+      const response = await fetch(`${BACKEND_BASE}/api/hr-user-folders/folders`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -549,7 +549,7 @@ const DocumentManagement = () => {
         },
         body: JSON.stringify(newUserFolder)
       });
-      
+
       if (response.ok) {
         const createdFolder = await response.json();
         console.log('✅ Folder created successfully:', createdFolder);
@@ -564,7 +564,7 @@ const DocumentManagement = () => {
           sort_order: 0
         });
         setError('');
-        
+
         // Refresh folders to ensure data persistence
         await fetchUserFolders(selectedUser.id);
       } else {
@@ -582,16 +582,16 @@ const DocumentManagement = () => {
     try {
       // Create a new FormData with the correct structure
       const uploadFormData = new FormData();
-      
+
       // Get the file from the original formData
       const file = formData.get('file');
       if (!file) {
         throw new Error('No file selected');
       }
-      
+
       // Add the file
       uploadFormData.append('file', file);
-      
+
       // Create metadata object and convert to JSON string
       const metadata = {
         document_category: formData.get('document_category') || '',
@@ -603,34 +603,34 @@ const DocumentManagement = () => {
         version: '1.0',
         status: 'active'
       };
-      
+
       // Add the metadata as a JSON string
       uploadFormData.append('document_data', JSON.stringify(metadata));
-      
+
       console.log('📤 Uploading file:', file.name, 'Size:', file.size, 'Type:', file.type);
       console.log('📤 Metadata:', metadata);
-      
-      const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders/${selectedUserFolder.id}/documents`, {
+
+      const response = await fetch(`${BACKEND_BASE}/api/hr-user-folders/folders/${selectedUserFolder.id}/documents`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         body: uploadFormData
       });
-      
+
       if (response.ok) {
         const uploadedDoc = await response.json();
         console.log('✅ Document uploaded successfully:', uploadedDoc);
         setUserDocuments(prev => [uploadedDoc, ...prev]);
         setShowUploadToUserFolder(false);
         setError('');
-        
+
         // Refresh folder contents to ensure data persistence
         await openUserFolder(selectedUserFolder);
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('Upload Error Response:', response.status, errorData);
-        
+
         // Handle different error types
         if (response.status === 422) {
           // Validation error - show specific validation details
@@ -656,16 +656,16 @@ const DocumentManagement = () => {
     if (!window.confirm('Are you sure you want to delete this folder? This will also delete all documents inside.')) {
       return;
     }
-    
+
     try {
-      const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/folders/${folderId}`, {
+      const response = await fetch(`${BACKEND_BASE}/api/hr-user-folders/folders/${folderId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (response.ok) {
         setUserFolders(prev => prev.filter(f => f.id !== folderId));
         if (selectedUserFolder?.id === folderId) {
@@ -687,16 +687,16 @@ const DocumentManagement = () => {
     if (!window.confirm('Are you sure you want to delete this document?')) {
       return;
     }
-    
+
     try {
-      const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/documents/${documentId}`, {
+      const response = await fetch(`${BACKEND_BASE}/api/hr-user-folders/documents/${documentId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (response.ok) {
         setUserDocuments(prev => prev.filter(d => d.id !== documentId));
         setError('');
@@ -713,18 +713,18 @@ const DocumentManagement = () => {
   const viewUserDocument = async (document) => {
     try {
       // For PDFs and images, we can open them directly in a new tab
-      if (document.original_filename.toLowerCase().endsWith('.pdf') || 
-          document.original_filename.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i)) {
-        
+      if (document.original_filename.toLowerCase().endsWith('.pdf') ||
+        document.original_filename.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i)) {
+
         // Get the document URL from the backend
-        const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/documents/${document.id}/view`, {
+        const response = await fetch(`${BACKEND_BASE}/api/hr-user-folders/documents/${document.id}/view`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
             'Content-Type': 'application/json'
           }
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           if (data.download_url) {
@@ -738,14 +738,14 @@ const DocumentManagement = () => {
         }
       } else {
         // For other file types, trigger download
-        const response = await fetch(`https://multitenant-backend-mlap.onrender.com/api/hr-user-folders/documents/${document.id}/download`, {
+        const response = await fetch(`${BACKEND_BASE}/api/hr-user-folders/documents/${document.id}/download`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
             'Content-Type': 'application/json'
           }
         });
-        
+
         if (response.ok) {
           const blob = await response.blob();
           const url = window.URL.createObjectURL(blob);
@@ -779,7 +779,7 @@ const DocumentManagement = () => {
   // AI Processing Functions
   const processDocumentWithAI = async (documentId) => {
     setProcessingAI(prev => ({ ...prev, [documentId]: true }));
-    
+
     try {
       // Decide endpoint based on document type/context
       const isHRDoc = (typeof documentId === 'string' && documentId.startsWith('hrdoc_')) || !!selectedUserFolder;
@@ -794,9 +794,9 @@ const DocumentManagement = () => {
           'Content-Type': 'application/json'
         }
       });
-      
+
       const result = await response.json().catch(() => ({}));
-      
+
       if (response.ok) {
         if (result.already_processed) {
           alert('Document already processed by AI!');
@@ -804,7 +804,7 @@ const DocumentManagement = () => {
           alert('Document processed successfully with AI!');
           console.log('AI Analysis Result:', result);
         }
-        
+
         // Store the successful result immediately to show processing completed
         setAiAnalysisResults(prev => ({
           ...prev,
@@ -838,7 +838,7 @@ const DocumentManagement = () => {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
       });
-      
+
       const result = await response.json();
       setAiAnalysisResults(prev => ({ ...prev, [documentId]: result }));
       return result;
@@ -850,7 +850,7 @@ const DocumentManagement = () => {
 
   const toggleAIAnalysis = (documentId) => {
     setShowAIAnalysis(prev => ({ ...prev, [documentId]: !prev[documentId] }));
-    
+
     // Load AI analysis if not already loaded
     if (!aiAnalysisResults[documentId]) {
       checkAIAnalysis(documentId);
@@ -866,12 +866,12 @@ const DocumentManagement = () => {
             {isSystemAdmin ? 'System Documents' : 'Document Management'}
           </h2>
           <p className="text-xs sm:text-sm text-gray-600 mt-1">
-            {isSystemAdmin ? 
-              'Manage system-level documents and files' : 
+            {isSystemAdmin ?
+              'Manage system-level documents and files' :
               'Upload, organize, and manage your documents'}
           </p>
         </div>
-        
+
         <div className="flex space-x-2 flex-shrink-0">
           <button
             onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
@@ -957,444 +957,444 @@ const DocumentManagement = () => {
 
       {/* Controls - temporarily disabled */}
       {false && (
-      <div className="bg-white rounded-lg shadow p-6">
-        {/* File Upload */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Upload {isSystemAdmin ? 'System' : ''} Document
-          </label>
-          <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-gray-400">
-            <div className="space-y-1 text-center">
-              <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <div className="flex text-sm text-gray-600">
-                <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
-                  <span>Upload a file</span>
-                  <input
-                    id="file-upload"
-                    name="file-upload"
-                    type="file"
-                    className="sr-only"
-                    onChange={handleFileUpload}
-                    disabled={!!uploadingFile}
-                  />
-                </label>
-                <p className="pl-1">or drag and drop</p>
+        <div className="bg-white rounded-lg shadow p-6">
+          {/* File Upload */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Upload {isSystemAdmin ? 'System' : ''} Document
+            </label>
+            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-gray-400">
+              <div className="space-y-1 text-center">
+                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                  <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div className="flex text-sm text-gray-600">
+                  <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                    <span>Upload a file</span>
+                    <input
+                      id="file-upload"
+                      name="file-upload"
+                      type="file"
+                      className="sr-only"
+                      onChange={handleFileUpload}
+                      disabled={!!uploadingFile}
+                    />
+                  </label>
+                  <p className="pl-1">or drag and drop</p>
+                </div>
+                <p className="text-xs text-gray-500">PNG, JPG, PDF up to 100MB</p>
+                {uploadingFile && (
+                  <p className="text-sm text-blue-600">Uploading {uploadingFile}...</p>
+                )}
               </div>
-              <p className="text-xs text-gray-500">PNG, JPG, PDF up to 100MB</p>
-              {uploadingFile && (
-                <p className="text-sm text-blue-600">Uploading {uploadingFile}...</p>
+            </div>
+          </div>
+
+          {/* Folder Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Folder</label>
+              <select
+                value={selectedFolder}
+                onChange={(e) => setSelectedFolder(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="all">All Folders</option>
+                <option value="root">Root (No Folder)</option>
+                {Array.isArray(folders) && folders.map(folder => (
+                  <option key={folder} value={folder}>{folder}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <span className="invisible">Hidden</span>
+              </label>
+              {!showNewFolder ? (
+                <button
+                  onClick={() => setShowNewFolder(true)}
+                  className="w-full px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  + New Folder
+                </button>
+              ) : (
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    placeholder="Folder name"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
+                  />
+                  <button
+                    onClick={handleCreateFolder}
+                    className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowNewFolder(false);
+                      setNewFolderName('');
+                    }}
+                    className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                  >
+                    ✕
+                  </button>
+                </div>
               )}
             </div>
           </div>
-        </div>
 
-        {/* Folder Selection */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Folder</label>
-            <select
-              value={selectedFolder}
-              onChange={(e) => setSelectedFolder(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="all">All Folders</option>
-              <option value="root">Root (No Folder)</option>
-              {Array.isArray(folders) && folders.map(folder => (
-                <option key={folder} value={folder}>{folder}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <span className="invisible">Hidden</span>
-            </label>
-            {!showNewFolder ? (
-              <button
-                onClick={() => setShowNewFolder(true)}
-                className="w-full px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          {/* Filters and Search */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Filter</label>
+              <select
+                value={filterBy}
+                onChange={(e) => setFilterBy(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               >
-                + New Folder
-              </button>
-            ) : (
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  placeholder="Folder name"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
-                />
-                <button
-                  onClick={handleCreateFolder}
-                  className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                >
-                  ✓
-                </button>
-                <button
-                  onClick={() => {
-                    setShowNewFolder(false);
-                    setNewFolderName('');
-                  }}
-                  className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Filters and Search */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Filter</label>
-            <select
-              value={filterBy}
-              onChange={(e) => setFilterBy(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="all">All Documents</option>
-              <option value="recent">Recent (Last 7 days)</option>
-              <option value="processed">Processed</option>
-              <option value="unprocessed">Unprocessed</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-            <input
-              type="text"
-              placeholder="Search documents..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-        </div>
-
-        {/* HR User Folders Section - Only visible for HR roles */}
-        {(user?.role === 'hr_admin' || user?.role === 'hr_manager' || user?.role === 'system_admin') && (
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            {/* Debug info */}
-            {console.log('🔍 HR User Folders Section - User role:', user?.role, 'Selected user:', selectedUser)}
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-medium text-blue-900">HR User Document Management</h3>
-                <p className="text-sm text-blue-700">Create folders and manage documents for any user in your company</p>
-              </div>
-              <div className="flex space-x-2">
-                                 {companyUsers.length === 0 && (
-                   <button
-                     onClick={() => fetchCompanyUsers()}
-                     disabled={loadingUsers}
-                     className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                   >
-                     {loadingUsers ? '🔄 Loading...' : '🔄 Retry Load Users'}
-                   </button>
-                 )}
-                                 <button
-                   onClick={() => {
-                     if (companyUsers.length === 0) {
-                       // Retry loading users if none are loaded
-                       fetchCompanyUsers();
-                     }
-                     setShowUserSearch(true);
-                     setUserSearchTerm(''); // Clear any previous search
-                     setFilteredUsers(companyUsers); // Show all users initially
-                   }}
-                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                 >
-                   <Users className="h-4 w-4 mr-2" />
-                   Search User
-                 </button>
-              </div>
+                <option value="all">All Documents</option>
+                <option value="recent">Recent (Last 7 days)</option>
+                <option value="processed">Processed</option>
+                <option value="unprocessed">Unprocessed</option>
+              </select>
             </div>
 
-            {/* Debug State Display */}
-            <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-              <strong>Debug:</strong> selectedUser: {selectedUser ? `${selectedUser.full_name} (${selectedUser.id})` : 'null'}, 
-              showUserSearch: {showUserSearch.toString()}, 
-              userFolders count: {userFolders.length}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+              <input
+                type="text"
+                placeholder="Search documents..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              />
             </div>
+          </div>
 
-            {/* Selected User Display */}
-            {selectedUser && (
-              <div className="bg-white rounded-lg p-4 border border-blue-200">
-                                 <div className="flex items-center justify-between mb-4">
-                   <div className="flex items-center space-x-3">
-                     <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                       <User className="h-5 w-5 text-blue-600" />
-                     </div>
-                     <div>
-                       <h4 className="text-lg font-medium text-gray-900">{selectedUser.full_name}</h4>
-                       <p className="text-sm text-gray-600">{selectedUser.email} • {selectedUser.role}</p>
-                     </div>
-                   </div>
-                   <div className="flex items-center space-x-2">
-                     <button
-                       onClick={() => fetchUserFolders(selectedUser.id)}
-                       className="text-blue-600 hover:text-blue-800 p-1"
-                       title="Refresh user data"
-                     >
-                       🔄
-                     </button>
-                     <button
-                       onClick={() => {
-                         setSelectedUser(null);
-                         setUserFolders([]);
-                         setUserDocuments([]);
-                         setSelectedUserFolder(null);
-                       }}
-                       className="text-gray-400 hover:text-gray-600"
-                       title="Close user"
-                     >
-                       <X className="h-5 w-5" />
-                     </button>
-                   </div>
-                 </div>
-
-                {/* User Folders */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h5 className="text-md font-medium text-gray-900">User Folders ({userFolders.length})</h5>
+          {/* HR User Folders Section - Only visible for HR roles */}
+          {(user?.role === 'hr_admin' || user?.role === 'hr_manager' || user?.role === 'system_admin') && (
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              {/* Debug info */}
+              {console.log('🔍 HR User Folders Section - User role:', user?.role, 'Selected user:', selectedUser)}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-medium text-blue-900">HR User Document Management</h3>
+                  <p className="text-sm text-blue-700">Create folders and manage documents for any user in your company</p>
+                </div>
+                <div className="flex space-x-2">
+                  {companyUsers.length === 0 && (
                     <button
-                      onClick={() => {
-                        setNewUserFolder(prev => ({ ...prev, user_id: selectedUser.id }));
-                        setShowCreateUserFolder(true);
-                      }}
-                      className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                      onClick={() => fetchCompanyUsers()}
+                      disabled={loadingUsers}
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                     >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Create Folder
+                      {loadingUsers ? '🔄 Loading...' : '🔄 Retry Load Users'}
                     </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (companyUsers.length === 0) {
+                        // Retry loading users if none are loaded
+                        fetchCompanyUsers();
+                      }
+                      setShowUserSearch(true);
+                      setUserSearchTerm(''); // Clear any previous search
+                      setFilteredUsers(companyUsers); // Show all users initially
+                    }}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Search User
+                  </button>
+                </div>
+              </div>
+
+              {/* Debug State Display */}
+              <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                <strong>Debug:</strong> selectedUser: {selectedUser ? `${selectedUser.full_name} (${selectedUser.id})` : 'null'},
+                showUserSearch: {showUserSearch.toString()},
+                userFolders count: {userFolders.length}
+              </div>
+
+              {/* Selected User Display */}
+              {selectedUser && (
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-medium text-gray-900">{selectedUser.full_name}</h4>
+                        <p className="text-sm text-gray-600">{selectedUser.email} • {selectedUser.role}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => fetchUserFolders(selectedUser.id)}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                        title="Refresh user data"
+                      >
+                        🔄
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedUser(null);
+                          setUserFolders([]);
+                          setUserDocuments([]);
+                          setSelectedUserFolder(null);
+                        }}
+                        className="text-gray-400 hover:text-gray-600"
+                        title="Close user"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
                   </div>
 
-                                     {loadingFolders ? (
-                     <div className="text-center py-4">
-                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                       <p className="text-sm text-gray-500">Loading folders...</p>
-                     </div>
-                   ) : userFolders.length === 0 ? (
-                     <p className="text-sm text-gray-500 text-center py-4">No folders created yet for this user.</p>
-                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {userFolders.map((folder) => (
-                        <div key={folder.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:bg-gray-100">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <Folder className="h-4 w-4 text-blue-500" />
-                              <div>
-                                <h6 className="text-sm font-medium text-gray-900">{folder.display_name}</h6>
-                                <p className="text-xs text-gray-500">{folder.documents_count || 0} documents</p>
-                              </div>
-                            </div>
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={() => openUserFolder(folder)}
-                                className="text-blue-600 hover:text-blue-800 p-1"
-                                title="View folder contents"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => deleteUserFolder(folder.id)}
-                                className="text-red-600 hover:text-red-800 p-1"
-                                title="Delete folder"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Selected Folder Documents */}
-                {selectedUserFolder && (
-                  <div className="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <h6 className="text-md font-medium text-gray-900">
-                        Documents in {selectedUserFolder.display_name} ({userDocuments.length})
-                      </h6>
+                  {/* User Folders */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-md font-medium text-gray-900">User Folders ({userFolders.length})</h5>
                       <button
-                        onClick={() => setShowUploadToUserFolder(true)}
+                        onClick={() => {
+                          setNewUserFolder(prev => ({ ...prev, user_id: selectedUser.id }));
+                          setShowCreateUserFolder(true);
+                        }}
                         className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
                       >
-                        <Upload className="h-4 w-4 mr-1" />
-                        Upload Document
+                        <Plus className="h-4 w-4 mr-1" />
+                        Create Folder
                       </button>
                     </div>
 
-                    {userDocuments.length === 0 ? (
-                      <p className="text-sm text-gray-500 text-center py-2">No documents in this folder.</p>
+                    {loadingFolders ? (
+                      <div className="text-center py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                        <p className="text-sm text-gray-500">Loading folders...</p>
+                      </div>
+                    ) : userFolders.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-4">No folders created yet for this user.</p>
                     ) : (
-                      <div className="space-y-2">
-                        {userDocuments.map((doc) => (
-                          <div key={doc.id}>
-                            <div className="flex items-center justify-between bg-white rounded p-2 border border-gray-200">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {userFolders.map((folder) => (
+                          <div key={folder.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:bg-gray-100">
+                            <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-2">
-                                <FileText className="h-4 w-4 text-gray-400" />
+                                <Folder className="h-4 w-4 text-blue-500" />
                                 <div>
-                                  <p className="text-sm font-medium text-gray-900">{doc.original_filename}</p>
-                                  <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}</p>
+                                  <h6 className="text-sm font-medium text-gray-900">{folder.display_name}</h6>
+                                  <p className="text-xs text-gray-500">{folder.documents_count || 0} documents</p>
                                 </div>
                               </div>
-                              <div className="flex items-center space-x-2">
+                              <div className="flex space-x-1">
                                 <button
-                                  onClick={() => viewUserDocument(doc)}
+                                  onClick={() => openUserFolder(folder)}
                                   className="text-blue-600 hover:text-blue-800 p-1"
-                                  title="View document"
+                                  title="View folder contents"
                                 >
                                   <Eye className="h-4 w-4" />
                                 </button>
                                 <button
-                                  onClick={() => processDocumentWithAI(doc.id)}
-                                  disabled={processingAI[doc.id]}
-                                  className={`${processingAI[doc.id] ? 'text-gray-400' : 'text-purple-600 hover:text-purple-900'} p-1`}
-                                  title="Process with AI"
-                                >
-                                  {processingAI[doc.id] ? (
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
-                                  ) : (
-                                    <Bot className="h-4 w-4" />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => toggleAIAnalysis(doc.id)}
-                                  className="text-indigo-600 hover:text-indigo-900 p-1"
-                                  title="View AI Analysis"
-                                >
-                                  <Brain className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => deleteUserDocument(doc.id)}
+                                  onClick={() => deleteUserFolder(folder.id)}
                                   className="text-red-600 hover:text-red-800 p-1"
-                                  title="Delete document"
+                                  title="Delete folder"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </button>
                               </div>
                             </div>
-                            
-                            {/* AI Analysis Section */}
-                            {showAIAnalysis[doc.id] && (
-                              <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                  <h4 className="text-sm font-medium text-gray-900 flex items-center">
-                                    <Brain className="h-4 w-4 mr-2 text-indigo-600" />
-                                    AI Analysis Results
-                                  </h4>
-                                  <button
-                                    onClick={() => toggleAIAnalysis(doc.id)}
-                                    className="text-gray-400 hover:text-gray-600"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </button>
-                                </div>
-                                
-                                {aiAnalysisResults[doc.id] ? (
-                                  aiAnalysisResults[doc.id].ai_processed ? (
-                                    <div className="space-y-3">
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                          <label className="text-xs font-medium text-gray-500">Title</label>
-                                          <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.title}</p>
-                                        </div>
-                                        <div>
-                                          <label className="text-xs font-medium text-gray-500">Document Type</label>
-                                          <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.document_type}</p>
-                                        </div>
-                                        <div>
-                                          <label className="text-xs font-medium text-gray-500">Language</label>
-                                          <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.language}</p>
-                                        </div>
-                                        <div>
-                                          <label className="text-xs font-medium text-gray-500">Word Count</label>
-                                          <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.word_count}</p>
-                                        </div>
-                                      </div>
-                                      
-                                      <div>
-                                        <label className="text-xs font-medium text-gray-500">Summary</label>
-                                        <p className="text-sm text-gray-900 bg-white p-3 rounded-md border">
-                                          {aiAnalysisResults[doc.id].analysis.summary}
-                                        </p>
-                                      </div>
-                                      
-                                      {aiAnalysisResults[doc.id].analysis.expiry_detected && (
-                                        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
-                                          <div className="flex items-center">
-                                            <AlertCircle className="h-4 w-4 text-yellow-600 mr-2" />
-                                            <span className="text-sm font-medium text-yellow-800">Expiry Detected</span>
-                                          </div>
-                                          <p className="text-sm text-yellow-700 mt-1">
-                                            Expiry Date: {aiAnalysisResults[doc.id].analysis.expiry_date}
-                                          </p>
-                                          <p className="text-sm text-yellow-700">
-                                            Urgency Level: {aiAnalysisResults[doc.id].analysis.urgency_level}
-                                          </p>
-                                        </div>
-                                      )}
-                                      
-                                      <details className="mt-3">
-                                        <summary className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900">
-                                          View Full AI Analysis JSON
-                                        </summary>
-                                        <pre className="mt-2 text-xs bg-white p-3 rounded-md border overflow-auto max-h-64">
-                                          {JSON.stringify(aiAnalysisResults[doc.id].analysis, null, 2)}
-                                        </pre>
-                                      </details>
-                                    </div>
-                                  ) : (
-                                    <div className="text-center py-4">
-                                      <Bot className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                                      <p className="text-sm text-gray-600 mb-3">
-                                        This document has not been processed by AI yet.
-                                      </p>
-                                      <button
-                                        onClick={() => processDocumentWithAI(doc.id)}
-                                        disabled={processingAI[doc.id]}
-                                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
-                                      >
-                                        {processingAI[doc.id] ? (
-                                          <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                            Processing...
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Zap className="h-4 w-4 mr-2" />
-                                            Process with AI
-                                          </>
-                                        )}
-                                      </button>
-                                    </div>
-                                  )
-                                ) : (
-                                  <div className="text-center py-4">
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto"></div>
-                                    <p className="text-sm text-gray-600 mt-2">Loading AI analysis...</p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+
+                  {/* Selected Folder Documents */}
+                  {selectedUserFolder && (
+                    <div className="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h6 className="text-md font-medium text-gray-900">
+                          Documents in {selectedUserFolder.display_name} ({userDocuments.length})
+                        </h6>
+                        <button
+                          onClick={() => setShowUploadToUserFolder(true)}
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                        >
+                          <Upload className="h-4 w-4 mr-1" />
+                          Upload Document
+                        </button>
+                      </div>
+
+                      {userDocuments.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-2">No documents in this folder.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {userDocuments.map((doc) => (
+                            <div key={doc.id}>
+                              <div className="flex items-center justify-between bg-white rounded p-2 border border-gray-200">
+                                <div className="flex items-center space-x-2">
+                                  <FileText className="h-4 w-4 text-gray-400" />
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">{doc.original_filename}</p>
+                                    <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => viewUserDocument(doc)}
+                                    className="text-blue-600 hover:text-blue-800 p-1"
+                                    title="View document"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => processDocumentWithAI(doc.id)}
+                                    disabled={processingAI[doc.id]}
+                                    className={`${processingAI[doc.id] ? 'text-gray-400' : 'text-purple-600 hover:text-purple-900'} p-1`}
+                                    title="Process with AI"
+                                  >
+                                    {processingAI[doc.id] ? (
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                                    ) : (
+                                      <Bot className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => toggleAIAnalysis(doc.id)}
+                                    className="text-indigo-600 hover:text-indigo-900 p-1"
+                                    title="View AI Analysis"
+                                  >
+                                    <Brain className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteUserDocument(doc.id)}
+                                    className="text-red-600 hover:text-red-800 p-1"
+                                    title="Delete document"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* AI Analysis Section */}
+                              {showAIAnalysis[doc.id] && (
+                                <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                                      <Brain className="h-4 w-4 mr-2 text-indigo-600" />
+                                      AI Analysis Results
+                                    </h4>
+                                    <button
+                                      onClick={() => toggleAIAnalysis(doc.id)}
+                                      className="text-gray-400 hover:text-gray-600"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+
+                                  {aiAnalysisResults[doc.id] ? (
+                                    aiAnalysisResults[doc.id].ai_processed ? (
+                                      <div className="space-y-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div>
+                                            <label className="text-xs font-medium text-gray-500">Title</label>
+                                            <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.title}</p>
+                                          </div>
+                                          <div>
+                                            <label className="text-xs font-medium text-gray-500">Document Type</label>
+                                            <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.document_type}</p>
+                                          </div>
+                                          <div>
+                                            <label className="text-xs font-medium text-gray-500">Language</label>
+                                            <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.language}</p>
+                                          </div>
+                                          <div>
+                                            <label className="text-xs font-medium text-gray-500">Word Count</label>
+                                            <p className="text-sm text-gray-900">{aiAnalysisResults[doc.id].analysis.word_count}</p>
+                                          </div>
+                                        </div>
+
+                                        <div>
+                                          <label className="text-xs font-medium text-gray-500">Summary</label>
+                                          <p className="text-sm text-gray-900 bg-white p-3 rounded-md border">
+                                            {aiAnalysisResults[doc.id].analysis.summary}
+                                          </p>
+                                        </div>
+
+                                        {aiAnalysisResults[doc.id].analysis.expiry_detected && (
+                                          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                                            <div className="flex items-center">
+                                              <AlertCircle className="h-4 w-4 text-yellow-600 mr-2" />
+                                              <span className="text-sm font-medium text-yellow-800">Expiry Detected</span>
+                                            </div>
+                                            <p className="text-sm text-yellow-700 mt-1">
+                                              Expiry Date: {aiAnalysisResults[doc.id].analysis.expiry_date}
+                                            </p>
+                                            <p className="text-sm text-yellow-700">
+                                              Urgency Level: {aiAnalysisResults[doc.id].analysis.urgency_level}
+                                            </p>
+                                          </div>
+                                        )}
+
+                                        <details className="mt-3">
+                                          <summary className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900">
+                                            View Full AI Analysis JSON
+                                          </summary>
+                                          <pre className="mt-2 text-xs bg-white p-3 rounded-md border overflow-auto max-h-64">
+                                            {JSON.stringify(aiAnalysisResults[doc.id].analysis, null, 2)}
+                                          </pre>
+                                        </details>
+                                      </div>
+                                    ) : (
+                                      <div className="text-center py-4">
+                                        <Bot className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                        <p className="text-sm text-gray-600 mb-3">
+                                          This document has not been processed by AI yet.
+                                        </p>
+                                        <button
+                                          onClick={() => processDocumentWithAI(doc.id)}
+                                          disabled={processingAI[doc.id]}
+                                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                                        >
+                                          {processingAI[doc.id] ? (
+                                            <>
+                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                              Processing...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Zap className="h-4 w-4 mr-2" />
+                                              Process with AI
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                    )
+                                  ) : (
+                                    <div className="text-center py-4">
+                                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto"></div>
+                                      <p className="text-sm text-gray-600 mt-2">Loading AI analysis...</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* HR User Folders Section - visible */}
@@ -1437,8 +1437,8 @@ const DocumentManagement = () => {
 
           {/* Debug State Display */}
           <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-            <strong>Debug:</strong> selectedUser: {selectedUser ? `${selectedUser.full_name} (${selectedUser.id})` : 'null'}, 
-            showUserSearch: {showUserSearch.toString()}, 
+            <strong>Debug:</strong> selectedUser: {selectedUser ? `${selectedUser.full_name} (${selectedUser.id})` : 'null'},
+            showUserSearch: {showUserSearch.toString()},
             userFolders count: {userFolders.length}
           </div>
 
@@ -1725,172 +1725,172 @@ const DocumentManagement = () => {
 
       {/* Documents List - temporarily disabled */}
       {false && (
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">
-            {isSystemAdmin ? 'System Documents' : 'Documents'} 
-            <span className="text-sm text-gray-500 ml-2">
-              ({filteredDocuments.length} total)
-            </span>
-          </h3>
-        </div>
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">
+              {isSystemAdmin ? 'System Documents' : 'Documents'}
+              <span className="text-sm text-gray-500 ml-2">
+                ({filteredDocuments.length} total)
+              </span>
+            </h3>
+          </div>
 
-        {loading ? (
-          <div className="p-6 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-            <p className="mt-2 text-sm text-gray-600">Loading documents...</p>
-          </div>
-        ) : filteredDocuments.length === 0 ? (
-          <div className="p-6 text-center">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No documents</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {selectedFolder === 'all' ? 
-                'Get started by uploading your first document.' :
-                `No documents in ${selectedFolder === 'root' ? 'root folder' : selectedFolder}.`
-              }
-            </p>
-          </div>
-        ) : (
-          <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6' : 'divide-y divide-gray-200'}>
-            {filteredDocuments.map((doc) => (
-              viewMode === 'grid' ? (
-                // Grid View
-                <div key={doc.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-gray-900 truncate" title={doc.original_filename}>
-                        {doc.original_filename}
-                      </h4>
-                      <div className="mt-1 flex items-center space-x-2 text-xs text-gray-500">
-                        <span>{formatFileSize(doc.file_size)}</span>
-                        <span>•</span>
-                        <span>{formatDate(doc.created_at)}</span>
-                      </div>
-                      {doc.folder_name && (
-                        <div className="mt-1">
-                          <button
-                            onClick={() => navigateToFolder(doc.folder_name)}
-                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer"
-                          >
-                            📁 {doc.folder_name}
-                          </button>
+          {loading ? (
+            <div className="p-6 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+              <p className="mt-2 text-sm text-gray-600">Loading documents...</p>
+            </div>
+          ) : filteredDocuments.length === 0 ? (
+            <div className="p-6 text-center">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No documents</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {selectedFolder === 'all' ?
+                  'Get started by uploading your first document.' :
+                  `No documents in ${selectedFolder === 'root' ? 'root folder' : selectedFolder}.`
+                }
+              </p>
+            </div>
+          ) : (
+            <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6' : 'divide-y divide-gray-200'}>
+              {filteredDocuments.map((doc) => (
+                viewMode === 'grid' ? (
+                  // Grid View
+                  <div key={doc.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-medium text-gray-900 truncate" title={doc.original_filename}>
+                          {doc.original_filename}
+                        </h4>
+                        <div className="mt-1 flex items-center space-x-2 text-xs text-gray-500">
+                          <span>{formatFileSize(doc.file_size)}</span>
+                          <span>•</span>
+                          <span>{formatDate(doc.created_at)}</span>
                         </div>
-                      )}
-                      <div className="mt-2">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${doc.processed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                          {doc.processed ? '✓ Processed' : '⏳ Processing'}
-                        </span>
+                        {doc.folder_name && (
+                          <div className="mt-1">
+                            <button
+                              onClick={() => navigateToFolder(doc.folder_name)}
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer"
+                            >
+                              📁 {doc.folder_name}
+                            </button>
+                          </div>
+                        )}
+                        <div className="mt-2">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${doc.processed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                            {doc.processed ? '✓ Processed' : '⏳ Processing'}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="ml-2 flex-shrink-0 flex items-center space-x-2">
-                      {/* E-Signature Integration */}
-                      {user && (
-                        <DocumentESignatureIntegration
-                          document={doc}
-                          userRole={user.role}
-                          userId={user.id}
-                          onSignatureRequestCreated={(signatureRequest) => {
-                            console.log('Signature request created:', signatureRequest);
-                          }}
-                        />
-                      )}
-                      
-                      {/* Admin Direct Signing */}
-                      {canSignDirectly && (
+                      <div className="ml-2 flex-shrink-0 flex items-center space-x-2">
+                        {/* E-Signature Integration */}
+                        {user && (
+                          <DocumentESignatureIntegration
+                            document={doc}
+                            userRole={user.role}
+                            userId={user.id}
+                            onSignatureRequestCreated={(signatureRequest) => {
+                              console.log('Signature request created:', signatureRequest);
+                            }}
+                          />
+                        )}
+
+                        {/* Admin Direct Signing */}
+                        {canSignDirectly && (
+                          <button
+                            onClick={() => handleDirectSign(doc)}
+                            className="text-green-600 hover:text-green-800 text-sm"
+                            title="Sign document directly"
+                          >
+                            ✍️
+                          </button>
+                        )}
+
                         <button
-                          onClick={() => handleDirectSign(doc)}
-                          className="text-green-600 hover:text-green-800 text-sm"
-                          title="Sign document directly"
+                          onClick={() => handleDeleteDocument(doc.id)}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                          title="Delete document"
                         >
-                          ✍️
+                          🗑️
                         </button>
-                      )}
-                      
-                      <button
-                        onClick={() => handleDeleteDocument(doc.id)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                        title="Delete document"
-                      >
-                        🗑️
-                      </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                // List View
-                <div key={doc.id} className="px-6 py-4 hover:bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex-shrink-0">
-                          <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {doc.original_filename}
-                          </p>
-                          <div className="flex items-center space-x-4 mt-1">
-                            <span className="text-xs text-gray-500">{formatFileSize(doc.file_size)}</span>
-                            <span className="text-xs text-gray-500">{formatDate(doc.created_at)}</span>
-                            {doc.folder_name && (
-                              <button
-                                onClick={() => navigateToFolder(doc.folder_name)}
-                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer"
-                              >
-                                📁 {doc.folder_name}
-                              </button>
-                            )}
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${doc.processed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                              {doc.processed ? '✓ Processed' : '⏳ Processing'}
-                            </span>
+                ) : (
+                  // List View
+                  <div key={doc.id} className="px-6 py-4 hover:bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0">
+                            <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {doc.original_filename}
+                            </p>
+                            <div className="flex items-center space-x-4 mt-1">
+                              <span className="text-xs text-gray-500">{formatFileSize(doc.file_size)}</span>
+                              <span className="text-xs text-gray-500">{formatDate(doc.created_at)}</span>
+                              {doc.folder_name && (
+                                <button
+                                  onClick={() => navigateToFolder(doc.folder_name)}
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer"
+                                >
+                                  📁 {doc.folder_name}
+                                </button>
+                              )}
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${doc.processed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                {doc.processed ? '✓ Processed' : '⏳ Processing'}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {/* E-Signature Integration */}
-                      {user && (
-                        <DocumentESignatureIntegration
-                          document={doc}
-                          userRole={user.role}
-                          userId={user.id}
-                          onSignatureRequestCreated={(signatureRequest) => {
-                            console.log('Signature request created:', signatureRequest);
-                          }}
-                        />
-                      )}
-                      
-                      {/* Admin Direct Signing */}
-                      {canSignDirectly && (
+                      <div className="flex items-center space-x-2">
+                        {/* E-Signature Integration */}
+                        {user && (
+                          <DocumentESignatureIntegration
+                            document={doc}
+                            userRole={user.role}
+                            userId={user.id}
+                            onSignatureRequestCreated={(signatureRequest) => {
+                              console.log('Signature request created:', signatureRequest);
+                            }}
+                          />
+                        )}
+
+                        {/* Admin Direct Signing */}
+                        {canSignDirectly && (
+                          <button
+                            onClick={() => handleDirectSign(doc)}
+                            className="text-green-600 hover:text-green-800 text-sm p-1"
+                            title="Sign document directly"
+                          >
+                            ✍️
+                          </button>
+                        )}
+
                         <button
-                          onClick={() => handleDirectSign(doc)}
-                          className="text-green-600 hover:text-green-800 text-sm p-1"
-                          title="Sign document directly"
+                          onClick={() => handleDeleteDocument(doc.id)}
+                          className="text-red-600 hover:text-red-800 text-sm p-1"
+                          title="Delete document"
                         >
-                          ✍️
+                          🗑️
                         </button>
-                      )}
-                      
-                      <button
-                        onClick={() => handleDeleteDocument(doc.id)}
-                        className="text-red-600 hover:text-red-800 text-sm p-1"
-                        title="Delete document"
-                      >
-                        🗑️
-                      </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            ))}
-          </div>
-        )}
-      </div>
+                )
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Admin Signing Modal */}
@@ -1901,10 +1901,10 @@ const DocumentManagement = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 Sign Document: {selectedDocumentForSigning.original_filename}
               </h3>
-              
+
               <div className="mb-4">
                 <p className="text-sm text-gray-600 mb-2">
-                  You are about to sign this document directly as {user?.role}. 
+                  You are about to sign this document directly as {user?.role}.
                   This will create a signed version of the document.
                 </p>
               </div>
@@ -1945,92 +1945,92 @@ const DocumentManagement = () => {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              
-                             <div className="mb-4">
-                 <form onSubmit={(e) => {
-                   e.preventDefault();
-                   handleUserSearch(userSearchTerm);
-                 }}>
-                   <div className="flex space-x-2">
-                     <input
-                       type="text"
-                       placeholder="Search by name, email, or username..."
-                       value={userSearchTerm}
-                       onChange={(e) => setUserSearchTerm(e.target.value)}
-                       className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                     />
-                     <button
-                       type="submit"
-                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                     >
-                       🔍 Search
-                     </button>
-                   </div>
-                 </form>
-                 
-                 <div className="mt-2 flex justify-center">
-                   <button
-                     onClick={() => {
-                       setUserSearchTerm('');
-                       setFilteredUsers(companyUsers);
-                     }}
-                     className="text-sm text-blue-600 hover:text-blue-800 underline"
-                   >
-                     Show All Users
-                   </button>
-                 </div>
-               </div>
 
-                             <div className="mb-3 flex justify-between items-center">
-                 <span className="text-sm text-gray-600">
-                   {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''} found
-                 </span>
-                 {userSearchTerm && (
-                   <button
-                     onClick={() => {
-                       setUserSearchTerm('');
-                       setFilteredUsers(companyUsers);
-                     }}
-                     className="text-sm text-blue-600 hover:text-blue-800"
-                   >
-                     Clear Search
-                   </button>
-                 )}
-               </div>
-               
-               <div className="max-h-96 overflow-y-auto">
-                 {loadingUsers ? (
-                   <div className="text-center py-4">
-                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                     <p className="text-sm text-gray-500">Loading users...</p>
-                   </div>
-                 ) : filteredUsers.length === 0 ? (
-                   <p className="text-center text-gray-500 py-4">
-                     {userSearchTerm ? 'No users found matching your search.' : 'No users available.'}
-                   </p>
-                 ) : (
-                   <div className="space-y-2">
-                     {filteredUsers.map((user) => (
-                       <div
-                         key={user.id}
-                         onClick={() => selectUser(user)}
-                         className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                       >
-                         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                           <User className="h-4 w-4 text-blue-600" />
-                         </div>
-                         <div className="flex-1">
-                           <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
-                           <p className="text-xs text-gray-500">{user.email} • {user.role}</p>
-                         </div>
-                         <div className="text-xs text-gray-400">
-                           Click to select
-                         </div>
-                       </div>
-                     ))}
-                   </div>
-                 )}
-               </div>
+              <div className="mb-4">
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  handleUserSearch(userSearchTerm);
+                }}>
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      placeholder="Search by name, email, or username..."
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      🔍 Search
+                    </button>
+                  </div>
+                </form>
+
+                <div className="mt-2 flex justify-center">
+                  <button
+                    onClick={() => {
+                      setUserSearchTerm('');
+                      setFilteredUsers(companyUsers);
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Show All Users
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-3 flex justify-between items-center">
+                <span className="text-sm text-gray-600">
+                  {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''} found
+                </span>
+                {userSearchTerm && (
+                  <button
+                    onClick={() => {
+                      setUserSearchTerm('');
+                      setFilteredUsers(companyUsers);
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Clear Search
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-96 overflow-y-auto">
+                {loadingUsers ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-sm text-gray-500">Loading users...</p>
+                  </div>
+                ) : filteredUsers.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4">
+                    {userSearchTerm ? 'No users found matching your search.' : 'No users available.'}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        onClick={() => selectUser(user)}
+                        className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <User className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                          <p className="text-xs text-gray-500">{user.email} • {user.role}</p>
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          Click to select
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

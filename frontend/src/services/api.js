@@ -1,5 +1,5 @@
-// API base URL - Production backend for Render deployment
-const API_BASE_URL = 'https://multitenant-backend-mlap.onrender.com';
+// API base URL - reads from environment variable set at build time
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://devapi.safespacelabs.cloud';
 
 // Production configuration logging
 console.log('🚀 Production API Configuration:');
@@ -23,19 +23,19 @@ const authAPI = {
       },
       body: JSON.stringify(credentials)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Login failed');
     }
-    
+
     return response.json();
   },
 
   systemAdminLogin: async (credentials) => {
     console.log('🌐 Making system admin login request to:', buildApiUrl('/api/auth/system-admin/login'));
     console.log('📤 Request payload:', credentials);
-    
+
     const response = await fetch(buildApiUrl('/api/auth/system-admin/login'), {
       method: 'POST',
       headers: {
@@ -43,16 +43,16 @@ const authAPI = {
       },
       body: JSON.stringify(credentials)
     });
-    
+
     console.log('📥 Response status:', response.status);
     console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
-    
+
     if (!response.ok) {
       const error = await response.json();
       console.error('❌ System admin login failed:', error);
       throw new Error(error.detail || 'System admin login failed');
     }
-    
+
     const data = await response.json();
     console.log('✅ System admin login successful:', data);
     return data;
@@ -66,12 +66,12 @@ const authAPI = {
       },
       body: JSON.stringify(userData)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Registration failed');
     }
-    
+
     return response.json();
   },
 
@@ -82,12 +82,12 @@ const authAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get user info');
     }
-    
+
     return response.json();
   },
 
@@ -99,12 +99,12 @@ const authAPI = {
         'Content-Type': 'application/json',
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch companies');
     }
-    
+
     return response.json();
   },
 
@@ -113,7 +113,7 @@ const authAPI = {
     const fullUrl = buildApiUrl(`/api/companies/${companyId}/public`);
     console.log('🌐 API URL:', fullUrl);
     console.log('🌐 Full URL being called:', fullUrl);
-    
+
     try {
       const response = await fetch(fullUrl, {
         method: 'GET',
@@ -121,11 +121,11 @@ const authAPI = {
           'Content-Type': 'application/json',
         }
       });
-      
+
       console.log('📥 Response status:', response.status);
       console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
       console.log('📥 Response URL:', response.url);
-      
+
       if (!response.ok) {
         // Try to parse error as JSON, fallback to text if it's HTML
         let errorMessage = 'Failed to fetch company';
@@ -144,11 +144,11 @@ const authAPI = {
         }
         throw new Error(errorMessage);
       }
-      
+
       const data = await response.json();
       console.log('✅ Company data received:', data);
       return data;
-      
+
     } catch (error) {
       console.error('❌ Company fetch error:', error);
       throw error;
@@ -168,12 +168,12 @@ const authAPI = {
         database_url: databaseUrl
       })
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Company login failed');
     }
-    
+
     return response.json();
   }
 };
@@ -188,15 +188,15 @@ const companiesAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     console.log('📥 Companies response status:', response.status);
-    
+
     if (!response.ok) {
       const error = await response.json();
       console.error('❌ Companies list failed:', error);
       throw new Error(error.detail || 'Failed to fetch companies');
     }
-    
+
     const data = await response.json();
     console.log('✅ Companies list successful:', data);
     return data;
@@ -210,15 +210,15 @@ const companiesAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     console.log('📥 Company get response status:', response.status);
-    
+
     if (!response.ok) {
       const error = await response.json();
       console.error('❌ Company get failed:', error);
       throw new Error(error.detail || 'Failed to fetch company');
     }
-    
+
     const data = await response.json();
     console.log('✅ Company get successful:', data);
     return data;
@@ -233,12 +233,12 @@ const companiesAPI = {
       },
       body: JSON.stringify(companyData)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to create company');
     }
-    
+
     return response.json();
   },
 
@@ -249,12 +249,12 @@ const companiesAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to delete company');
     }
-    
+
     return response.json();
   },
 
@@ -262,12 +262,12 @@ const companiesAPI = {
     const response = await fetch(buildApiUrl(`/api/companies/${companyId}/public`), {
       method: 'GET'
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get company public info');
     }
-    
+
     return response.json();
   },
 
@@ -278,12 +278,12 @@ const companiesAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to test company database');
     }
-    
+
     return response.json();
   },
 
@@ -294,12 +294,12 @@ const companiesAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get company statistics');
     }
-    
+
     return response.json();
   }
 };
@@ -313,18 +313,18 @@ const usersAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch users');
     }
-    
+
     return response.json();
   },
 
   create: async (userData, companyId) => {
     console.log('🚀 Creating user with data:', userData);
-    
+
     const response = await fetch(buildApiUrl('/api/user-management/create'), {
       method: 'POST',
       headers: {
@@ -333,7 +333,7 @@ const usersAPI = {
       },
       body: JSON.stringify(userData)
     });
-    
+
     if (!response.ok) {
       let error;
       try {
@@ -342,7 +342,7 @@ const usersAPI = {
         error = { detail: `HTTP ${response.status}: ${response.statusText}` };
       }
       console.error('❌ User creation failed:', response.status, error);
-      
+
       // Handle validation errors more gracefully
       if (response.status === 422 && error.detail) {
         if (Array.isArray(error.detail)) {
@@ -353,10 +353,10 @@ const usersAPI = {
           throw new Error(error.detail);
         }
       }
-      
+
       throw new Error(error.detail || `Failed to create user: ${response.status}`);
     }
-    
+
     const result = await response.json();
     console.log('✅ User created successfully:', result);
     return result;
@@ -369,12 +369,12 @@ const usersAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to delete user');
     }
-    
+
     return response.json();
   }
 };
@@ -388,12 +388,12 @@ const userManagementAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch roles');
     }
-    
+
     return response.json();
   },
 
@@ -406,12 +406,12 @@ const userManagementAPI = {
       },
       body: JSON.stringify(roleData)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to create custom role');
     }
-    
+
     return response.json();
   },
 
@@ -422,12 +422,12 @@ const userManagementAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to delete custom role');
     }
-    
+
     return response.json();
   },
 
@@ -438,12 +438,12 @@ const userManagementAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch permission actions');
     }
-    
+
     return response.json();
   },
 
@@ -456,12 +456,12 @@ const userManagementAPI = {
       },
       body: JSON.stringify({ ...inviteData, company_id: companyId })
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to invite user');
     }
-    
+
     return response.json();
   },
 
@@ -472,12 +472,12 @@ const userManagementAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch invitations');
     }
-    
+
     return response.json();
   },
 
@@ -488,12 +488,12 @@ const userManagementAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to cancel invitation');
     }
-    
+
     return response.json();
   },
 
@@ -506,12 +506,12 @@ const userManagementAPI = {
       },
       body: JSON.stringify({ ...userData, company_id: companyId })
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to update user');
     }
-    
+
     return response.json();
   },
 
@@ -572,24 +572,24 @@ const documentsAPI = {
     if (folderName !== null && folderName !== '' && folderName !== 'root') {
       url += `?folder_name=${encodeURIComponent(folderName)}`;
     }
-    
+
     console.log('📄 Making company documents list request to:', url);
-    
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     console.log('📥 Company documents response status:', response.status);
-    
+
     if (!response.ok) {
       const error = await response.json();
       console.error('❌ Company documents list failed:', error);
       throw new Error(error.detail || 'Failed to fetch documents');
     }
-    
+
     const data = await response.json();
     console.log('✅ Company documents list successful:', data);
     return data;
@@ -601,11 +601,11 @@ const documentsAPI = {
     if (folderName) {
       formData.append('folder_name', folderName);
     }
-    
+
     console.log('📤 Uploading file:', file.name, 'to folder:', folderName);
     console.log('🔗 Upload URL:', buildApiUrl('/api/documents/upload'));
     console.log('🔐 Authorization token:', localStorage.getItem('access_token') ? 'Present' : 'Missing');
-    
+
     try {
       // First, test the CORS preflight
       console.log('🧪 Testing CORS preflight...');
@@ -617,10 +617,10 @@ const documentsAPI = {
           'Access-Control-Request-Headers': 'Authorization, Content-Type'
         }
       });
-      
+
       console.log('📥 Preflight response status:', preflightResponse.status);
       console.log('📥 Preflight response headers:', Object.fromEntries(preflightResponse.headers.entries()));
-      
+
       // Now make the actual upload request
       const response = await fetch(buildApiUrl('/api/documents/upload'), {
         method: 'POST',
@@ -631,10 +631,10 @@ const documentsAPI = {
         body: formData,
         credentials: 'include' // Include credentials for CORS
       });
-      
+
       console.log('📥 Upload response status:', response.status);
       console.log('📥 Upload response headers:', Object.fromEntries(response.headers.entries()));
-      
+
       if (!response.ok) {
         let errorMessage = 'Failed to upload document';
         try {
@@ -646,7 +646,7 @@ const documentsAPI = {
         }
         throw new Error(errorMessage);
       }
-      
+
       const result = await response.json();
       console.log('✅ Upload successful:', result);
       return result;
@@ -663,12 +663,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to delete document');
     }
-    
+
     return response.json();
   },
 
@@ -679,12 +679,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get download URL');
     }
-    
+
     return response.json();
   },
 
@@ -695,12 +695,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch folders');
     }
-    
+
     return response.json();
   },
 
@@ -708,7 +708,7 @@ const documentsAPI = {
   getCategories: async () => {
     const token = localStorage.getItem('access_token');
     console.log('🔐 Getting categories with token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
-    
+
     try {
       const response = await fetch(buildApiUrl('/api/documents/categories'), {
         method: 'GET',
@@ -716,10 +716,10 @@ const documentsAPI = {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       console.log('📥 Categories response status:', response.status);
       console.log('📥 Categories response headers:', Object.fromEntries(response.headers.entries()));
-      
+
       if (!response.ok) {
         let errorMessage = 'Failed to fetch categories';
         try {
@@ -732,7 +732,7 @@ const documentsAPI = {
         }
         throw new Error(errorMessage);
       }
-      
+
       return response.json();
     } catch (error) {
       if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
@@ -748,7 +748,7 @@ const documentsAPI = {
     if (categoryId) {
       queryParams.append('category_id', categoryId);
     }
-    
+
     const url = buildApiUrl(`/api/documents/folders?${queryParams.toString()}`);
     const response = await fetch(url, {
       method: 'GET',
@@ -756,29 +756,29 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch folders');
     }
-    
+
     return response.json();
   },
 
   getEnhanced: async (params = {}) => {
     const token = localStorage.getItem('access_token');
     console.log('🔐 Getting enhanced documents with token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
-    
+
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         queryParams.append(key, value);
       }
     });
-    
+
     const url = buildApiUrl(`/api/documents/enhanced?${queryParams.toString()}`);
     console.log('🌐 Making request to:', url);
-    
+
     try {
       const response = await fetch(url, {
         method: 'GET',
@@ -786,10 +786,10 @@ const documentsAPI = {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       console.log('📥 Enhanced documents response status:', response.status);
       console.log('📥 Enhanced documents response headers:', Object.fromEntries(response.headers.entries()));
-      
+
       if (!response.ok) {
         let errorMessage = 'Failed to fetch enhanced documents';
         try {
@@ -802,7 +802,7 @@ const documentsAPI = {
         }
         throw new Error(errorMessage);
       }
-      
+
       return response.json();
     } catch (error) {
       if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
@@ -822,12 +822,12 @@ const documentsAPI = {
       },
       body: JSON.stringify(operation)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch enhanced documents');
     }
-    
+
     return response.json();
   },
 
@@ -838,12 +838,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch document statistics');
     }
-    
+
     return response.json();
   },
 
@@ -855,12 +855,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get my documents count');
     }
-    
+
     return response.json();
   },
 
@@ -871,12 +871,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get organization documents count');
     }
-    
+
     return response.json();
   },
 
@@ -887,12 +887,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get recent documents count');
     }
-    
+
     return response.json();
   },
 
@@ -903,12 +903,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get starred documents count');
     }
-    
+
     return response.json();
   },
 
@@ -919,12 +919,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get document activity logs count');
     }
-    
+
     return response.json();
   },
 
@@ -935,12 +935,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get uploads count');
     }
-    
+
     return response.json();
   },
 
@@ -951,12 +951,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get document analytics summary');
     }
-    
+
     return response.json();
   },
 
@@ -967,12 +967,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Search failed');
     }
-    
+
     return response.json();
   },
 
@@ -984,12 +984,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get HR dashboard stats');
     }
-    
+
     return response.json();
   },
 
@@ -1000,12 +1000,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get HR employees list');
     }
-    
+
     return response.json();
   },
 
@@ -1016,12 +1016,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get HR workflows list');
     }
-    
+
     return response.json();
   },
 
@@ -1032,12 +1032,12 @@ const documentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get HR compliance violations');
     }
-    
+
     return response.json();
   },
 
@@ -1273,12 +1273,12 @@ const systemChatAPI = {
       },
       body: JSON.stringify({ message })
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to send system message');
     }
-    
+
     return response.json();
   },
 
@@ -1289,12 +1289,12 @@ const systemChatAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch system chat history');
     }
-    
+
     return response.json();
   }
 };
@@ -1306,24 +1306,24 @@ const systemDocumentsAPI = {
     if (folderName !== null) {
       url += `?folder_name=${encodeURIComponent(folderName)}`;
     }
-    
+
     console.log('📄 Making system documents list request to:', url);
-    
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     console.log('📥 System documents response status:', response.status);
-    
+
     if (!response.ok) {
       const error = await response.json();
       console.error('❌ System documents list failed:', error);
       throw new Error(error.detail || 'Failed to fetch system documents');
     }
-    
+
     const data = await response.json();
     console.log('✅ System documents list successful:', data);
     return data;
@@ -1335,7 +1335,7 @@ const systemDocumentsAPI = {
     if (folderName) {
       formData.append('folder_name', folderName);
     }
-    
+
     const response = await fetch(buildApiUrl('/api/documents/system/upload'), {
       method: 'POST',
       headers: {
@@ -1343,12 +1343,12 @@ const systemDocumentsAPI = {
       },
       body: formData
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to upload system document');
     }
-    
+
     return response.json();
   },
 
@@ -1359,12 +1359,12 @@ const systemDocumentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to delete system document');
     }
-    
+
     return response.json();
   },
 
@@ -1375,12 +1375,12 @@ const systemDocumentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get download URL');
     }
-    
+
     return response.json();
   },
 
@@ -1391,12 +1391,12 @@ const systemDocumentsAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch system folders');
     }
-    
+
     return response.json();
   }
 };
@@ -1412,12 +1412,12 @@ const systemAdminAPI = {
       },
       body: JSON.stringify(adminData)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to create system admin');
     }
-    
+
     return response.json();
   },
 
@@ -1428,12 +1428,12 @@ const systemAdminAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch system admins');
     }
-    
+
     return response.json();
   },
 
@@ -1444,12 +1444,12 @@ const systemAdminAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to delete system admin');
     }
-    
+
     return response.json();
   }
 };
@@ -1463,12 +1463,12 @@ const esignatureAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to fetch e-signature requests');
     }
-    
+
     return response.json();
   },
 
@@ -1481,12 +1481,12 @@ const esignatureAPI = {
       },
       body: JSON.stringify(requestData)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to create e-signature request');
     }
-    
+
     return response.json();
   },
 
@@ -1497,12 +1497,12 @@ const esignatureAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to send e-signature request');
     }
-    
+
     return response.json();
   },
 
@@ -1513,12 +1513,12 @@ const esignatureAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to cancel e-signature request');
     }
-    
+
     return response.json();
   },
 
@@ -1529,12 +1529,12 @@ const esignatureAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get e-signature status');
     }
-    
+
     return response.json();
   },
 
@@ -1542,12 +1542,12 @@ const esignatureAPI = {
     const response = await fetch(buildApiUrl(`/api/esignature/${documentId}/status-public?recipient_email=${encodeURIComponent(recipientEmail)}`), {
       method: 'GET'
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to get e-signature status');
     }
-    
+
     return response.json();
   },
 
@@ -1556,16 +1556,16 @@ const esignatureAPI = {
     if (recipientEmail) {
       url += `?recipient_email=${encodeURIComponent(recipientEmail)}`;
     }
-    
+
     const response = await fetch(url, {
       method: 'GET'
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to view document');
     }
-    
+
     return response;
   },
 
@@ -1577,12 +1577,12 @@ const esignatureAPI = {
       },
       body: JSON.stringify(signRequest)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to sign document');
     }
-    
+
     return response.json();
   },
 
@@ -1595,12 +1595,12 @@ const esignatureAPI = {
       },
       body: JSON.stringify(signData)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to sign document directly');
     }
-    
+
     return response.json();
   },
 
@@ -1611,12 +1611,12 @@ const esignatureAPI = {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
       }
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to download signed document');
     }
-    
+
     return response.blob();
   }
 };
@@ -1629,7 +1629,7 @@ export const hrAdminAPI = {
     if (filters.includeInactive) params.append('include_inactive', 'true');
     if (filters.roleFilter) params.append('role_filter', filters.roleFilter);
     if (filters.search) params.append('search', filters.search);
-    
+
     const response = await fetch(buildApiUrl(`/api/hr-admin/company/users?${params}`), {
       method: 'GET',
       headers: {
@@ -1637,11 +1637,11 @@ export const hrAdminAPI = {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return response.json();
   },
 
@@ -1654,11 +1654,11 @@ export const hrAdminAPI = {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return response.json();
   },
 
@@ -1667,7 +1667,7 @@ export const hrAdminAPI = {
     const params = new URLSearchParams();
     if (filters.categoryFilter) params.append('category_filter', filters.categoryFilter);
     if (filters.folderFilter) params.append('folder_filter', filters.folderFilter);
-    
+
     const response = await fetch(buildApiUrl(`/api/hr-admin/company/users/${userId}/files?${params}`), {
       method: 'GET',
       headers: {
@@ -1675,11 +1675,11 @@ export const hrAdminAPI = {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return response.json();
   },
 
@@ -1692,11 +1692,11 @@ export const hrAdminAPI = {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return response.json();
   },
 
@@ -1709,11 +1709,11 @@ export const hrAdminAPI = {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return response.json();
   },
 
@@ -1727,11 +1727,11 @@ export const hrAdminAPI = {
       },
       body: JSON.stringify(lockData),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return response.json();
   },
 
@@ -1744,11 +1744,11 @@ export const hrAdminAPI = {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return response.json();
   },
 };

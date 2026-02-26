@@ -1,5 +1,5 @@
-// Align with production backend base like api.js
-const API_BASE_URL = 'https://multitenant-backend-mlap.onrender.com';
+// API base URL - reads from environment variable set at build time
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://devapi.safespacelabs.cloud';
 const buildApiUrl = (endpoint) => `${API_BASE_URL}${endpoint}`;
 
 // Helper function to make HTTP requests
@@ -13,7 +13,7 @@ const makeRequest = async (url, options = {}) => {
     },
     ...options
   });
-  
+
   if (!response.ok) {
     let errorBody;
     try {
@@ -26,7 +26,7 @@ const makeRequest = async (url, options = {}) => {
     err.body = errorBody;
     throw err;
   }
-  
+
   return response.json();
 };
 

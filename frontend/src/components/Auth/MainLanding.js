@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Building2, 
-  Shield, 
-  Users, 
-  ArrowRight, 
+import {
+  Building2,
+  Shield,
+  Users,
+  ArrowRight,
   Globe,
   Lock,
   UserCheck,
@@ -13,6 +13,8 @@ import {
   BadgeCheck,
   Search
 } from 'lucide-react';
+
+const BACKEND_BASE = process.env.REACT_APP_API_URL || 'https://devapi.safespacelabs.cloud';
 
 const MainLanding = () => {
   const [companyId, setCompanyId] = useState('');
@@ -36,33 +38,33 @@ const MainLanding = () => {
     try {
       // First test the API connection with simple GET
       console.log('🧪 Testing API connection...');
-      const testResponse = await fetch('https://multitenant-backend-mlap.onrender.com/test-cors', {
+      const testResponse = await fetch(`${BACKEND_BASE}/test-cors`, {
         method: 'GET',
         mode: 'cors'
       });
       console.log('🔗 API test response:', testResponse.status, testResponse.ok);
-      
+
       if (!testResponse.ok) {
         throw new Error(`API connection failed: ${testResponse.status}`);
       }
 
       // Verify company exists before redirecting
       console.log('🔍 Looking up company:', companyId.trim());
-      
+
       // Test the specific company endpoint directly
-      const companyResponse = await fetch(`https://multitenant-backend-mlap.onrender.com/api/companies/${companyId.trim()}/public`, {
+      const companyResponse = await fetch(`${BACKEND_BASE}/api/companies/${companyId.trim()}/public`, {
         method: 'GET',
         mode: 'cors'
       });
       console.log('🏢 Company API response:', companyResponse.status, companyResponse.ok);
-      
+
       if (!companyResponse.ok) {
         throw new Error(`Company lookup failed: ${companyResponse.status}`);
       }
-      
+
       const companyData = await companyResponse.json();
       console.log('📋 Company data:', companyData);
-      
+
       console.log('✅ Company found, navigating...');
       navigate(`/company/${companyId.trim()}/access`);
     } catch (error) {
@@ -72,7 +74,7 @@ const MainLanding = () => {
         response: error.response,
         status: error.response?.status
       });
-      
+
       if (error.message.includes('API connection failed')) {
         setError('Unable to connect to the server. Please try again later.');
       } else if (error.response?.status === 404) {
@@ -118,14 +120,14 @@ const MainLanding = () => {
             Welcome to Your Document Management Portal
           </h2>
           <p className="text-base text-gray-600 max-w-2xl mx-auto">
-            Secure, scalable, and intelligent document management for modern enterprises. 
+            Secure, scalable, and intelligent document management for modern enterprises.
             Choose your access method below to get started.
           </p>
         </div>
 
         {/* Main Access Options */}
         <div className="space-y-6 mb-10">
-          
+
           {/* System Admin Access Row */}
           <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-1.5 shadow-lg">
             <div className="bg-white rounded-lg shadow-md overflow-hidden border border-red-100">
@@ -144,7 +146,7 @@ const MainLanding = () => {
                     System Admin Access
                   </h4>
                   <p className="text-base text-gray-600 mb-4 max-w-xl mx-auto">
-                    Complete control over the entire system. Manage all companies, databases, 
+                    Complete control over the entire system. Manage all companies, databases,
                     user accounts, and system-level configurations.
                   </p>
                   <div className="flex items-center justify-center text-sm text-gray-500 mb-6">
@@ -291,8 +293,8 @@ const MainLanding = () => {
           */}
         </div>
 
-                 {/* Quick Company Access - HIDDEN: Company login is accessible via direct URL only */}
-         {/*
+        {/* Quick Company Access - HIDDEN: Company login is accessible via direct URL only */}
+        {/*
          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl shadow-lg p-8 mb-8 border border-green-200">
            <div className="text-center">
              <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
@@ -318,8 +320,8 @@ const MainLanding = () => {
          </div>
          */}
 
-         {/* How It Works Section */}
-         <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-lg p-8">
+        {/* How It Works Section */}
+        <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-lg p-8">
           <div className="text-center mb-8">
             <h3 className="text-2xl font-bold text-gray-900 mb-3">
               How It Works
@@ -328,7 +330,7 @@ const MainLanding = () => {
               Simple, secure access tailored to your role and organization
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* System Admin Flow */}
             <div className="bg-white rounded-lg p-6 shadow-md border border-red-100">
@@ -415,7 +417,7 @@ const MainLanding = () => {
               <h4 className="text-lg font-bold text-blue-900">Security & Privacy Guarantee</h4>
             </div>
             <p className="text-base text-blue-800 text-center max-w-3xl mx-auto leading-relaxed">
-              Each company operates in <strong>complete isolation</strong>. Company data, users, and documents are 
+              Each company operates in <strong>complete isolation</strong>. Company data, users, and documents are
               fully separated with military-grade encryption, ensuring maximum security and privacy for your organization.
             </p>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-blue-700">
